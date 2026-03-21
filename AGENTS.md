@@ -1,47 +1,31 @@
-# Ralph Agent Instructions
+# Ralph — Autonomous Coding Agent for GitHub Copilot
 
 ## Overview
 
-Ralph is an autonomous AI agent loop that runs AI coding tools (Amp or Claude Code) repeatedly until all PRD items are complete. Each iteration is a fresh instance with clean context.
+Ralph is an autonomous coding agent for VS Code with GitHub Copilot. It implements user stories from a `prd.json` file one at a time, with fresh context per invocation. Memory persists via git history, `progress.txt`, and `prd.json`.
 
-## Commands
+## Workflow
 
-```bash
-# Run the flowchart dev server
-cd flowchart && npm run dev
-
-# Build the flowchart
-cd flowchart && npm run build
-
-# Run Ralph with Amp (default)
-./ralph.sh [max_iterations]
-
-# Run Ralph with Claude Code
-./ralph.sh --tool claude [max_iterations]
-```
+1. **`/prd`** — Generate a Product Requirements Document (slash command)
+2. **`/ralph`** — Convert the PRD to `prd.json` format (slash command)
+3. **`@ralph`** — Implement the next user story (custom agent — start a new chat each time)
+4. Repeat step 3 in a new chat until `@ralph` reports all stories complete
 
 ## Key Files
 
-- `ralph.sh` - The bash loop that spawns fresh AI instances (supports `--tool amp` or `--tool claude`)
-- `prompt.md` - Instructions given to each AMP instance
--  `CLAUDE.md` - Instructions given to each Claude Code instance
-- `prd.json.example` - Example PRD format
-- `flowchart/` - Interactive React Flow diagram explaining how Ralph works
-
-## Flowchart
-
-The `flowchart/` directory contains an interactive visualization built with React Flow. It's designed for presentations - click through to reveal each step with animations.
-
-To run locally:
-```bash
-cd flowchart
-npm install
-npm run dev
-```
+| File | Purpose |
+|------|---------|
+| `.github/agents/ralph.agent.md` | The `@ralph` custom agent — implements one story per invocation |
+| `.github/skills/prd/SKILL.md` | `/prd` slash command — generates PRDs |
+| `.github/skills/ralph/SKILL.md` | `/ralph` slash command — converts PRDs to `prd.json` |
+| `prd.json` | User stories with `passes` status (created per-project) |
+| `prd.json.example` | Example PRD format for reference |
+| `progress.txt` | Append-only learnings for future iterations (created per-project) |
 
 ## Patterns
 
-- Each iteration spawns a fresh AI instance (Amp or Claude Code) with clean context
+- Each `@ralph` invocation = fresh context (start a new chat for each story)
 - Memory persists via git history, `progress.txt`, and `prd.json`
 - Stories should be small enough to complete in one context window
-- Always update AGENTS.md with discovered patterns for future iterations
+- Always update `AGENTS.md` with discovered patterns for future iterations
+- Read `progress.txt` Codebase Patterns section before starting each story
