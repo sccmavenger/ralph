@@ -1,0 +1,60 @@
+name: Refresh Knowledge Base
+
+on:
+  schedule:
+    # Run every 12 hours at 6:00 AM and 6:00 PM UTC
+    - cron: "0 6,18 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger KB Refresh
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://themsftoolkit.com/api/cron/refresh-kb" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300)
+          
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "::error::KB refresh failed with status $http_code"
+            exit 1
+          fi
+name: Refresh Knowledge Base
+
+on:
+  schedule:
+    # Run every 12 hours at 6:00 AM and 6:00 PM UTC
+    - cron: "0 6,18 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger KB Refresh
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://themsftoolkit.com/api/cron/refresh-kb" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300)
+          
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "::error::KB refresh failed with status $http_code"
+            exit 1
+          fi
