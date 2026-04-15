@@ -1,0 +1,1039 @@
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\admin-ai-dashboard.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Admin AI Dashboard", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\admin-ai-dashboard.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\admin-panel.spec.ts:74
+
+  72 | // ΓöÇΓöÇ Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  73 |
+> 74 | test.describe("Admin Panel E2E Tests", () => {
+     |      ^
+  75 |   // TC-001: Admin login with correct password ΓåÆ redirects to /admin/dashboard
+  76 |   test("TC-001: admin login with correct password", async ({ page }) => {
+  77 |     const adminPassword = getEnvVar("ADMIN_PASSWORD");
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\admin-panel.spec.ts:74:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\advisor-chat.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("AI Advisor Chat", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\advisor-chat.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\advisor-conversation.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Advisor Conversation Memory", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\advisor-conversation.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\advisor-feedback.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("AI Advisor Feedback Buttons", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\advisor-feedback.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\advisor-freemium.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Advisor Freemium Gating", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\advisor-freemium.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\analyze-page.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Analyze Page", () => {
+    |      ^
+  4 |   test("navigate to /analyze ΓÇö shows Fight Analyzer heading", async ({
+  5 |     page,
+  6 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\analyze-page.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\cumulative-chat-ui.spec.ts:10
+
+   8 | import { test, expect } from "@playwright/test";
+   9 |
+> 10 | test.describe("Cumulative Regression ΓÇö Chat UI", () => {
+     |      ^
+  11 |   test.beforeEach(async ({ page }) => {
+  12 |     // Suppress install app modal
+  13 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\cumulative-chat-ui.spec.ts:10:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\cumulative-gaps-notifications.spec.ts:10
+
+   8 | import { test, expect } from "@playwright/test";
+   9 |
+> 10 | test.describe("Cumulative Regression ΓÇö Gaps & Notifications", () => {
+     |      ^
+  11 |   test.beforeEach(async ({ page }) => {
+  12 |     // Suppress install app modal
+  13 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\cumulative-gaps-notifications.spec.ts:10:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dashboard-command-center.spec.ts:152
+
+  150 | /* ========================================================================== */
+  151 |
+> 152 | test.describe("Farming Targets Widget", () => {
+      |      ^
+  153 |   test("widget renders on dashboard with character entries, portraits, star ratings, node labels, and reason badges", async ({ page }) => {
+  154 |     await setupPage(page, "/dashboard");
+  155 |     const widget = page.locator('[data-testid="farming-targets-widget"]');
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dashboard-command-center.spec.ts:152:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dashboard-page.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Dashboard Page", () => {
+    |      ^
+  4 |   test("navigate to /dashboard ΓÇö page loads with welcome heading", async ({
+  5 |     page,
+  6 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dashboard-page.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-confidence.spec.ts:94
+
+  92 | }
+  93 |
+> 94 | test.describe("DD Confidence and Alternatives", () => {
+     |      ^
+  95 |   test("Confidence score element is visible with numeric value between 0 and 100", async ({
+  96 |     page,
+  97 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-confidence.spec.ts:94:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-eligibility.spec.ts:55
+
+  53 | }
+  54 |
+> 55 | test.describe("DD Eligibility Filter", () => {
+     |      ^
+  56 |   test("allTraits AND enforcement excludes characters missing any required trait", async ({
+  57 |     page,
+  58 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-eligibility.spec.ts:55:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-farming-gaps.spec.ts:50
+
+  48 | };
+  49 |
+> 50 | test.describe("Farming Gaps API - /api/msf/farming/gaps", () => {
+     |      ^
+  51 |   test("returns gap items with required fields via mock", async ({ page }) => {
+  52 |     await page.route("**/api/msf/farming/gaps*", (route) =>
+  53 |       route.fulfill({
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-farming-gaps.spec.ts:50:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-future-builds.spec.ts:101
+
+   99 | }
+  100 |
+> 101 | test.describe("DD Future Builds and Gear Origin", () => {
+      |      ^
+  102 |   test("Future build suggestions section appears with at least 1 suggestion when roster is weak", async ({
+  103 |     page,
+  104 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-future-builds.spec.ts:101:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-node-intel.spec.ts:108
+
+  106 | }
+  107 |
+> 108 | test.describe("DD Node Intelligence", () => {
+      |      ^
+  109 |   test("Select a node ΓÇö enemy intelligence panel appears with enemy entries", async ({
+  110 |     page,
+  111 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-node-intel.spec.ts:108:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-planner-api.spec.ts:90
+
+  88 | }
+  89 |
+> 90 | test.describe("DD Planner API", () => {
+     |      ^
+  91 |   test("GET /api/msf/planner/dd returns DD list with id, name, nodeCount", async ({
+  92 |     page,
+  93 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-planner-api.spec.ts:90:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-planner-page.spec.ts:57
+
+  55 | }
+  56 |
+> 57 | test.describe("DD Planner Page", () => {
+     |      ^
+  58 |   test("DD selector is visible and lists at least one DD", async ({ page }) => {
+  59 |     await setupMockRoutes(page);
+  60 |     await page.goto("/analyze/dd-planner");
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-planner-page.spec.ts:57:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-recommend-api.spec.ts:35
+
+  33 | }
+  34 |
+> 35 | test.describe("DD Recommendation API", () => {
+     |      ^
+  36 |   test("POST /api/msf/planner/dd/recommend returns primaryTeam and confidence", async ({
+  37 |     page,
+  38 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-recommend-api.spec.ts:35:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-recommend-farming.spec.ts:93
+
+  91 | };
+  92 |
+> 93 | test.describe(
+     |      ^
+  94 |   "Farming Recommendations API - /api/msf/farming/recommendations",
+  95 |   () => {
+  96 |     test("requires authentication", async ({ page }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-recommend-farming.spec.ts:93:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\dd-recommendation.spec.ts:100
+
+   98 | }
+   99 |
+> 100 | test.describe("DD Recommendation Display", () => {
+      |      ^
+  101 |   test("Select a node and click Get Recommendation ΓÇö recommendation card appears", async ({
+  102 |     page,
+  103 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\dd-recommendation.spec.ts:100:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\faq-page.spec.ts:37
+
+  35 | ];
+  36 |
+> 37 | test.describe("FAQ Page", () => {
+     |      ^
+  38 |   test.beforeEach(async ({ page }) => {
+  39 |     await suppressInstallModal(page);
+  40 |     await page.goto("/faq");
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\faq-page.spec.ts:37:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\farming-guide.spec.ts:189
+
+  187 | // ΓöÇΓöÇ Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  188 |
+> 189 | test.describe("Farming Guide ΓÇö E2E Tests", () => {
+      |      ^
+  190 |   // TC-001: Farming Page Loads with Campaign Nodes
+  191 |   test("TC-001: page loads and shows all 18 campaign nodes", async ({
+  192 |     page,
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\farming-guide.spec.ts:189:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\heroes-page.spec.ts:24
+
+  22 | }
+  23 |
+> 24 | test.describe("Heroes Page", () => {
+     |      ^
+  25 |   test("navigate to /heroes ΓÇö shows Character Database heading and filter controls", async ({
+  26 |     page,
+  27 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\heroes-page.spec.ts:24:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\install-app-modal.spec.ts:43
+
+  41 | // ΓöÇΓöÇ Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  42 |
+> 43 | test.describe("Install App Modal ΓÇö E2E Tests", () => {
+     |      ^
+  44 |   // TC-001: Modal NOT visible in standalone mode
+  45 |   test("TC-001: modal not visible in standalone mode", async ({ page }) => {
+  46 |     await mockAppRoutes(page);
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\install-app-modal.spec.ts:43:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\notifications.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Commander Notifications", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     await page.addInitScript(() => {
+  6 |       Object.defineProperty(window.navigator, "standalone", { value: true });
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\notifications.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\offline-fallback.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Offline Fallback", () => {
+    |      ^
+  4 |   test.beforeEach(async ({ page }) => {
+  5 |     // Suppress install app modal
+  6 |     await page.addInitScript(() => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\offline-fallback.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-caching.spec.ts:7
+
+   5 | } from "./fixtures/planner-mock-data";
+   6 |
+>  7 | test.describe("Planner Server-Side Data Caching", () => {
+     |      ^
+   8 |   test("GET /api/msf/planner/events twice in rapid succession ΓÇö second request returns faster proving cache", async ({
+   9 |     page,
+  10 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-caching.spec.ts:7:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-dashboard-widget.spec.ts:4
+
+  2 | import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
+  3 |
+> 4 | test.describe("Planner Dashboard Summary Widget", () => {
+    |      ^
+  5 |   test("navigate to /dashboard ΓÇö PlannerSummary widget is visible below the existing dashboard overview", async ({
+  6 |     page,
+  7 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-dashboard-widget.spec.ts:4:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-event-detail.spec.ts:4
+
+  2 | import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
+  3 |
+> 4 | test.describe("Planner Event Detail", () => {
+    |      ^
+  5 |   test("with no event selected, shows 'Select an event above to see details'", async ({
+  6 |     page,
+  7 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-event-detail.spec.ts:4:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-events-api.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Planner Events API", () => {
+    |      ^
+  4 |   // Check if authenticated session has a valid MSF API token
+  5 |   let apiAvailable = true;
+  6 |
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-events-api.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-gaps-api.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Planner Gaps API", () => {
+    |      ^
+  4 |   let apiAvailable = true;
+  5 |
+  6 |   test.beforeAll(async ({ request }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-gaps-api.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-page.spec.ts:4
+
+  2 | import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
+  3 |
+> 4 | test.describe("Planner Page", () => {
+    |      ^
+  5 |   test("navigate to /planner ΓÇö page loads and shows 'Investment Planner' heading", async ({
+  6 |     page,
+  7 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-page.spec.ts:4:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-priorities-api.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Planner Priorities API", () => {
+    |      ^
+  4 |   let apiAvailable = true;
+  5 |
+  6 |   test.beforeAll(async ({ request }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-priorities-api.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-priority-list.spec.ts:4
+
+  2 | import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
+  3 |
+> 4 | test.describe("Planner Priority List", () => {
+    |      ^
+  5 |   test("navigate to /planner ΓÇö PriorityList section renders with 'Top Investments' heading", async ({
+  6 |     page,
+  7 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-priority-list.spec.ts:4:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\planner-timeline.spec.ts:4
+
+  2 | import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
+  3 |
+> 4 | test.describe("Planner Timeline", () => {
+    |      ^
+  5 |   test("EventTimeline renders with at least one event card", async ({
+  6 |     page,
+  7 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\planner-timeline.spec.ts:4:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\profile-page.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Profile Page", () => {
+    |      ^
+  4 |   test("navigate to /profile ΓÇö shows commander name and email section", async ({
+  5 |     page,
+  6 |   }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\profile-page.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\roster-page.spec.ts:48
+
+  46 | }
+  47 |
+> 48 | test.describe("Roster Page", () => {
+     |      ^
+  49 |   test("navigate to /roster ΓÇö shows My Roster heading", async ({ page }) => {
+  50 |     await setupMock(page);
+  51 |     await page.goto("/roster");
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\roster-page.spec.ts:48:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\stripe-monetization.spec.ts:65
+
+  63 | // ΓöÇΓöÇ UX Tests (mocked, no Stripe keys needed) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  64 |
+> 65 | test.describe("Stripe Monetization ΓÇö UX Tests", () => {
+     |      ^
+  66 |   // TC-001: Free user sees dashboard without paywall
+  67 |   test("TC-001: free user sees dashboard without paywall", async ({
+  68 |     page,
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\stripe-monetization.spec.ts:65:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\team-builder.spec.ts:222
+
+  220 | }
+  221 |
+> 222 | test.describe("Team Builder", () => {
+      |      ^
+  223 |   test.beforeEach(async ({ page }) => {
+  224 |     await mockTeamBuilderRoutes(page);
+  225 |     // Prevent install app modal from showing by faking standalone mode
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\team-builder.spec.ts:222:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\teams-page.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Teams Page", () => {
+    |      ^
+  4 |   test("navigate to /teams ΓÇö shows Team Builder heading", async ({ page }) => {
+  5 |     await page.goto("/teams");
+  6 |     await expect(page.getByRole("heading", { name: "Team Builder" })).toBeVisible();
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\teams-page.spec.ts:3:6)
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+   at msf-companion\e2e\upgrade-calculator.spec.ts:3
+
+  1 | import { test, expect } from "@playwright/test";
+  2 |
+> 3 | test.describe("Upgrade Calculator", () => {
+    |      ^
+  4 |   let apiAvailable = true;
+  5 |
+  6 |   test.beforeAll(async ({ request }) => {
+    at TestTypeImpl._currentSuite (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:75:13)
+    at TestTypeImpl._describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\common\testType.js:115:24)
+    at Function.describe (C:\GitHub_Projects\ralph\msf-companion\node_modules\playwright\lib\transform\transform.js:282:12)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\e2e\upgrade-calculator.spec.ts:3:6)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\config\channelRegistry.test.ts:1
+
+> 1 | import { describe, it, expect } from "vitest";
+    | ^
+  2 | import {
+  3 |   channelRegistry,
+  4 |   getEnabledChannels,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\config\channelRegistry.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\aiProcessor.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import {
+  3 |   processTranscript,
+  4 |   OpenAIClient,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\aiProcessor.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\blogScraper.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import {
+  3 |   extractBlogLinks,
+  4 |   classifyBlogPost,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\blogScraper.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\contentFilter.test.ts:1
+
+> 1 | import { describe, it, expect } from "vitest";
+    | ^
+  2 | import {
+  3 |   containsMsfKeyword,
+  4 |   isNegativeFiltered,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\contentFilter.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\searchIndex.test.ts:1
+
+> 1 | import { describe, it, expect } from "vitest";
+    | ^
+  2 | import {
+  3 |   INDEX_NAME,
+  4 |   INDEX_SCHEMA,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\searchIndex.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\transcriptPipeline.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import { stripSrtFormatting } from "./transcriptExtractor.js";
+  3 | import { processVideoTranscript, TranscriptDeps } from "./transcriptPipeline.js";
+  4 | import { InvocationContext } from "@azure/functions";
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\transcriptPipeline.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\src\lib\videoDiscovery.test.ts:1
+
+> 1 | import { describe, it, expect, vi, beforeEach } from "vitest";
+    | ^
+  2 | import { discoverVideos, DiscoveryDeps, VideoDocument } from "./videoDiscovery.js";
+  3 | import { YouTubeVideo, YouTubeRateLimitError, YouTubeAuthError } from "./youtubeClient.js";
+  4 | import { ChannelEntry } from "../config/channelRegistry.js";
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\src\lib\videoDiscovery.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\cumulativePipeline.test.ts:8
+
+   6 |  * US-092 through US-098 with cross-function integration scenarios.
+   7 |  */
+>  8 | import { describe, it, expect, vi, beforeEach } from "vitest";
+     | ^
+   9 | import {
+  10 |   containsMsfKeyword,
+  11 |   isNegativeFiltered,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\cumulativePipeline.test.ts:8:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\eventAlerts.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import {
+  3 |   detectEventAlerts,
+  4 |   EventAlertDeps,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\eventAlerts.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\gapAnalysis.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import { analyzeGaps, GapAnalysisDeps } from "../src/functions/gapAnalysis";
+  3 | import { InvocationContext } from "@azure/functions";
+  4 |
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\gapAnalysis.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\gapNotification.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import {
+  3 |   sendGapNotifications,
+  4 |   NotificationDeps,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\gapNotification.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\questionRouter.test.ts:1
+
+> 1 | import { describe, it, expect } from "vitest";
+    | ^
+  2 | import { heuristicClassify, getModelForComplexity } from "../../src/lib/question-router";
+  3 |
+  4 | describe("Question Router", () => {
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\questionRouter.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\staticFallback.test.ts:1
+
+> 1 | import { describe, it, expect, vi, beforeEach } from "vitest";
+    | ^
+  2 |
+  3 | // Mock cosmos client
+  4 | vi.mock("../src/lib/cosmosClient", () => ({
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\staticFallback.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\tokenBudgets.test.ts:1
+
+> 1 | import { describe, it, expect, vi, beforeEach } from "vitest";
+    | ^
+  2 |
+  3 | // Mock Prisma
+  4 | const mockPrisma = {
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\tokenBudgets.test.ts:1:1)
+Error: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.
+
+   at msf-companion\functions\tests\weeklyEmailDigest.test.ts:1
+
+> 1 | import { describe, it, expect, vi } from "vitest";
+    | ^
+  2 | import {
+  3 |   sendWeeklyDigests,
+  4 |   EmailDigestDeps,
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\node_modules\vitest\index.cjs:1:7)
+    at Object.<anonymous> (C:\GitHub_Projects\ralph\msf-companion\functions\tests\weeklyEmailDigest.test.ts:1:1)
+Error: No tests found
+

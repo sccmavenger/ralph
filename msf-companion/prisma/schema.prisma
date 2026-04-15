@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Commander {
+  id                       String              @id @default(cuid())
+  scopelyId                String              @unique
+  email                    String?
+  displayName              String?
+  hasCompletedOnboarding   Boolean             @default(false)
+  onboardingLastShownAt    DateTime?
+  emailPromptSkippedAt     DateTime?
+  subscriptionTier         String              @default("FREE")
+  stripeCustomerId         String?             @unique
+  stripeSubscriptionId     String?             @unique
+  stripeCurrentPeriodEnd   DateTime?
+  lastLoginAt              DateTime?
+  disabled                 Boolean             @default(false)
+  advisorQuestionsToday    Int                 @default(0)
+  advisorQuestionsResetAt  DateTime?
+  emailDigestOptOut        Boolean             @default(false)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  rosterSnapshots          RosterSnapshot[]
+  inventorySnapshots       InventorySnapshot[]
+  advisorConversations     AdvisorConversation[]
+  advisorQuestionLogs      AdvisorQuestionLog[]
+  notifications            CommanderNotification[]
+  dailyTips                DailyTip[]
+  pushSubscriptions        PushSubscription[]
+  dailyTokenUsages         DailyTokenUsage[]
+}
+
+model RosterSnapshot {
+  id           String    @id @default(cuid())
+  commanderId  String
+  snapshotData Json
+  createdAt    DateTime  @default(now())
+  commander    Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+}
+
+model InventorySnapshot {
+  id           String    @id @default(cuid())
+  commanderId  String
+  snapshotData Json
+  createdAt    DateTime  @default(now())
+  commander    Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+}
+
+model AdvisorConversation {
+  id          String           @id @default(cuid())
+  commanderId String
+  title       String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  commander   Commander        @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+  messages    AdvisorMessage[]
+
+  @@index([commanderId])
+}
+
+model AdvisorMessage {
+  id              String              @id @default(cuid())
+  conversationId  String
+  role            String
+  content         String
+  confidenceScore Int?
+  sourceCitations Json?
+  feedback        String?
+  feedbackComment String?
+  modelUsed       String?
+  tokenCount      Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  conversation    AdvisorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model AdvisorQuestionLog {
+  id                   String   @id @default(cuid())
+  commanderId          String
+  question             String
+  category             String
+  confidenceScore      Int
+  answeredSuccessfully Boolean
+  knowledgeSourcesUsed Json?
+  createdAt            DateTime @default(now())
+  commander            Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+  @@index([answeredSuccessfully])
+}
+
+model KnowledgeGap {
+  id                String    @id @default(cuid())
+  clusteredQuestion String
+  category          String
+  gapType           String
+  frequency         Int       @default(1)
+  status            String    @default("open")
+  autoResolveAction String?
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model CommanderNotification {
+  id          String   @id @default(cuid())
+  commanderId String
+  type        String
+  title       String
+  message     String
+  linkUrl     String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+  @@index([read])
+}
+
+model DailyTip {
+  id                String    @id @default(cuid())
+  commanderId       String
+  content           String
+  sourceCreatorName String?
+  sourceUrl         String?
+  generatedAt       DateTime  @default(now())
+  dismissedAt       DateTime?
+  commander         Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+}
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  commanderId String
+  endpoint    String
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now())
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+  @@unique([commanderId, endpoint])
+}
+
+model DailyTokenUsage {
+  id          String   @id @default(cuid())
+  commanderId String
+  date        DateTime @db.Date
+  tokensUsed  Int      @default(0)
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@unique([commanderId, date])
+  @@index([commanderId])
+}
+
+model FeatureFlag {
+  id      String  @id @default(cuid())
+  key     String  @unique
+  enabled Boolean @default(false)
+}
+
+model ApiCache {
+  id           String   @id @default(cuid())
+  endpoint     String   @unique
+  hashValue    String
+  responseData Json
+  cachedAt     DateTime @default(now())
+}

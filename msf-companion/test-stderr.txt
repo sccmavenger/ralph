@@ -1,0 +1,466 @@
+[WebServer] ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Failed to fetch episodic 63dadc68f46dde24ed7a05f4/ECM_APOCALYPSE_C: Error: MSF API error 502: <html>
+[WebServer] <head><title>502 Bad Gateway</title></head>
+[WebServer] <body>
+[WebServer] <center><h1>502 Bad Gateway</h1></center>
+[WebServer] <hr><center>nginx/1.23.4</center>
+[WebServer] </body>
+[WebServer] </html>
+[WebServer] 
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchNormalizedEvents (src\lib\planner-events.ts:201:26)
+[WebServer]     at async GET (src\app\api\msf\farming\targets\route.ts:158:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Failed to fetch episodic 672bd54de427d99fe190b59a/XTREMEXMEN_UNLOCK: Error: MSF API error 502: <html>
+[WebServer] <head><title>502 Bad Gateway</title></head>
+[WebServer] <body>
+[WebServer] <center><h1>502 Bad Gateway</h1></center>
+[WebServer] <hr><center>nginx/1.23.4</center>
+[WebServer] </body>
+[WebServer] </html>
+[WebServer] 
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchNormalizedEvents (src\lib\planner-events.ts:201:26)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Chapter fetch failed: Error: MSF API error 502: <html>
+[WebServer] <head><title>502 Bad Gateway</title></head>
+[WebServer] <body>
+[WebServer] <center><h1>502 Bad Gateway</h1></center>
+[WebServer] <hr><center>nginx/1.23.4</center>
+[WebServer] </body>
+[WebServer] </html>
+[WebServer] 
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchChapterNodes (src\lib\farming-service.ts:338:15)
+[WebServer]     at async fetchCampaignNodes (src\lib\farming-service.ts:273:21)
+[WebServer]     at async GET (src\app\api\msf\farming\targets\route.ts:158:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Farming targets fetch failed: Error: MSF API error 502: <html>
+[WebServer] <head><title>502 Bad Gateway</title></head>
+[WebServer] <body>
+[WebServer] <center><h1>502 Bad Gateway</h1></center>
+[WebServer] <hr><center>nginx/1.23.4</center>
+[WebServer] </body>
+[WebServer] </html>
+[WebServer] 
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchFullRoster (src\app\api\msf\farming\targets\route.ts:76:19)
+[WebServer]     at async GET (src\app\api\msf\farming\targets\route.ts:158:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "5f83c95c3fc51beac978",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "68d07eb0e0c7aa2fe99e"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;

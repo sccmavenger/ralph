@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+.azure
+infra
+*.md
+.env*
+playwright-report
+test-results
+e2e

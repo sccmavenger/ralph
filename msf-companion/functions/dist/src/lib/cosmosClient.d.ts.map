@@ -1,0 +1,1 @@
+{"version":3,"file":"cosmosClient.d.ts","sourceRoot":"","sources":["../../../src/lib/cosmosClient.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,EAAgB,SAAS,EAAE,QAAQ,EAAE,MAAM,eAAe,CAAC;AAgBlE,wBAAgB,WAAW,IAAI,QAAQ,CAMtC;AAED,wBAAgB,YAAY,CAAC,aAAa,EAAE,MAAM,GAAG,SAAS,CAE7D;AAED,+BAA+B;AAC/B,wBAAgB,YAAY,IAAI,IAAI,CAGnC"}

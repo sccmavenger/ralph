@@ -1,0 +1,1166 @@
+[WebServer] ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+Running 268 tests using 1 worker
+
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+  Γ£ô    1 [setup] ΓÇ║ e2e\global-setup.ts:20:6 ΓÇ║ authenticate via captured tokens (4.3s)
+  Γ£ô    2 [chromium] ΓÇ║ e2e\admin-ai-dashboard.spec.ts:18:7 ΓÇ║ Admin AI Dashboard ΓÇ║ unauthenticated user is redirected from /admin/ai-dashboard (1.4s)
+  Γ£ô    3 [chromium] ΓÇ║ e2e\admin-ai-dashboard.spec.ts:24:7 ΓÇ║ Admin AI Dashboard ΓÇ║ dashboard loads at /admin/ai-dashboard with mock data (772ms)
+  Γ£ô    4 [chromium] ΓÇ║ e2e\admin-ai-dashboard.spec.ts:71:7 ΓÇ║ Admin AI Dashboard ΓÇ║ page renders without horizontal overflow at 375px viewport (757ms)
+  Γ£ô    5 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:76:7 ΓÇ║ Admin Panel E2E Tests ΓÇ║ TC-001: admin login with correct password (1.1s)
+  Γ£ô    6 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:90:7 ΓÇ║ Admin Panel E2E Tests ΓÇ║ TC-002: admin login with wrong password (823ms)
+  Γ£ô    7 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:105:7 ΓÇ║ Admin Panel E2E Tests ΓÇ║ TC-003: unauthenticated /admin/dashboard redirects to /admin (768ms)
+  Γ£ÿ    8 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:138:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-004: commander table displays with correct columns (692ms)
+  Γ£ô    9 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:172:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-005: search filter narrows results (1.4s)
+  Γ£ÿ   10 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:209:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-006: disable and enable commander (5.7s)
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+  Γ£ÿ   11 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:255:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-007: toggle premium tier (6.3s)
+  Γ£ÿ   12 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:294:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-008: delete commander removes row (30.1s)
+  Γ£ô   13 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:319:7 ΓÇ║ Admin Panel E2E Tests ΓÇ║ TC-009: admin logout clears session (1.3s)
+  Γ£ô   14 [chromium] ΓÇ║ e2e\admin-panel.spec.ts:341:7 ΓÇ║ Admin Panel E2E Tests ΓÇ║ TC-010: disabled user sees blocked message on dashboard (893ms)
+  Γ£ÿ   15 [chromium] ΓÇ║ e2e\advisor-chat.spec.ts:18:7 ΓÇ║ AI Advisor Chat ΓÇ║ advisor page loads with welcome message visible (5.7s)
+[31mTesting stopped early after 5 maximum allowed failures.[39m
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Token refresh failed: 401 {"error":"token_inactive","error_description":"Token is inactive because it is malformed, expired or otherwise invalid. Token validation failed."}
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Farming targets fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchFullRoster (src\app\api\msf\farming\targets\route.ts:63:17)
+[WebServer]     at async GET (src\app\api\msf\farming\targets\route.ts:158:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async fetchFullRoster (src\app\api\msf\war-meta\route.ts:128:17)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Failed to fetch player card: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async ProfilePage (src\app\(app)\profile\page.tsx:34:16)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] [browser] Image with src "/icons/icon-192.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] [browser] Image with src "/icons/icon-192.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] [browser] Image with src "/icons/icon-192.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] [browser] Image with src "/icons/icon-192.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[WebServer] [browser] Image with src "/icons/icon-192.svg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] War meta fetch failed: Error: MSF API error 472: {
+[WebServer] 	"meta": {
+[WebServer] 		"version": 1,
+[WebServer] 		"hashes": {
+[WebServer] 			"events": "2c79e16970d4854fd537",
+[WebServer] 			"drops": "be2993e201255aed8a84",
+[WebServer] 			"locs": "b5a4c0a29a8fa6fd6338",
+[WebServer] 			"nodes": "cb316a5790ba6d9ca264",
+[WebServer] 			"chars": "b54b4ae4702758db225c",
+[WebServer] 			"other": "c354b9a24af9a0cad54e",
+[WebServer] 			"all": "f7d0adca4d7f07af7120"
+[WebServer] 		},
+[WebServer] 		"perTotal": 489
+[WebServer] 	},
+[WebServer] 	"error": {
+[WebServer] 		"code": 472,
+[WebServer] 		"subcode": "RESPONSE_TOO_LARGE",
+[WebServer] 		"message": "Response Too Large",
+[WebServer] 		"length": 605551,
+[WebServer] 		"maxLength": 472000
+[WebServer] 	}
+[WebServer] }
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\war-meta\route.ts:181:48)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner gaps fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\gaps\route.ts:53:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] Planner priorities fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\planner\priorities\route.ts:40:33)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF roster fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\roster\route.ts:34:19)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+[WebServer] MSF game characters fetch failed: Error: MSF API error 403: {"message":"User is not authorized to access this resource with an explicit deny in an identity-based policy"}
+[WebServer]     at msfApiFetch (src\lib\msf-api.ts:33:11)
+[WebServer]     at async GET (src\app\api\msf\characters\route.ts:18:18)
+[WebServer]   31 |   if (!res.ok) {
+[WebServer]   32 |     const text = await res.text().catch(() => "Unknown error");
+[WebServer] > 33 |     throw new Error(`MSF API error ${res.status}: ${text}`);
+[WebServer]      |           ^
+[WebServer]   34 |   }
+[WebServer]   35 |
+[WebServer]   36 |   return res.json() as Promise<T>;
+
+
+  1) [chromium] ΓÇ║ e2e\admin-panel.spec.ts:138:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-004: commander table displays with correct columns 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    Expected value: [32m"Display Name"[39m
+    Received array: [31m[][39m
+
+      149 |       );
+      150 |       const headerTexts = await headers.allTextContents();
+    > 151 |       expect(headerTexts).toContain("Display Name");
+          |                           ^
+      152 |       expect(headerTexts).toContain("Scopely ID");
+      153 |       expect(headerTexts).toContain("Email");
+      154 |       expect(headerTexts).toContain("Tier");
+        at C:\GitHub_Projects\ralph\msf-companion\e2e\admin-panel.spec.ts:151:27
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\admin-panel-Admin-Panel-E2-dbd77-splays-with-correct-columns-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\admin-panel-Admin-Panel-E2-dbd77-splays-with-correct-columns-chromium\error-context.md
+
+  2) [chromium] ΓÇ║ e2e\admin-panel.spec.ts:209:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-006: disable and enable commander 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('[data-testid="admin-toggle-disable-cmnqgkq3f0004rg7k5nbhh3uz"]')
+    Expected substring: [32m"Disable"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 5000ms[22m
+    [2m  - waiting for locator('[data-testid="admin-toggle-disable-cmnqgkq3f0004rg7k5nbhh3uz"]')[22m
+
+
+      225 |         `[data-testid="admin-toggle-disable-${activeFree.id}"]`
+      226 |       );
+    > 227 |       await expect(disableBtn).toContainText("Disable");
+          |                                ^
+      228 |
+      229 |       // Accept the confirmation dialog
+      230 |       page.once("dialog", (dialog) => dialog.accept());
+        at C:\GitHub_Projects\ralph\msf-companion\e2e\admin-panel.spec.ts:227:32
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\admin-panel-Admin-Panel-E2-aca05-isable-and-enable-commander-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\admin-panel-Admin-Panel-E2-aca05-isable-and-enable-commander-chromium\error-context.md
+
+  3) [chromium] ΓÇ║ e2e\admin-panel.spec.ts:255:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-007: toggle premium tier 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('[data-testid="admin-toggle-tier-cmnqgkyhq0008rg7kx0x0vpis"]')
+    Expected substring: [32m"Grant Premium"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 5000ms[22m
+    [2m  - waiting for locator('[data-testid="admin-toggle-tier-cmnqgkyhq0008rg7kx0x0vpis"]')[22m
+
+
+      268 |         `[data-testid="admin-toggle-tier-${activeFree.id}"]`
+      269 |       );
+    > 270 |       await expect(grantBtn).toContainText("Grant Premium");
+          |                              ^
+      271 |
+      272 |       // Grant Premium
+      273 |       await grantBtn.click();
+        at C:\GitHub_Projects\ralph\msf-companion\e2e\admin-panel.spec.ts:270:30
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\admin-panel-Admin-Panel-E2-35694--TC-007-toggle-premium-tier-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\admin-panel-Admin-Panel-E2-35694--TC-007-toggle-premium-tier-chromium\error-context.md
+
+  4) [chromium] ΓÇ║ e2e\admin-panel.spec.ts:294:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-008: delete commander removes row 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('[data-testid="admin-delete-cmnqgl5w1000frg7kgte5yzjh"]')[22m
+
+
+      309 |         `[data-testid="admin-delete-${noEmail.id}"]`
+      310 |       );
+    > 311 |       await deleteBtn.click();
+          |                       ^
+      312 |
+      313 |       // Row should disappear
+      314 |       await expect(row).not.toBeVisible();
+        at C:\GitHub_Projects\ralph\msf-companion\e2e\admin-panel.spec.ts:311:23
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\admin-panel-Admin-Panel-E2-3b575-elete-commander-removes-row-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\admin-panel-Admin-Panel-E2-3b575-elete-commander-removes-row-chromium\error-context.md
+
+  5) [chromium] ΓÇ║ e2e\advisor-chat.spec.ts:18:7 ΓÇ║ AI Advisor Chat ΓÇ║ advisor page loads with welcome message visible 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('welcome-message')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('welcome-message')[22m
+
+
+      18 |   test("advisor page loads with welcome message visible", async ({ page }) => {
+      19 |     await page.goto("/advisor");
+    > 20 |     await expect(page.getByTestId("welcome-message")).toBeVisible();
+         |                                                       ^
+      21 |     await expect(page.getByText("AI Roster Advisor")).toBeVisible();
+      22 |   });
+      23 |
+        at C:\GitHub_Projects\ralph\msf-companion\e2e\advisor-chat.spec.ts:20:55
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\advisor-chat-AI-Advisor-Ch-09695-ith-welcome-message-visible-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\advisor-chat-AI-Advisor-Ch-09695-ith-welcome-message-visible-chromium\error-context.md
+
+  5 failed
+    [chromium] ΓÇ║ e2e\admin-panel.spec.ts:138:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-004: commander table displays with correct columns 
+    [chromium] ΓÇ║ e2e\admin-panel.spec.ts:209:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-006: disable and enable commander 
+    [chromium] ΓÇ║ e2e\admin-panel.spec.ts:255:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-007: toggle premium tier 
+    [chromium] ΓÇ║ e2e\admin-panel.spec.ts:294:9 ΓÇ║ Admin Panel E2E Tests ΓÇ║ Commander management ΓÇ║ TC-008: delete commander removes row 
+    [chromium] ΓÇ║ e2e\advisor-chat.spec.ts:18:7 ΓÇ║ AI Advisor Chat ΓÇ║ advisor page loads with welcome message visible 
+  253 did not run
+  10 passed (18.2m)
+  1 error was not a part of any test, see above for details

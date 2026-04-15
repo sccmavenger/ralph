@@ -1,0 +1,8 @@
+Replace this file with the real domain association file from the Stripe Dashboard.
+
+Steps:
+1. Go to Stripe Dashboard → Settings → Payment Methods → Apple Pay
+2. Click "Add new domain" and enter: themsftoolkit.com
+3. Download the domain association file
+4. Replace this file's content with the downloaded file content
+5. Deploy and verify the domain in Stripe Dashboard

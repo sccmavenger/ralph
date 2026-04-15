@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "databasePassword": {
+      "value": "$(secretOrRandomPassword ${AZURE_KEY_VAULT_NAME} database-password)"
+    },
+    "msfApiKey": {
+      "value": "${MSF_API_KEY}"
+    },
+    "scopelyClientId": {
+      "value": "${SCOPELY_CLIENT_ID}"
+    },
+    "scopelyClientSecret": {
+      "value": "${SCOPELY_CLIENT_SECRET}"
+    },
+    "sessionSecret": {
+      "value": "${SESSION_SECRET}"
+    },
+    "stripeSecretKey": {
+      "value": "${STRIPE_SECRET_KEY}"
+    },
+    "stripeWebhookSecret": {
+      "value": "${STRIPE_WEBHOOK_SECRET}"
+    },
+    "stripePublishableKey": {
+      "value": "${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}"
+    },
+    "stripePriceId": {
+      "value": "${STRIPE_PRICE_ID}"
+    },
+    "scopelyRedirectUri": {
+      "value": "${SCOPELY_REDIRECT_URI}"
+    }
+  }
+}
