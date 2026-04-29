@@ -81,7 +81,7 @@
         "Tests pass"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003. Game data endpoints (/game/v1/*) require only a valid access token + API key, not player-specific scopes. Use the existing msfApiFetch pattern or direct fetch with MSF_API_KEY header."
     },
     {
