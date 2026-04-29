@@ -60,7 +60,7 @@
         "Tests pass"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "This is a pure library with no side effects — it transforms data shapes. The actual API fetching and uploading happens in later stories. Keep functions stateless and testable."
     },
     {
