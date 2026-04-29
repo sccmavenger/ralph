@@ -101,7 +101,7 @@
         "Tests pass"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003. War analysis uses 'total'/'wins' fields; crucible uses 'defends'/'defeats' fields (different schemas). The character name resolution is needed because analysis endpoints return character IDs not names."
     },
     {
@@ -121,7 +121,7 @@
         "Tests pass"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003. DD data comes from /game/v1/dds with raidMap=full. Node info includes enemy teams, trait requirements (from room filters), and starting room identification."
     },
     {
@@ -141,7 +141,7 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003. The ISO-8 confidence data from the API mirrors what's shown on marvelstrikeforce.com/en/meta/iso. This is highly authoritative Tier 1 data."
     },
     {
@@ -160,7 +160,7 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003. The upgradeData endpoint returns a complex nested structure. Focus on the high-tier gear (G16-G20) that players actually ask about. Lower tiers can be added later."
     },
     {
