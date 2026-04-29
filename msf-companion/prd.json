@@ -1,0 +1,487 @@
+{
+  "project": "MSF Companion — Knowledge Base Multi-Source Architecture",
+  "branchName": "ralph/kb-multi-source",
+  "description": "Expand the knowledge base from YouTube-only to a multi-source architecture with tiered trust levels. Add MSF API game data (Tier 1), official Scopely blog content (Tier 2), Reddit community posts (Tier 3), and expanded YouTube creators. Implement conflict resolution, deduplication, staleness management, and tier-aware advisor responses with full E2E test coverage.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add sourceTier and sourceType fields to search index schema",
+      "description": "As the system, I need the Azure AI Search index to support source tier and type metadata so that the advisor can prioritize higher-trust sources when answering questions.",
+      "acceptanceCriteria": [
+        "In functions/src/lib/searchIndex.ts, add field { name: 'sourceTier', type: 'Edm.Int32', filterable: true, sortable: true, facetable: true } to INDEX_SCHEMA.fields",
+        "Add field { name: 'sourceType', type: 'Edm.String', filterable: true, facetable: true } to INDEX_SCHEMA.fields",
+        "Add both fields to the indexer field mappings in getIndexerDefinition()",
+        "sourceTier values: 1 = MSF API official, 2 = Scopely blog, 3 = YouTube/Reddit community, 4 = AI auto-generated",
+        "sourceType values: 'api-game-data', 'official-blog', 'youtube-transcript', 'reddit-post', 'ai-generated'",
+        "Update the uploadToSearchIndex function in src/lib/gap-resolver.ts to include sourceTier: 4 and sourceType: 'ai-generated' when uploading auto-generated docs",
+        "Update the chunkTranscript function in src/lib/youtube-pipeline.ts to include sourceTier: 3 and sourceType: 'youtube-transcript' in each KnowledgeDocument",
+        "Update the KnowledgeDocument interface in src/lib/youtube-pipeline.ts to include sourceTier: number and sourceType: string",
+        "Existing unit tests still pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Foundation story. All subsequent stories depend on these fields existing in the index schema. The indexer will pick up the new fields automatically on next sync."
+    },
+    {
+      "id": "US-002",
+      "title": "Tier-aware advisor system prompt with source labels",
+      "description": "As a user asking the AI advisor a question, I want answers that prefer official game data over community opinions so that I get the most accurate information.",
+      "acceptanceCriteria": [
+        "In src/app/api/advisor/chat/route.ts, the SearchResult interface adds sourceTier (number) and sourceType (string) fields",
+        "The Azure AI Search query in the advisor route requests the sourceTier and sourceType fields in the select list",
+        "Search results are sorted by sourceTier ascending (lower tier = higher trust) before being added to the system prompt",
+        "The system prompt labels each knowledge snippet with its source tier: 'Official Game Data:' for tier 1, 'Official Blog:' for tier 2, 'Community Creator:' for tier 3, 'AI Knowledge:' for tier 4",
+        "When multiple results cover the same topic, only the highest-tier (lowest number) results are included in the prompt (max 5 results, prefer diversity of tier)",
+        "Premium users see source citations with tier labels in the sourceCitations array (add a 'tier' field to the citation object)",
+        "E2E test in e2e/kb-source-tiers.spec.ts verifies: mock chat API returns response with source citations that include tier labels, and premium users see differentiated citation badges",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-001. The advisor already has search results in the system prompt — this story changes how they are ordered and labeled. The E2E test mocks the chat API response to include sourceTier in citations."
+    },
+    {
+      "id": "US-003",
+      "title": "Game data document generator library",
+      "description": "As the KB sync pipeline, I need a library that converts raw MSF API responses into natural-language KB documents so that structured game data becomes searchable knowledge.",
+      "acceptanceCriteria": [
+        "A new file functions/src/lib/kbGameData.ts exports the following functions:",
+        "  generateCharacterKitDoc(character: CharacterData): KBDocument — generates a 200-400 word natural language description of a character's traits, abilities, team affiliations",
+        "  generateTeamMetaDoc(team: TeamData, mode: string): KBDocument — generates a doc about a team's win rate, usage stats, and squad composition for a given game mode",
+        "  generateDDNodeDoc(dd: DDData, node: NodeData): KBDocument — generates a doc about DD node requirements, enemy composition, and recommended traits",
+        "  generateISO8Doc(character: string, isoData: ISO8Data): KBDocument — generates a doc about ISO-8 class recommendations with percentage confidence",
+        "  generateGearDoc(character: string, fromTier: number, toTier: number, items: GearItem[]): KBDocument — generates a doc listing gear requirements for tier upgrades",
+        "Each KBDocument has: id (string), content (string), category (string), sourceCreatorName ('MSF API (Official)'), sourceVideoTitle (descriptive title), sourceUrl (api reference), sourceDate (sync date ISO string), sourceTier (1), sourceType ('api-game-data')",
+        "All generated content is factual and specific — includes character names, numbers, percentages",
+        "Unit tests in functions/tests/kbGameData.test.ts verify each generator produces correctly shaped documents with required fields",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "This is a pure library with no side effects — it transforms data shapes. The actual API fetching and uploading happens in later stories. Keep functions stateless and testable."
+    },
+    {
+      "id": "US-004",
+      "title": "Character kits KB sync — fetch and index",
+      "description": "As the knowledge base, I need character kit information from the MSF API indexed so that the advisor can answer questions about character abilities and traits with official data.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbCharacterSync.ts exports a timer-triggered Azure Function",
+        "The function fetches /game/v1/characters?charInfo=full&lang=en with pagination (perPage=200)",
+        "For each character, calls generateCharacterKitDoc() from kbGameData.ts",
+        "Uploads all documents to Azure AI Search index 'msf-knowledge' using mergeOrUpload action",
+        "Document IDs follow pattern: 'api-char-{characterId}' for deduplication on re-runs",
+        "Function uses a client credentials token (no player auth needed — game data endpoints)",
+        "Logs: total characters processed, documents uploaded, any errors",
+        "On error for individual characters, continues processing remaining (partial success is OK)",
+        "Unit test in functions/tests/kbCharacterSync.test.ts mocks the API response and verifies correct document generation and upload calls",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Depends on US-003. Game data endpoints (/game/v1/*) require only a valid access token + API key, not player-specific scopes. Use the existing msfApiFetch pattern or direct fetch with MSF_API_KEY header."
+    },
+    {
+      "id": "US-005",
+      "title": "War and Crucible meta KB sync",
+      "description": "As the knowledge base, I need war offense/defense and crucible meta team data indexed so that the advisor can recommend counters and meta teams with win rate data.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbMetaSync.ts exports a timer-triggered Azure Function",
+        "Fetches /game/v1/analysis/war/offense, /game/v1/analysis/war/defense, and /game/v1/analysis/crucible/defense with pagination",
+        "Also fetches /game/v1/characters?lang=en to resolve character IDs to names",
+        "For each mode, generates team meta documents for the top 50 teams using generateTeamMetaDoc()",
+        "Each document includes: team composition (character names), total battles, win rate percentage, mode (war-offense/war-defense/crucible-defense)",
+        "Document IDs follow pattern: 'api-meta-{mode}-{rank}' for deduplication",
+        "Logs: teams processed per mode, total documents uploaded",
+        "Unit test in functions/tests/kbMetaSync.test.ts verifies document generation with mocked API responses",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Depends on US-003. War analysis uses 'total'/'wins' fields; crucible uses 'defends'/'defeats' fields (different schemas). The character name resolution is needed because analysis endpoints return character IDs not names."
+    },
+    {
+      "id": "US-006",
+      "title": "Dark Dimension node requirements KB sync",
+      "description": "As the knowledge base, I need DD node requirements and enemy data indexed so that the advisor can answer 'what do I need for DD7 node 10?' with official data.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbDDSync.ts exports a timer-triggered Azure Function",
+        "Fetches /game/v1/dds?raidInfo=full&raidMap=full&lang=en to get all DD data",
+        "For each DD and each node, generates a document using generateDDNodeDoc()",
+        "Documents include: DD name, node number, section (e.g., Cosmic/City/Global), required traits, enemy character names and approximate power levels if available",
+        "Document IDs follow pattern: 'api-dd-{ddId}-{nodeId}'",
+        "Skips DDs or nodes with incomplete data gracefully",
+        "Logs: DDs processed, nodes documented, any skipped nodes",
+        "Unit test in functions/tests/kbDDSync.test.ts with mocked DD API response verifies correct document structure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Depends on US-003. DD data comes from /game/v1/dds with raidMap=full. Node info includes enemy teams, trait requirements (from room filters), and starting room identification."
+    },
+    {
+      "id": "US-007",
+      "title": "ISO-8 recommendations KB sync",
+      "description": "As the knowledge base, I need per-character ISO-8 class recommendations indexed so that the advisor can answer 'what ISO should I put on Wolverine?' with data-driven confidence percentages.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbISO8Sync.ts exports a timer-triggered Azure Function",
+        "Fetches /game/v1/iso8Abilities to get ISO-8 class data per character",
+        "Also fetches /game/v1/characters?lang=en for character name resolution",
+        "For each character with ISO-8 data, generates a document using generateISO8Doc()",
+        "Documents include: character name, top ISO-8 class with percentage, runner-up classes with percentages, based on '30 days of game data'",
+        "Document IDs follow pattern: 'api-iso8-{characterId}'",
+        "Only indexes characters where the top ISO class has > 50% confidence (skip ambiguous cases)",
+        "Unit test in functions/tests/kbISO8Sync.test.ts verifies filtering logic and document shape",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-003. The ISO-8 confidence data from the API mirrors what's shown on marvelstrikeforce.com/en/meta/iso. This is highly authoritative Tier 1 data."
+    },
+    {
+      "id": "US-008",
+      "title": "Gear upgrade requirements KB sync",
+      "description": "As the knowledge base, I need gear tier upgrade requirements indexed so that the advisor can answer 'what gear does X need for G19?' with the exact item list.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbGearSync.ts exports a timer-triggered Azure Function",
+        "Fetches /game/v1/upgradeData?pieceInfo=full&pieceFlatCost=full&pieceDirectCost=full",
+        "Generates documents for gear tiers 16-20 (the ones players most commonly ask about)",
+        "Each document covers one gear tier and lists the items needed, grouped by character origin (Bio/Tech/Skill/Mystic/Mutant) if applicable",
+        "Document IDs follow pattern: 'api-gear-tier-{tier}-{origin}'",
+        "Documents include item names, quantities, and whether items are farmable",
+        "Unit test in functions/tests/kbGearSync.test.ts verifies correct parsing of upgrade data structure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Depends on US-003. The upgradeData endpoint returns a complex nested structure. Focus on the high-tier gear (G16-G20) that players actually ask about. Lower tiers can be added later."
+    },
+    {
+      "id": "US-009",
+      "title": "Game data sync orchestrator timer function",
+      "description": "As the system, I need a single daily timer function that orchestrates all game data KB syncs so that the knowledge base is refreshed with official data every day.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbGameDataOrchestrator.ts exports a timer-triggered Azure Function",
+        "Schedule: daily at 05:00 UTC (0 0 5 * * *)",
+        "Calls each sync function in sequence: characters → meta → DD → ISO-8 → gear",
+        "Each sync is wrapped in try/catch — if one fails, the others still run (partial success)",
+        "Logs a summary at the end: which syncs succeeded, which failed, total documents uploaded across all syncs",
+        "Environment variables needed: AZURE_AI_SEARCH_ENDPOINT, AZURE_AI_SEARCH_KEY, MSF_API_KEY (already exist), plus a service token for game data endpoints",
+        "If AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_KEY is missing, logs error and exits early",
+        "Unit test in functions/tests/kbGameDataOrchestrator.test.ts verifies orchestration flow with mocked sync functions",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Depends on US-004 through US-008. This is the master timer that runs all game data syncs. Individual syncs can also be triggered independently for testing. Runs after the YouTube refresh (00:00/12:00) and before gap analysis (03:00) to ensure fresh data."
+    },
+    {
+      "id": "US-010",
+      "title": "Blog scraper library",
+      "description": "As the KB sync pipeline, I need a library that fetches and parses Scopely blog posts so that official patch notes and announcements can be indexed.",
+      "acceptanceCriteria": [
+        "A new file functions/src/lib/blogScraper.ts exports:",
+        "  fetchBlogList(): Promise<BlogPost[]> — fetches the blog list page at marvelstrikeforce.com/en/updates and extracts post URLs, titles, and dates",
+        "  fetchBlogContent(url: string): Promise<string> — fetches a blog post page and extracts the main text content (strips navigation, headers, footers)",
+        "  classifyBlogCategory(title: string, content: string): string — classifies the blog post into a category (character-kits, news-events, balance-change, guide, general)",
+        "  chunkBlogContent(content: string, meta: BlogMeta): KBDocument[] — splits long blog posts into ~1000 word chunks with proper metadata",
+        "Each KBDocument has sourceTier: 2, sourceType: 'official-blog', sourceCreatorName: 'Scopely Official'",
+        "Blog content extraction handles the marvelstrikeforce.com HTML structure (main article body)",
+        "Unit tests in functions/tests/blogScraper.test.ts use HTML fixture strings to verify parsing, classification, and chunking",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Pure library — no timer function yet. The blog page structure can be tested with fixture HTML. Blog posts publish weekly on Thursdays. Use a realistic User-Agent header when fetching."
+    },
+    {
+      "id": "US-011",
+      "title": "Blog sync Azure Function",
+      "description": "As the knowledge base, I need weekly blog posts automatically indexed so that new character announcements and balance changes are available to the advisor within hours of publication.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbBlogSync.ts exports a timer-triggered Azure Function",
+        "Schedule: runs daily at 07:00 UTC (0 0 7 * * *) — checks for new posts daily but most will be no-ops",
+        "Fetches the blog list, compares against already-indexed blog post IDs (stored in Cosmos DB 'knowledge' container with sourceType='official-blog')",
+        "For new posts only: fetches content, classifies, chunks, and uploads to search index",
+        "Document IDs follow pattern: 'blog-{slugified-post-title}-{chunkIndex}'",
+        "Tracks last-synced blog URL in a Cosmos DB metadata document to avoid re-processing",
+        "Logs: new posts found, documents uploaded, any fetch errors",
+        "On fetch error for a single post, continues with remaining posts",
+        "Unit test in functions/tests/kbBlogSync.test.ts verifies deduplication logic and new-post detection with mocked dependencies",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Depends on US-010. The function checks daily but only indexes truly new posts. Uses the blog scraper library for all parsing logic."
+    },
+    {
+      "id": "US-012",
+      "title": "Reddit fetcher library",
+      "description": "As the KB sync pipeline, I need a library that fetches and filters top Reddit posts from r/MarvelStrikeForce so that community consensus can be indexed.",
+      "acceptanceCriteria": [
+        "A new file functions/src/lib/redditFetcher.ts exports:",
+        "  fetchTopPosts(timeframe: 'day'|'week'): Promise<RedditPost[]> — fetches from reddit.com/r/MarvelStrikeForce/top.json?t={timeframe}&limit=50",
+        "  filterRelevantPosts(posts: RedditPost[]): RedditPost[] — filters to posts with score >= 30 AND is self-post (has selftext) AND not a meme/humor flair",
+        "  formatPostAsDocument(post: RedditPost): KBDocument — converts a Reddit post into a KB document with proper metadata",
+        "RedditPost interface includes: id, title, selftext, score, num_comments, link_flair_text, created_utc, permalink",
+        "Each KBDocument has sourceTier: 3, sourceType: 'reddit-post', sourceCreatorName: 'Reddit Community'",
+        "sourceUrl is the full reddit permalink, sourceDate is the post creation date",
+        "Category is derived from post flair and title keywords using the existing classifyCategory logic pattern",
+        "Unit tests in functions/tests/redditFetcher.test.ts use fixture JSON to verify filtering (score threshold, self-post only, flair exclusion) and document formatting",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Reddit's public JSON API requires no auth — just append .json to any reddit URL. Include a descriptive User-Agent header. Filter out humor/meme posts as they don't provide strategic value."
+    },
+    {
+      "id": "US-013",
+      "title": "Reddit sync Azure Function",
+      "description": "As the knowledge base, I need high-quality Reddit posts indexed daily so that community meta consensus and strategy discussions are available to the advisor.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbRedditSync.ts exports a timer-triggered Azure Function",
+        "Schedule: daily at 06:00 UTC (0 0 6 * * *)",
+        "Fetches top posts from past day using fetchTopPosts('day')",
+        "Filters using filterRelevantPosts()",
+        "For each relevant post, checks if already indexed by document ID pattern: 'reddit-{postId}'",
+        "Only indexes new posts not already in the search index",
+        "Uploads formatted documents to Azure AI Search",
+        "Implements a 30-day retention: posts older than 30 days are deleted from the index (to keep content fresh)",
+        "Logs: posts fetched, posts filtered, new posts indexed, stale posts removed",
+        "On Reddit API error (rate limit, 503), logs warning and exits gracefully without crashing",
+        "Unit test in functions/tests/kbRedditSync.test.ts verifies deduplication, retention logic, and graceful error handling",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Depends on US-012. Reddit rate limits are generous for read-only JSON access but include a 1-second delay between requests as a courtesy. The 30-day retention ensures stale community advice is removed."
+    },
+    {
+      "id": "US-014",
+      "title": "Expand YouTube creator list",
+      "description": "As the knowledge base, I need more YouTube creators indexed so that broader MSF strategy coverage is available to the advisor.",
+      "acceptanceCriteria": [
+        "In src/lib/youtube-pipeline.ts, add the following creators to the MSF_CREATORS array:",
+        "  { name: 'Tauna', channelId: 'UCe6wGQOkrFSIhMhbqLkNPLA', handle: '@Tauna' }",
+        "  { name: 'Philosopher', channelId: 'UCwFMp3bGEZq94uBq0RJdN9w', handle: '@Philosopher' }",
+        "  { name: 'Hartgrave', channelId: 'UCtEIl3mUBbWkS0E7vFMz08Q', handle: '@Hartgrave' }",
+        "  { name: 'Tony Scungili', channelId: 'UCf0cMB1ycCyiZYa_Z-DxH2Q', handle: '@TonyScungili' }",
+        "Creator channel IDs must be verified as real YouTube channel IDs (format: UC followed by 22 characters)",
+        "The e2e/auto-refresh-kb.spec.ts test mock data for creators array should be updated to include at least one new creator name in the refreshState.staleness array",
+        "Existing YouTube pipeline logic handles the new creators without code changes (just data addition)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Simple config change. The existing pipeline already handles any number of creators. Channel IDs need to be real — look them up or use placeholder IDs that match the UC format. The pipeline's RSS fetch and transcript extraction works identically for all creators."
+    },
+    {
+      "id": "US-015",
+      "title": "Source conflict detection and Tier 4 cleanup",
+      "description": "As the knowledge base, I need auto-generated (Tier 4) documents automatically removed when authoritative (Tier 1) data becomes available for the same topic, so that stale AI guesses don't compete with real data.",
+      "acceptanceCriteria": [
+        "A new file functions/src/lib/kbConflictResolver.ts exports:",
+        "  findConflictingTier4Docs(newDoc: KBDocument): Promise<string[]> — searches the index for Tier 4 documents with overlapping content/category that the new higher-tier doc supersedes",
+        "  removeDocuments(docIds: string[]): Promise<void> — deletes documents from the Azure AI Search index by ID",
+        "Conflict detection logic: when a Tier 1 document is uploaded for a character or topic, search for Tier 4 docs with the same category AND matching character/topic keywords",
+        "The game data orchestrator (US-009) calls findConflictingTier4Docs after each successful sync and removes any found conflicts",
+        "Logs: number of Tier 4 documents superseded/removed per sync run",
+        "Only Tier 4 (AI auto-generated) docs are eligible for auto-removal — never remove Tier 1-3 docs",
+        "Unit test in functions/tests/kbConflictResolver.test.ts verifies conflict detection logic and that only Tier 4 docs are targeted",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Depends on US-009. This prevents the scenario where the gap resolver generated an AI answer for 'best ISO for Wolverine' and then the API sync uploads the real data — both would appear in search results without this cleanup."
+    },
+    {
+      "id": "US-016",
+      "title": "KB document deduplication utility",
+      "description": "As the sync pipeline, I need deduplication logic so that re-running syncs doesn't create duplicate documents in the search index.",
+      "acceptanceCriteria": [
+        "A new file functions/src/lib/kbDeduplication.ts exports:",
+        "  generateDocId(sourceType: string, ...identifiers: string[]): string — generates a deterministic document ID from source type and identifiers (e.g., 'api-char-wolverine', 'blog-weekly-update-2026-04-24-0')",
+        "  checkExistingDocs(docIds: string[]): Promise<Set<string>> — queries the search index to find which document IDs already exist",
+        "  filterNewDocs(docs: KBDocument[], existingIds: Set<string>): KBDocument[] — returns only documents not already in the index",
+        "All sync functions (US-004 through US-013) use generateDocId() for consistent ID generation",
+        "The mergeOrUpload action in Azure AI Search naturally handles updates (same ID = update, new ID = insert), but checkExistingDocs allows skipping unchanged documents to reduce API calls",
+        "Unit tests verify ID generation is deterministic and deduplication filtering works correctly",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "This is a utility library. Sync functions already use deterministic IDs (e.g., 'api-char-{id}'), but this centralizes the pattern and adds the ability to skip unchanged documents."
+    },
+    {
+      "id": "US-017",
+      "title": "Staleness sweep function",
+      "description": "As the knowledge base, I need documents that are past their expected freshness lifecycle removed so that outdated information doesn't pollute search results.",
+      "acceptanceCriteria": [
+        "A new file functions/src/functions/kbStaleSweep.ts exports a timer-triggered Azure Function",
+        "Schedule: weekly on Sundays at 02:00 UTC (0 0 2 * * 0)",
+        "Staleness rules by sourceType: 'reddit-post' older than 30 days → delete, 'official-blog' older than 90 days → delete, 'ai-generated' older than 14 days with sourceTier=4 → delete",
+        "API game data (sourceType='api-game-data') and YouTube transcripts are NOT deleted by staleness (they get updated by their respective syncs)",
+        "Queries the search index filtered by sourceType and sourceDate, identifies stale documents",
+        "Deletes stale documents in batches of 100",
+        "Logs: stale documents found and removed per source type",
+        "Unit test in functions/tests/kbStaleSweep.test.ts verifies staleness rules with various document ages",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "This prevents the index from growing unbounded with old Reddit posts and outdated AI-generated content. Blog posts have a 90-day lifecycle because patch notes remain relevant for a season."
+    },
+    {
+      "id": "US-018",
+      "title": "Admin KB health API endpoint",
+      "description": "As an admin, I need an API endpoint that reports knowledge base health metrics so that the admin dashboard can show source distribution, sync status, and staleness.",
+      "acceptanceCriteria": [
+        "A new file src/app/api/admin/kb-health/route.ts exports a GET handler",
+        "Protected by requireAdminSession() guard (same as other admin endpoints)",
+        "Returns JSON with: totalDocuments (number), documentsBySourceType (object mapping sourceType to count), documentsByTier (object mapping tier number to count), lastSyncTimestamps (object mapping sourceType to ISO date string of most recent document), staleDocuments (number of docs past their expected freshness)",
+        "Queries are made against the Azure AI Search index using facet queries for sourceType and sourceTier counts",
+        "lastSyncTimestamps are derived from the max sourceDate per sourceType",
+        "staleDocuments count uses the same staleness rules as US-017",
+        "Returns 500 with error message if Azure AI Search is unreachable",
+        "Unit test verifies response shape with mocked search index responses",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "Depends on US-001 (fields must exist in index). Uses Azure AI Search REST API with facets for efficient counting without fetching all documents."
+    },
+    {
+      "id": "US-019",
+      "title": "Admin KB health dashboard section",
+      "description": "As an admin viewing the AI dashboard, I want to see KB health metrics (document counts by source, sync timestamps, staleness alerts) so that I can monitor the multi-source pipeline.",
+      "acceptanceCriteria": [
+        "In src/app/admin/ai-dashboard/AIDashboardClient.tsx, add a new section titled 'Knowledge Base Health' below the existing sections",
+        "The section fetches from /api/admin/kb-health on component mount (same auto-refresh pattern as existing stats)",
+        "Displays: total document count, a breakdown bar chart or pills showing count per source type (api-game-data, official-blog, youtube-transcript, reddit-post, ai-generated)",
+        "Shows last sync timestamp per source type with relative time (e.g., '2 hours ago', 'Never')",
+        "Shows a staleness alert badge (yellow/red) if staleDocuments > 0",
+        "Uses data-testid attributes: 'kb-health-section', 'kb-total-docs', 'kb-source-breakdown', 'kb-last-sync', 'kb-staleness-alert'",
+        "E2E test in e2e/kb-admin-health.spec.ts mocks the /api/admin/kb-health endpoint and verifies all elements render with correct data",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "Depends on US-018. Follow the existing dashboard pattern — same card styling, same auto-refresh interval, same responsive layout. The source breakdown can be simple colored pills with counts."
+    },
+    {
+      "id": "US-020",
+      "title": "E2E: Advisor prefers Tier 1 over Tier 3 when sources conflict",
+      "description": "As a user, I need confidence that the advisor gives me correct information from official sources even when community sources say something different.",
+      "acceptanceCriteria": [
+        "A new E2E test file e2e/kb-conflict-resolution.spec.ts with the following test cases:",
+        "TC-001: Mock advisor chat API to return a response that includes sourceCitations with both tier 1 and tier 3 sources. Verify the response text references the Tier 1 source's information, not the Tier 3 conflicting info",
+        "TC-002: Mock chat API where search results contain ONLY tier 3 data. Verify response still works and citations show 'Community Creator' label",
+        "TC-003: Mock chat API where search results contain ONLY tier 4 (AI-generated) data. Verify confidence badge shows 'Low' confidence",
+        "TC-004: Mock chat API where search results contain tier 1 data. Verify confidence badge shows 'High' or no low-confidence warning",
+        "All tests use the standard page.route() mocking pattern for /api/advisor/chat",
+        "All tests suppress the install app modal using the standard addInitScript pattern",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Depends on US-002. These tests verify the UX impact of the tier system. The mocked responses simulate what the real advisor would produce after US-002 changes the system prompt behavior."
+    },
+    {
+      "id": "US-021",
+      "title": "E2E: Partial pipeline failure doesn't break advisor",
+      "description": "As a user, I need the advisor to continue working even if some knowledge sources are unavailable, with graceful degradation.",
+      "acceptanceCriteria": [
+        "A new E2E test file e2e/kb-degradation.spec.ts with the following test cases:",
+        "TC-001: Mock chat API returning a normal response with only youtube-transcript sources (simulating API sync is down). Verify advisor still responds normally with community citations",
+        "TC-002: Mock chat API returning a response with 0 search results (all syncs failed). Verify advisor still provides a response (using general knowledge) and shows low confidence",
+        "TC-003: Mock the /api/admin/kb-health endpoint returning lastSyncTimestamps with reddit-post showing 'null' (never synced). Verify admin dashboard shows 'Never' for that source without crashing",
+        "TC-004: Mock chat API returning response with sourceCitations array empty. Verify no citation section is rendered (no empty container visible)",
+        "All tests use standard page.route() mocking and addInitScript patterns",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "These tests verify graceful degradation. The advisor should NEVER show an error to the user because a backend sync failed — it just has less data to work with."
+    },
+    {
+      "id": "US-022",
+      "title": "E2E: Source tier citation badges in advisor UI",
+      "description": "As a premium user, I want to see clearly labeled source citations that indicate the trust level of the information so I know how authoritative each answer is.",
+      "acceptanceCriteria": [
+        "A new E2E test file e2e/kb-source-citations.spec.ts with the following test cases:",
+        "TC-001: Mock chat API with response containing sourceCitations with tier=1. Verify a badge/pill with text 'Official' or 'Game Data' appears next to the citation",
+        "TC-002: Mock chat API with sourceCitations tier=2. Verify badge shows 'Blog' or 'Official Blog'",
+        "TC-003: Mock chat API with sourceCitations tier=3. Verify badge shows 'Community' or creator name",
+        "TC-004: Mock chat API with sourceCitations tier=4. Verify badge shows 'AI' or 'Auto-generated'",
+        "TC-005: Mock chat API as a free-tier user (no premium). Verify NO source citations are shown at all (existing behavior preserved)",
+        "TC-006: Verify citation badges have minimum 44px touch targets on mobile (375px viewport)",
+        "All tests use standard mocking patterns and suppress install app modal",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "This requires a small UI addition to the advisor message component — rendering citation badges below AI responses for premium users. The badges should be small, colored pills (green for Tier 1, blue for Tier 2, gray for Tier 3, dim for Tier 4)."
+    },
+    {
+      "id": "US-023",
+      "title": "Advisor citation badge UI component",
+      "description": "As a premium user viewing advisor responses, I want to see source citation badges below each AI response indicating where the information came from and how authoritative it is.",
+      "acceptanceCriteria": [
+        "A new component src/app/components/SourceCitationBadge.tsx renders a colored pill badge based on source tier",
+        "Props: tier (number 1-4), creatorName (string), sourceUrl (string, optional), sourceType (string)",
+        "Tier 1 renders green pill with text 'Official Data'",
+        "Tier 2 renders blue pill with text 'Blog: {title}'",
+        "Tier 3 renders gray pill with text creator name (e.g., 'ValleyFlyin')",
+        "Tier 4 renders dim/muted pill with text 'AI Generated'",
+        "If sourceUrl is provided and user is premium, the pill is a clickable link opening in new tab",
+        "Minimum touch target: 44px height on mobile",
+        "In the advisor chat message component, after an assistant message that has sourceCitations, render up to 3 SourceCitationBadge components",
+        "Only renders for premium users (check isPremium prop or context)",
+        "data-testid='source-citation-badge' on each badge, data-testid='source-citations-container' on the wrapper",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "This is the UI component that US-022 E2E tests verify. Render it below the assistant message content, above the feedback buttons. Keep it minimal — small pills in a flex row."
+    },
+    {
+      "id": "US-024",
+      "title": "Update functions package.json and register new timer functions",
+      "description": "As the deployment system, I need all new Azure Functions registered and their dependencies available so that the sync pipeline deploys correctly.",
+      "acceptanceCriteria": [
+        "All new timer functions are importable from their respective files (kbCharacterSync, kbMetaSync, kbDDSync, kbISO8Sync, kbGearSync, kbGameDataOrchestrator, kbBlogSync, kbRedditSync, kbStaleSweep)",
+        "functions/package.json has any needed new dependencies added (if any — most should use built-in fetch)",
+        "All functions are registered with app.timer() and have valid CRON schedules that don't conflict with existing functions",
+        "Schedule summary: kbAutoRefresh 0,12:00 | gapAnalysis 03:00 | gapNotification 04:00 | kbGameDataOrchestrator 05:00 | kbRedditSync 06:00 | kbBlogSync 07:00 | kbStaleSweep Sunday 02:00",
+        "functions/host.json does not need changes (existing config supports new functions)",
+        "npm run build in the functions directory succeeds without errors",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "This is a wiring/registration story. All function implementations should already exist from previous stories. This ensures they compile together and are discoverable by the Azure Functions runtime."
+    }
+  ]
+}
