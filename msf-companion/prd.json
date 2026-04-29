@@ -20,7 +20,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Foundation story. All subsequent stories depend on these fields existing in the index schema. The indexer will pick up the new fields automatically on next sync."
     },
     {

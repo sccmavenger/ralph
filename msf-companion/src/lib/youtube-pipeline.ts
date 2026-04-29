@@ -40,6 +40,8 @@ export interface KnowledgeDocument {
   sourceUrl: string;
   sourceDate: string;
   category: string;
+  sourceTier: number;
+  sourceType: string;
 }
 
 export interface IngestResult {
@@ -173,6 +175,8 @@ function chunkTranscript(
         sourceUrl: video.url,
         sourceDate: video.published,
         category,
+        sourceTier: 3,
+        sourceType: 'youtube-transcript',
       },
     ];
   }
@@ -210,6 +214,8 @@ function chunkTranscript(
       sourceUrl: video.url,
       sourceDate: video.published,
       category,
+      sourceTier: 3,
+      sourceType: 'youtube-transcript',
     });
 
     chunkIndex++;

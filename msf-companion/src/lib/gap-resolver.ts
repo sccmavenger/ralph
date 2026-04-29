@@ -211,6 +211,8 @@ async function uploadToSearchIndex(
             sourceUrl: "https://themsftoolkit.com/advisor",
             sourceDate: new Date().toISOString().split("T")[0],
             category,
+            sourceTier: 4,
+            sourceType: "ai-generated",
           },
         ],
       }),

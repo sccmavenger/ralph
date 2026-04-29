@@ -29,6 +29,8 @@ export const INDEX_SCHEMA: { fields: SearchIndexField[] } = {
     { name: "sourceUrl", type: "Edm.String", filterable: true },
     { name: "sourceDate", type: "Edm.DateTimeOffset", filterable: true, sortable: true },
     { name: "extractedAt", type: "Edm.DateTimeOffset", filterable: true, sortable: true },
+    { name: "sourceTier", type: "Edm.Int32", filterable: true, sortable: true, facetable: true },
+    { name: "sourceType", type: "Edm.String", filterable: true, facetable: true },
     {
       name: "contentVector",
       type: "Collection(Edm.Single)",
@@ -107,6 +109,8 @@ export function getIndexerDefinition() {
       { sourceFieldName: "sourceUrl", targetFieldName: "sourceUrl" },
       { sourceFieldName: "sourceDate", targetFieldName: "sourceDate" },
       { sourceFieldName: "extractedAt", targetFieldName: "extractedAt" },
+      { sourceFieldName: "sourceTier", targetFieldName: "sourceTier" },
+      { sourceFieldName: "sourceType", targetFieldName: "sourceType" },
     ],
   };
 }
