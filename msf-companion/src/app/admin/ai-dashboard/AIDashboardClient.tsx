@@ -42,6 +42,14 @@ interface IngestResult {
   documentCount: number;
 }
 
+interface KBHealth {
+  totalDocuments: number;
+  documentsBySourceType: Record<string, number>;
+  documentsByTier: Record<string, number>;
+  lastSyncTimestamps: Record<string, string | null>;
+  staleDocuments: number;
+}
+
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
@@ -60,6 +68,7 @@ export default function AIDashboardClient() {
   const [ingestStatus, setIngestStatus] = useState<IngestStatus | null>(null);
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
+  const [kbHealth, setKBHealth] = useState<KBHealth | null>(null);
   const router = useRouter();
 
   const handleLogout = useCallback(
@@ -137,12 +146,24 @@ export default function AIDashboardClient() {
     }
   }, [ingestStatus?.documentCount]);
 
+  const fetchKBHealth = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/kb-health");
+      if (res.ok) {
+        setKBHealth(await res.json() as KBHealth);
+      }
+    } catch {
+      // Non-blocking
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
     fetchIngestStatus();
+    fetchKBHealth();
     const interval = setInterval(fetchStats, 60000); // Auto-refresh every 60s
     return () => clearInterval(interval);
-  }, [fetchStats, fetchIngestStatus]);
+  }, [fetchStats, fetchIngestStatus, fetchKBHealth]);
 
   if (loading) {
     return (
@@ -365,6 +386,65 @@ export default function AIDashboardClient() {
             </div>
           ) : (
             <p className="text-xs text-[var(--color-muted)]">Loading knowledge base status...</p>
+          )}
+        </div>
+
+        {/* KB Health Section */}
+        <div className="rounded-xl bg-[var(--color-surface)] p-4 shadow-sm mb-6" data-testid="kb-health">
+          <h3 className="text-sm font-semibold text-[var(--color-foreground)] mb-3">Knowledge Base Health</h3>
+          {kbHealth ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-[var(--color-background)] p-3">
+                  <p className="text-xs text-[var(--color-muted)]">Total Documents</p>
+                  <p className="text-lg font-bold text-[var(--color-foreground)]" data-testid="kb-total-docs">{kbHealth.totalDocuments}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--color-background)] p-3">
+                  <p className="text-xs text-[var(--color-muted)]">Stale Documents</p>
+                  <p className={`text-lg font-bold ${kbHealth.staleDocuments > 0 ? "text-yellow-400" : "text-green-400"}`} data-testid="kb-stale-docs">{kbHealth.staleDocuments}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-[var(--color-muted)] mb-1">Documents by Source</p>
+                <div className="space-y-1" data-testid="kb-by-source">
+                  {Object.entries(kbHealth.documentsBySourceType).map(([type, count]) => (
+                    <div key={type} className="flex justify-between text-xs">
+                      <span className="text-[var(--color-foreground)]">{type}</span>
+                      <span className="text-[var(--color-muted)]">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-[var(--color-muted)] mb-1">Documents by Tier</p>
+                <div className="space-y-1" data-testid="kb-by-tier">
+                  {Object.entries(kbHealth.documentsByTier).map(([tier, count]) => (
+                    <div key={tier} className="flex justify-between text-xs">
+                      <span className="text-[var(--color-foreground)]">Tier {tier}</span>
+                      <span className="text-[var(--color-muted)]">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-[var(--color-muted)] mb-1">Last Sync</p>
+                <div className="space-y-1" data-testid="kb-last-sync">
+                  {Object.entries(kbHealth.lastSyncTimestamps).map(([type, ts]) => (
+                    <div key={type} className="flex justify-between text-xs">
+                      <span className="text-[var(--color-foreground)]">{type}</span>
+                      <span className={ts ? "text-[var(--color-muted)]" : "text-red-400"}>
+                        {ts ? formatRelativeTime(ts) : "Never"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-muted)]">Loading KB health...</p>
           )}
         </div>
       </div>
