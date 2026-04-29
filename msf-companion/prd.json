@@ -305,7 +305,7 @@
         "Tests pass"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009. This prevents the scenario where the gap resolver generated an AI answer for 'best ISO for Wolverine' and then the API sync uploads the real data — both would appear in search results without this cleanup."
     },
     {
@@ -324,7 +324,7 @@
         "Tests pass"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "This is a utility library. Sync functions already use deterministic IDs (e.g., 'api-char-{id}'), but this centralizes the pattern and adds the ability to skip unchanged documents."
     },
     {
@@ -344,7 +344,7 @@
         "Tests pass"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "This prevents the index from growing unbounded with old Reddit posts and outdated AI-generated content. Blog posts have a 90-day lifecycle because patch notes remain relevant for a season."
     },
     {
