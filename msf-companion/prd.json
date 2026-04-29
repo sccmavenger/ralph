@@ -285,7 +285,7 @@
         "Tests pass"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Simple config change. The existing pipeline already handles any number of creators. Channel IDs need to be real — look them up or use placeholder IDs that match the UC format. The pipeline's RSS fetch and transcript extraction works identically for all creators."
     },
     {

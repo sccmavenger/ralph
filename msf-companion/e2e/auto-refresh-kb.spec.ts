@@ -89,6 +89,7 @@ test.describe("Auto-Refresh Knowledge Base", () => {
       staleness: [
         { name: "ValleyFlyin", lastVideoDate: "2026-04-08", isStale: false },
         { name: "Boilon", lastVideoDate: "2026-04-05", isStale: false },
+        { name: "Tauna", lastVideoDate: "2026-04-07", isStale: false },
       ],
     };
 

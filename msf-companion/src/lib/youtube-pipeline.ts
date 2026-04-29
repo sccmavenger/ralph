@@ -18,6 +18,10 @@ export const MSF_CREATORS = [
   { name: "MobileGamer365", channelId: "UCKjqnZEvjlf4TPtt9dmqhYw", handle: "@MobileGamer365" },
   { name: "Remanx", channelId: "UCuHM3BHONp2T8BEhunLfRDw", handle: "@remanx" },
   { name: "OhEmGee", channelId: "UCWnlPyy93myHvmFmD533BGg", handle: "@OhEmGee" },
+  { name: "Tauna", channelId: "UCe6wGQOkrFSIhMhbqLkNPLA", handle: "@Tauna" },
+  { name: "Philosopher", channelId: "UCwFMp3bGEZq94uBq0RJdN9w", handle: "@Philosopher" },
+  { name: "Hartgrave", channelId: "UCtEIl3mUBbWkS0E7vFMz08Q", handle: "@Hartgrave" },
+  { name: "Tony Scungili", channelId: "UCf0cMB1ycCyiZYa_Z-DxH2Q", handle: "@TonyScungili" },
 ];
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
