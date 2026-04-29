@@ -2,6 +2,14 @@
  * MSF Blog Scraper — fetches and processes official MSF blog posts.
  */
 
+import type { KBDocument } from "./kbGameData.js";
+
+export interface BlogMeta {
+  title: string;
+  url: string;
+  publishedDate: string;
+}
+
 export interface BlogPost {
   id: string;
   url: string;
@@ -187,4 +195,68 @@ export async function scrapeBlog(deps: BlogScraperDeps): Promise<{ newPosts: num
   }
 
   return { newPosts, skipped, errors };
+}
+
+/**
+ * Classify a blog post into a KB category.
+ */
+export function classifyBlogCategory(title: string, content: string): string {
+  const lower = (title + " " + content.slice(0, 500)).toLowerCase();
+  if (lower.includes("character kit") || lower.includes("new character") || lower.includes("ability kit")) return "character-kits";
+  if (lower.includes("patch notes") || lower.includes("balance update") || lower.includes("balance changes")) return "balance-change";
+  if (lower.includes("event") || lower.includes("calendar") || lower.includes("news")) return "news-events";
+  if (lower.includes("guide") || lower.includes("tutorial") || lower.includes("tips")) return "guide";
+  return "general";
+}
+
+/**
+ * Chunk a blog post into ~1000-word KB documents with proper metadata.
+ */
+export function chunkBlogContent(content: string, meta: BlogMeta): KBDocument[] {
+  const words = content.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+
+  const category = classifyBlogCategory(meta.title, content);
+  const slugTitle = meta.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  if (words.length <= 1200) {
+    return [{
+      id: `blog-${slugTitle}-0`,
+      content,
+      category,
+      sourceCreatorName: "Scopely Official",
+      sourceVideoTitle: meta.title,
+      sourceUrl: meta.url,
+      sourceDate: meta.publishedDate,
+      sourceTier: 2,
+      sourceType: "official-blog",
+    }];
+  }
+
+  const chunks: KBDocument[] = [];
+  let chunkIndex = 0;
+  let startWord = 0;
+  const targetSize = 1000;
+
+  while (startWord < words.length) {
+    const endWord = Math.min(startWord + targetSize, words.length);
+    const chunkText = words.slice(startWord, endWord).join(" ");
+
+    chunks.push({
+      id: `blog-${slugTitle}-${chunkIndex}`,
+      content: chunkText,
+      category,
+      sourceCreatorName: "Scopely Official",
+      sourceVideoTitle: meta.title + (chunkIndex > 0 ? ` (Part ${chunkIndex + 1})` : ""),
+      sourceUrl: meta.url,
+      sourceDate: meta.publishedDate,
+      sourceTier: 2,
+      sourceType: "official-blog",
+    });
+
+    chunkIndex++;
+    startWord = endWord;
+  }
+
+  return chunks;
 }

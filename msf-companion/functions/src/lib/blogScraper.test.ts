@@ -4,6 +4,8 @@ import {
   classifyBlogPost,
   extractStructuredData,
   scrapeBlog,
+  classifyBlogCategory,
+  chunkBlogContent,
   BlogScraperDeps,
   BlogPost,
 } from "./blogScraper.js";
@@ -161,6 +163,64 @@ describe("blogScraper", () => {
       // One URL is stored, rest should be new
       expect(result.skipped).toBe(1);
       expect(result.newPosts).toBeGreaterThan(0);
+    });
+  });
+
+  describe("classifyBlogCategory", () => {
+    it("classifies character kits", () => {
+      expect(classifyBlogCategory("New Character Kit: Phoenix", "ability kit details")).toBe("character-kits");
+    });
+
+    it("classifies balance changes", () => {
+      expect(classifyBlogCategory("Patch Notes 9.0", "balance update changes")).toBe("balance-change");
+    });
+
+    it("classifies news/events", () => {
+      expect(classifyBlogCategory("Event Calendar May", "upcoming events")).toBe("news-events");
+    });
+
+    it("classifies guides", () => {
+      expect(classifyBlogCategory("Beginner Guide", "tips and tutorial")).toBe("guide");
+    });
+
+    it("defaults to general", () => {
+      expect(classifyBlogCategory("Random Post", "random content")).toBe("general");
+    });
+  });
+
+  describe("chunkBlogContent", () => {
+    it("creates a single chunk for short content", () => {
+      const meta = { title: "Test Post", url: "https://example.com/test", publishedDate: "2026-04-29" };
+      const chunks = chunkBlogContent("This is a short blog post about MSF.", meta);
+
+      expect(chunks).toHaveLength(1);
+      expect(chunks[0].sourceTier).toBe(2);
+      expect(chunks[0].sourceType).toBe("official-blog");
+      expect(chunks[0].sourceCreatorName).toBe("Scopely Official");
+      expect(chunks[0].id).toMatch(/^blog-/);
+    });
+
+    it("splits long content into multiple chunks", () => {
+      const longContent = Array(2000).fill("word").join(" ");
+      const meta = { title: "Long Post", url: "https://example.com/long", publishedDate: "2026-04-29" };
+      const chunks = chunkBlogContent(longContent, meta);
+
+      expect(chunks.length).toBeGreaterThan(1);
+      for (const chunk of chunks) {
+        expect(chunk.sourceTier).toBe(2);
+        expect(chunk.sourceType).toBe("official-blog");
+      }
+    });
+
+    it("returns empty array for empty content", () => {
+      const meta = { title: "Empty", url: "https://example.com/empty", publishedDate: "2026-04-29" };
+      expect(chunkBlogContent("", meta)).toHaveLength(0);
+    });
+
+    it("uses slugified title in document IDs", () => {
+      const meta = { title: "Patch Notes 8.5 — Balance", url: "https://example.com/patch", publishedDate: "2026-04-29" };
+      const chunks = chunkBlogContent("Some content here", meta);
+      expect(chunks[0].id).toMatch(/^blog-patch-notes-8-5-balance-0$/);
     });
   });
 });

@@ -200,7 +200,7 @@
         "Tests pass"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Pure library — no timer function yet. The blog page structure can be tested with fixture HTML. Blog posts publish weekly on Thursdays. Use a realistic User-Agent header when fetching."
     },
     {
