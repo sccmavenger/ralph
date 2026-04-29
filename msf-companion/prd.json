@@ -364,7 +364,7 @@
         "Tests pass"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (fields must exist in index). Uses Azure AI Search REST API with facets for efficient counting without fetching all documents."
     },
     {
