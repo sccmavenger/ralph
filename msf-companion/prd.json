@@ -221,7 +221,7 @@
         "Tests pass"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-010. The function checks daily but only indexes truly new posts. Uses the blog scraper library for all parsing logic."
     },
     {
@@ -242,7 +242,7 @@
         "Tests pass"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Reddit's public JSON API requires no auth — just append .json to any reddit URL. Include a descriptive User-Agent header. Filter out humor/meme posts as they don't provide strategic value."
     },
     {
@@ -265,7 +265,7 @@
         "Tests pass"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-012. Reddit rate limits are generous for read-only JSON access but include a 1-second delay between requests as a courtesy. The 30-day retention ensures stale community advice is removed."
     },
     {
