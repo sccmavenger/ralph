@@ -21,6 +21,8 @@ interface SearchResult {
   sourceVideoTitle: string;
   sourceUrl: string;
   sourceDate: string;
+  sourceTier: number;
+  sourceType: string;
 }
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
@@ -357,11 +359,12 @@ export async function POST(request: NextRequest) {
             const data = line.slice(6).trim();
             if (data === "[DONE]") {
               if (isPremium && searchResults.length > 0) {
+                const tierLabel = (tier: number) => ({ 1: '🟢 Official', 2: '🔵 Blog', 3: '⚪ Community', 4: '🔘 AI' }[tier] || 'Community');
                 const citations = searchResults
                   .slice(0, 3)
                   .map(
                     (s) =>
-                      `\n\n*Based on [${s.sourceCreatorName}](${s.sourceUrl}) (${new Date(s.sourceDate).toLocaleDateString()})*`
+                      `\n\n*Based on [${s.sourceCreatorName}](${s.sourceUrl}) (${tierLabel(s.sourceTier)}, ${new Date(s.sourceDate).toLocaleDateString()})*`
                   )
                   .join("");
                 accumulatedResponse += citations;
@@ -388,6 +391,7 @@ export async function POST(request: NextRequest) {
                             creator: s.sourceCreatorName,
                             url: s.sourceUrl,
                             title: s.sourceVideoTitle,
+                            tier: s.sourceTier,
                           }))
                         : undefined,
                       tokenCount: Math.ceil(accumulatedResponse.length / 4),
@@ -501,9 +505,24 @@ Rules:
 - If a question is outside MSF scope, politely redirect.`;
 
   if (searchResults.length > 0) {
-    prompt += `\n\nRelevant knowledge from MSF creators:\n`;
-    for (const result of searchResults.slice(0, 5)) {
-      prompt += `- ${result.content} (Source: ${result.sourceCreatorName})\n`;
+    prompt += `\n\nRelevant knowledge (sorted by trust level — prefer higher-trust sources when sources conflict):\n`;
+    const tierLabels: Record<number, string> = {
+      1: 'Official Game Data',
+      2: 'Official Blog',
+      3: 'Community Creator',
+      4: 'AI Knowledge',
+    };
+    // Deduplicate: prefer highest-tier (lowest number) per topic, max 5 results
+    const seen = new Set<string>();
+    let included = 0;
+    for (const result of searchResults) {
+      if (included >= 5) break;
+      const topicKey = result.content.slice(0, 100).toLowerCase();
+      if (seen.has(topicKey)) continue;
+      seen.add(topicKey);
+      const label = tierLabels[result.sourceTier] || 'Community Creator';
+      prompt += `- [${label}]: ${result.content} (Source: ${result.sourceCreatorName})\n`;
+      included++;
     }
   }
 
@@ -522,8 +541,14 @@ function computeConfidence(searchResults: SearchResult[]): number {
   // Base confidence of 60 when using AI model directly
   const base = 60;
   if (searchResults.length === 0) return base;
-  if (searchResults.length >= 5) return 95;
-  return Math.min(95, base + searchResults.length * 8);
+  // Tier 1 sources boost confidence more
+  const hasTier1 = searchResults.some((r) => r.sourceTier === 1);
+  const hasTier2 = searchResults.some((r) => r.sourceTier === 2);
+  if (hasTier1 && searchResults.length >= 3) return 95;
+  if (hasTier1) return 90;
+  if (hasTier2 && searchResults.length >= 3) return 88;
+  if (searchResults.length >= 5) return 85;
+  return Math.min(85, base + searchResults.length * 6);
 }
 
 async function searchKnowledge(query: string): Promise<SearchResult[]> {
@@ -538,7 +563,7 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
       body: JSON.stringify({
         search: query,
         top: 10,
-        select: "content,sourceCreatorName,sourceVideoTitle,sourceUrl,sourceDate",
+        select: "content,sourceCreatorName,sourceVideoTitle,sourceUrl,sourceDate,sourceTier,sourceType",
       }),
     }
   );
@@ -549,13 +574,17 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
     value: Array<Record<string, string>>;
   };
 
-  return data.value.map((doc) => ({
-    content: doc.content || "",
-    sourceCreatorName: doc.sourceCreatorName || "",
-    sourceVideoTitle: doc.sourceVideoTitle || "",
-    sourceUrl: doc.sourceUrl || "",
-    sourceDate: doc.sourceDate || "",
-  }));
+  return data.value
+    .map((doc) => ({
+      content: doc.content || "",
+      sourceCreatorName: doc.sourceCreatorName || "",
+      sourceVideoTitle: doc.sourceVideoTitle || "",
+      sourceUrl: doc.sourceUrl || "",
+      sourceDate: doc.sourceDate || "",
+      sourceTier: Number(doc.sourceTier) || 3,
+      sourceType: doc.sourceType || "youtube-transcript",
+    }))
+    .sort((a, b) => a.sourceTier - b.sourceTier);
 }
 
 function createPlaceholderStream(question: string, confidence: number, conversationId: string | null): Response {

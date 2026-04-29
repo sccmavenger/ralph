@@ -39,7 +39,7 @@
         "Tests pass"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001. The advisor already has search results in the system prompt — this story changes how they are ordered and labeled. The E2E test mocks the chat API response to include sourceTier in citations."
     },
     {
