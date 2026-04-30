@@ -39,6 +39,7 @@ model Commander {
   dailyTips                DailyTip[]
   pushSubscriptions        PushSubscription[]
   dailyTokenUsages         DailyTokenUsage[]
+  usageEvents              UsageEvent[]
 }
 
 model RosterSnapshot {
@@ -182,4 +183,19 @@ model ApiCache {
   hashValue    String
   responseData Json
   cachedAt     DateTime @default(now())
+}
+
+model UsageEvent {
+  id          String    @id @default(cuid())
+  commanderId String
+  eventType   String
+  eventName   String
+  metadata    Json?
+  tier        String
+  createdAt   DateTime  @default(now())
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId])
+  @@index([eventType])
+  @@index([createdAt])
 }

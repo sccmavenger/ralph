@@ -293,6 +293,12 @@ export default function AdminDashboardClient({
           >
             AI Dashboard
           </a>
+          <a
+            href="/admin/usage-analytics"
+            className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors"
+          >
+            Usage Analytics
+          </a>
         </nav>
       </header>
 
