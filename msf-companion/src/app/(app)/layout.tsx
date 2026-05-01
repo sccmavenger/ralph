@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { getValidAccessToken } from "@/lib/auth";
 import { getScopelyId } from "@/lib/scopely-id";
 import { prisma } from "@/lib/prisma";
+import { trackPageView } from "@/lib/page-view-tracking";
 
 export const metadata: Metadata = {
   title: "Dashboard — MSF Companion",
@@ -40,6 +41,9 @@ export default async function AppLayout({
 
   // Resolve scopelyId — falls back to Hydra userinfo for opaque tokens
   const scopelyId = await getScopelyId(false); // Server Component: can't save session
+
+  // Track page view (fire-and-forget)
+  trackPageView().catch(() => {});
 
   // Fetch commander data in one query
   let displayName = "Commander";

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usage Insights Dashboard — Mockup</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-light: #2a2d3a;
+    --fg: #e4e4e7;
+    --muted: #71717a;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--fg); }
+  
+  header { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--surface-light); background: var(--surface); }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+  .header-inner h1 { font-size: 18px; font-weight: 700; }
+  nav { display: flex; padding: 0 16px; gap: 4px; }
+  nav a, nav span { padding: 8px 12px; font-size: 14px; font-weight: 500; text-decoration: none; border-bottom: 2px solid transparent; color: var(--muted); }
+  nav span.active { border-color: var(--accent); color: var(--accent); }
+  
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 80px; }
+  
+  /* Summary cards */
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .summary-card { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 16px; }
+  .summary-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .summary-card .value { font-size: 28px; font-weight: 700; }
+  .summary-card .delta { font-size: 11px; margin-top: 4px; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  
+  /* Section */
+  .section { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .section h3 { font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+  .section-subtitle { font-size: 11px; color: var(--muted); margin-top: -12px; margin-bottom: 16px; }
+  
+  /* Sparkline (fake) */
+  .sparkline { display: flex; align-items: flex-end; gap: 2px; height: 40px; margin-bottom: 8px; }
+  .sparkline .bar { flex: 1; background: var(--accent); border-radius: 2px; opacity: 0.6; }
+  .sparkline .bar:last-child { opacity: 1; }
+  
+  /* Feature table */
+  .feature-table { width: 100%; border-collapse: collapse; }
+  .feature-table th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; border-bottom: 1px solid var(--surface-light); }
+  .feature-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--surface-light); }
+  .feature-table tr:last-child td { border-bottom: none; }
+  
+  /* Retention bar */
+  .retention-bar { display: flex; align-items: center; gap: 8px; }
+  .retention-bar .track { flex: 1; height: 8px; background: var(--surface-light); border-radius: 4px; overflow: hidden; }
+  .retention-bar .fill { height: 100%; border-radius: 4px; }
+  .retention-bar .pct { font-size: 12px; font-weight: 600; width: 36px; text-align: right; }
+  
+  /* Heatmap */
+  .heatmap { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+  .heatmap .cell { aspect-ratio: 1; border-radius: 3px; background: var(--surface-light); }
+  .heatmap .cell.l1 { background: rgba(99, 102, 241, 0.2); }
+  .heatmap .cell.l2 { background: rgba(99, 102, 241, 0.4); }
+  .heatmap .cell.l3 { background: rgba(99, 102, 241, 0.6); }
+  .heatmap .cell.l4 { background: rgba(99, 102, 241, 0.85); }
+  .heatmap-labels { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 4px; }
+  .heatmap-labels span { font-size: 9px; color: var(--muted); text-align: center; }
+  
+  /* Churn list */
+  .churn-list { display: flex; flex-direction: column; gap: 8px; }
+  .churn-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg); border-radius: 8px; }
+  .churn-item .name { font-size: 13px; }
+  .churn-item .days { font-size: 12px; color: var(--red); }
+  
+  /* Upgrade path */
+  .funnel { display: flex; flex-direction: column; gap: 6px; }
+  .funnel-step { display: flex; align-items: center; gap: 12px; }
+  .funnel-step .rank { font-size: 20px; font-weight: 700; color: var(--muted); width: 28px; }
+  .funnel-step .info { flex: 1; }
+  .funnel-step .feature-name { font-size: 13px; font-weight: 600; }
+  .funnel-step .feature-desc { font-size: 11px; color: var(--muted); }
+  .funnel-step .conv { font-size: 13px; font-weight: 600; color: var(--amber); }
+  
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .two-col { grid-template-columns: 1fr; }
+  }
+  
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+  .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>Admin Panel</h1>
+    <button style="background:none;border:1px solid var(--surface-light);color:var(--muted);padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer;">Log Out</button>
+  </div>
+  <nav>
+    <a href="#">Commanders</a>
+    <a href="#">AI Dashboard</a>
+    <span class="active">Usage Insights</span>
+  </nav>
+</header>
+
+<div class="container">
+  
+  <!-- Summary Cards -->
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="label">Active Today</div>
+      <div class="value">47</div>
+      <div class="delta up">↑ 12% vs yesterday</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Active This Week</div>
+      <div class="value">183</div>
+      <div class="delta up">↑ 8% vs last week</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">7-Day Retention</div>
+      <div class="value">62%</div>
+      <div class="delta down">↓ 3% vs prior cohort</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Avg Session Depth</div>
+      <div class="value">4.2</div>
+      <div class="delta" style="color:var(--muted)">pages per visit</div>
+    </div>
+  </div>
+
+  <!-- DAU Trend -->
+  <div class="section">
+    <h3>Daily Active Users — Last 30 Days</h3>
+    <div class="sparkline">
+      <div class="bar" style="height:30%"></div>
+      <div class="bar" style="height:35%"></div>
+      <div class="bar" style="height:28%"></div>
+      <div class="bar" style="height:42%"></div>
+      <div class="bar" style="height:38%"></div>
+      <div class="bar" style="height:45%"></div>
+      <div class="bar" style="height:50%"></div>
+      <div class="bar" style="height:48%"></div>
+      <div class="bar" style="height:40%"></div>
+      <div class="bar" style="height:55%"></div>
+      <div class="bar" style="height:52%"></div>
+      <div class="bar" style="height:60%"></div>
+      <div class="bar" style="height:58%"></div>
+      <div class="bar" style="height:50%"></div>
+      <div class="bar" style="height:45%"></div>
+      <div class="bar" style="height:55%"></div>
+      <div class="bar" style="height:62%"></div>
+      <div class="bar" style="height:70%"></div>
+      <div class="bar" style="height:65%"></div>
+      <div class="bar" style="height:60%"></div>
+      <div class="bar" style="height:72%"></div>
+      <div class="bar" style="height:68%"></div>
+      <div class="bar" style="height:75%"></div>
+      <div class="bar" style="height:70%"></div>
+      <div class="bar" style="height:78%"></div>
+      <div class="bar" style="height:80%"></div>
+      <div class="bar" style="height:76%"></div>
+      <div class="bar" style="height:82%"></div>
+      <div class="bar" style="height:85%"></div>
+      <div class="bar" style="height:90%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+      <span>Apr 1</span><span>Apr 15</span><span>Apr 30</span>
+    </div>
+  </div>
+
+  <!-- Feature Stickiness — THE KEY SECTION -->
+  <div class="section">
+    <h3>Feature Stickiness — "What keeps people coming back?"</h3>
+    <p class="section-subtitle">Of commanders who used a feature, % who returned within 7 days</p>
+    <table class="feature-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Users This Week</th>
+          <th>7-Day Return Rate</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>AI Advisor</td>
+          <td>142</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:78%;background:var(--green)"></div></div>
+              <div class="pct" style="color:var(--green)">78%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-green">⭐ Invest More</span></td>
+        </tr>
+        <tr>
+          <td>Daily Briefing</td>
+          <td>98</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:71%;background:var(--green)"></div></div>
+              <div class="pct" style="color:var(--green)">71%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-green">⭐ Invest More</span></td>
+        </tr>
+        <tr>
+          <td>Roster</td>
+          <td>156</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:54%;background:var(--amber)"></div></div>
+              <div class="pct" style="color:var(--amber)">54%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">Maintain</span></td>
+        </tr>
+        <tr>
+          <td>Planner</td>
+          <td>67</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:43%;background:var(--amber)"></div></div>
+              <div class="pct" style="color:var(--amber)">43%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">Improve UX</span></td>
+        </tr>
+        <tr>
+          <td>Team Builder</td>
+          <td>34</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:18%;background:var(--red)"></div></div>
+              <div class="pct" style="color:var(--red)">18%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">Rethink / Cut</span></td>
+        </tr>
+        <tr>
+          <td>Upgrade Calculator</td>
+          <td>23</td>
+          <td>
+            <div class="retention-bar">
+              <div class="track"><div class="fill" style="width:12%;background:var(--red)"></div></div>
+              <div class="pct" style="color:var(--red)">12%</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">Rethink / Cut</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="two-col">
+    <!-- Upgrade Path -->
+    <div class="section">
+      <h3>Path to Premium — "What drives upgrades?"</h3>
+      <p class="section-subtitle">Last feature used before upgrading (last 30 days)</p>
+      <div class="funnel">
+        <div class="funnel-step">
+          <div class="rank">1</div>
+          <div class="info">
+            <div class="feature-name">AI Advisor (hit daily limit)</div>
+            <div class="feature-desc">Commander hit 3-question limit, then upgraded</div>
+          </div>
+          <div class="conv">41%</div>
+        </div>
+        <div class="funnel-step">
+          <div class="rank">2</div>
+          <div class="info">
+            <div class="feature-name">Dark Dimension Planner</div>
+            <div class="feature-desc">Viewed DD recommendations, paywall triggered</div>
+          </div>
+          <div class="conv">28%</div>
+        </div>
+        <div class="funnel-step">
+          <div class="rank">3</div>
+          <div class="info">
+            <div class="feature-name">Farming Guide</div>
+            <div class="feature-desc">Tried to access priority farming paths</div>
+          </div>
+          <div class="conv">19%</div>
+        </div>
+        <div class="funnel-step">
+          <div class="rank">4</div>
+          <div class="info">
+            <div class="feature-name">Daily Briefing</div>
+            <div class="feature-desc">Viewed basic briefing, wanted full version</div>
+          </div>
+          <div class="conv">12%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Peak Hours -->
+    <div class="section">
+      <h3>Peak Usage Hours — "When are they active?"</h3>
+      <p class="section-subtitle">Activity heatmap by hour (UTC), last 7 days</p>
+      <div class="heatmap">
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell l1"></div>
+        <div class="cell l1"></div>
+        <div class="cell l2"></div>
+        <div class="cell l2"></div>
+        <div class="cell l1"></div>
+        <div class="cell l1"></div>
+        <div class="cell l2"></div>
+        <div class="cell l3"></div>
+        <div class="cell l2"></div>
+        <div class="cell l2"></div>
+        <div class="cell l3"></div>
+        <div class="cell l3"></div>
+        <div class="cell l4"></div>
+        <div class="cell l4"></div>
+        <div class="cell l4"></div>
+        <div class="cell l3"></div>
+        <div class="cell l3"></div>
+        <div class="cell l2"></div>
+        <div class="cell l1"></div>
+      </div>
+      <div class="heatmap-labels">
+        <span>0</span><span></span><span></span><span>3</span><span></span><span></span>
+        <span>6</span><span></span><span></span><span>9</span><span></span><span></span>
+        <span>12</span><span></span><span></span><span>15</span><span></span><span></span>
+        <span>18</span><span></span><span></span><span>21</span><span></span><span></span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px">💡 Peak: 5–8 PM UTC (evening gamers). Consider scheduling notifications and briefings here.</p>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- At-Risk Commanders -->
+    <div class="section">
+      <h3>At-Risk Commanders — "Who's churning?"</h3>
+      <p class="section-subtitle">Active last week but haven't returned</p>
+      <div class="churn-list">
+        <div class="churn-item">
+          <div class="name">DarkPhoenix_42</div>
+          <div class="days">8 days ago</div>
+        </div>
+        <div class="churn-item">
+          <div class="name">SymbioteKing</div>
+          <div class="days">7 days ago</div>
+        </div>
+        <div class="churn-item">
+          <div class="name">Thanos_Did_Nothing</div>
+          <div class="days">7 days ago</div>
+        </div>
+        <div class="churn-item">
+          <div class="name">MSF_Whale_2024</div>
+          <div class="days">9 days ago</div>
+        </div>
+        <div class="churn-item">
+          <div class="name">CasualPlayer99</div>
+          <div class="days">11 days ago</div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px">5 of 183 weekly actives haven't returned (2.7% churn rate)</p>
+    </div>
+
+    <!-- New User First-Week -->
+    <div class="section">
+      <h3>New Commander Journey — "What do they discover?"</h3>
+      <p class="section-subtitle">Feature adoption in first 7 days (last 30 signups)</p>
+      <table class="feature-table">
+        <thead>
+          <tr><th>Feature</th><th>Adoption</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Roster Import</td>
+            <td>
+              <div class="retention-bar">
+                <div class="track"><div class="fill" style="width:93%;background:var(--green)"></div></div>
+                <div class="pct">93%</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>AI Advisor</td>
+            <td>
+              <div class="retention-bar">
+                <div class="track"><div class="fill" style="width:76%;background:var(--green)"></div></div>
+                <div class="pct">76%</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>Daily Briefing</td>
+            <td>
+              <div class="retention-bar">
+                <div class="track"><div class="fill" style="width:61%;background:var(--amber)"></div></div>
+                <div class="pct">61%</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>DD Planner</td>
+            <td>
+              <div class="retention-bar">
+                <div class="track"><div class="fill" style="width:34%;background:var(--red)"></div></div>
+                <div class="pct">34%</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>Team Builder</td>
+            <td>
+              <div class="retention-bar">
+                <div class="track"><div class="fill" style="width:15%;background:var(--red)"></div></div>
+                <div class="pct">15%</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px">💡 Most new users never find Team Builder. Consider onboarding prompts.</p>
+    </div>
+  </div>
+
+  <!-- Tier Split (kept from original) -->
+  <div class="section">
+    <h3>Tier Distribution</h3>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="flex:1;height:10px;border-radius:5px;background:var(--surface-light);overflow:hidden">
+        <div style="width:72%;height:100%;border-radius:5px;background:linear-gradient(90deg, #64748b, #94a3b8)"></div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:12px;flex-shrink:0">
+        <span style="color:#94a3b8">Free 72%</span>
+        <span style="color:var(--amber)">Premium 28%</span>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">↑ Premium grew from 23% → 28% this month (+5pp)</p>
+  </div>
+
+</div>
+</body>
+</html>

@@ -9,6 +9,7 @@ import { classifyComplexity, getModelForComplexity } from "@/lib/question-router
 import { checkAndResolveGaps } from "@/lib/gap-resolver";
 import { getValidAccessTokenWithRefresh as getValidAccessToken } from "@/lib/auth";
 import { msfApiFetch } from "@/lib/msf-api";
+import { trackUsageEvent } from "@/lib/usage-tracking";
 
 interface ChatRequestBody {
   question?: string;
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest) {
   if (!question || typeof question !== "string" || question.trim().length === 0) {
     return NextResponse.json({ error: "Question is required" }, { status: 400 });
   }
+
+  // Track advisor usage (fire-and-forget)
+  trackUsageEvent(scopelyId, "feature_use", "advisor_chat").catch(() => {});
 
   // Check tier and daily limit
   const tier = await getSubscriptionTier();

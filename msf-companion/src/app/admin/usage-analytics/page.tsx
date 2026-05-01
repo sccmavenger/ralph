@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin-session";
-import UsageAnalyticsClient from "./UsageAnalyticsClient";
+import UsageInsightsClient from "./UsageInsightsClient";
 
 export default async function AdminUsageAnalyticsPage() {
   const session = await getAdminSession();
@@ -8,5 +8,5 @@ export default async function AdminUsageAnalyticsPage() {
     redirect("/admin");
   }
 
-  return <UsageAnalyticsClient />;
+  return <UsageInsightsClient />;
 }
