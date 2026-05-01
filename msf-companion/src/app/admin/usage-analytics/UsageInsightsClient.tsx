@@ -45,6 +45,36 @@ interface NewUserFeature {
   adoption: number;
 }
 
+interface TierFeatureBreakdown {
+  feature: string;
+  freeUsers: number;
+  premiumUsers: number;
+}
+
+interface FreeVsPremium {
+  featureBreakdown: TierFeatureBreakdown[];
+  engagement: {
+    free: { uniqueUsers: number; avgSessionDepth: number };
+    premium: { uniqueUsers: number; avgSessionDepth: number };
+  };
+}
+
+interface TopUser {
+  displayName: string;
+  tier: string;
+  eventCount: number;
+  lastActive: string;
+  topFeature: string;
+}
+
+interface PremiumValueSignal {
+  feature: string;
+  premiumShare: number;
+  lift: number;
+  premiumUsers: number;
+  freeUsers: number;
+}
+
 interface InsightsData {
   summary: Summary;
   dauTrend: DauPoint[];
@@ -56,6 +86,9 @@ interface InsightsData {
   weeklyActiveCount: number;
   newUserJourney: NewUserFeature[];
   tierSplit: { FREE: number; PREMIUM: number };
+  freeVsPremium: FreeVsPremium;
+  topUsers: TopUser[];
+  premiumValueSignals: PremiumValueSignal[];
 }
 
 function DeltaBadge({ value, suffix = "vs yesterday" }: { value: number; suffix?: string }) {
@@ -353,6 +386,126 @@ function DashboardContent({ data }: { data: InsightsData }) {
             <span className="text-amber-400">Premium {data.tierSplit.PREMIUM}%</span>
           </div>
         </div>
+      </div>
+
+      {/* ═══════ FREE vs PREMIUM BEHAVIOR ═══════ */}
+      <div className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4" data-testid="insights-free-vs-premium">
+        <h3 className="text-sm font-bold text-[var(--color-foreground)] mb-1">Free vs Premium Behavior — &quot;How do they differ?&quot;</h3>
+        <p className="text-[10px] text-[var(--color-muted)] mb-4">Feature usage and engagement, segmented by tier (this week)</p>
+
+        {/* Engagement comparison cards */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg bg-[var(--color-background)] p-3">
+            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Free Users</p>
+            <p className="text-xl font-bold text-slate-300">{data.freeVsPremium.engagement.free.uniqueUsers}</p>
+            <p className="text-xs text-[var(--color-muted)]">{data.freeVsPremium.engagement.free.avgSessionDepth} pages/visit</p>
+          </div>
+          <div className="rounded-lg bg-[var(--color-background)] p-3">
+            <p className="text-[10px] uppercase tracking-wide text-amber-400 mb-1">Premium Users</p>
+            <p className="text-xl font-bold text-amber-300">{data.freeVsPremium.engagement.premium.uniqueUsers}</p>
+            <p className="text-xs text-[var(--color-muted)]">{data.freeVsPremium.engagement.premium.avgSessionDepth} pages/visit</p>
+          </div>
+        </div>
+
+        {/* Feature breakdown table */}
+        {data.freeVsPremium.featureBreakdown.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-surface-light)]">
+                  <th className="text-left text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Feature</th>
+                  <th className="text-right text-[10px] uppercase tracking-wide text-slate-400 py-2 px-2">Free</th>
+                  <th className="text-right text-[10px] uppercase tracking-wide text-amber-400 py-2 px-2">Premium</th>
+                  <th className="text-right text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Ratio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.freeVsPremium.featureBreakdown.map((f) => {
+                  const ratio = f.freeUsers > 0 ? (f.premiumUsers / f.freeUsers).toFixed(1) : "∞";
+                  return (
+                    <tr key={f.feature} className="border-b border-[var(--color-surface-light)] last:border-0">
+                      <td className="py-2 px-2 text-[var(--color-foreground)]">{f.feature}</td>
+                      <td className="py-2 px-2 text-right text-slate-400">{f.freeUsers}</td>
+                      <td className="py-2 px-2 text-right text-amber-400">{f.premiumUsers}</td>
+                      <td className="py-2 px-2 text-right text-[var(--color-muted)]">{ratio}x</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ═══════ PREMIUM VALUE SIGNALS ═══════ */}
+      {data.premiumValueSignals.length > 0 && (
+        <div className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4" data-testid="insights-premium-signals">
+          <h3 className="text-sm font-bold text-[var(--color-foreground)] mb-1">Premium Value Signals — &quot;Where to invest for upsell&quot;</h3>
+          <p className="text-[10px] text-[var(--color-muted)] mb-4">Features where premium users are disproportionately represented (lift vs overall tier %)</p>
+          <div className="space-y-3">
+            {data.premiumValueSignals.map((s) => (
+              <div key={s.feature} className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-[var(--color-foreground)]">{s.feature}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--color-muted)]">{s.premiumShare}% premium</span>
+                      {s.lift > 0 ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/15 text-green-400">↑ {s.lift}% lift</span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-500/15 text-slate-400">{s.lift}% lift</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-2 rounded-full overflow-hidden">
+                    <div className="bg-slate-400" style={{ width: `${Math.round((s.freeUsers / (s.freeUsers + s.premiumUsers)) * 100)}%` }} />
+                    <div className="bg-amber-400" style={{ width: `${s.premiumShare}%` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ TOP USERS (POWER USERS) ═══════ */}
+      <div className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4" data-testid="insights-top-users">
+        <h3 className="text-sm font-bold text-[var(--color-foreground)] mb-1">Top Users — &quot;Who are the power users?&quot;</h3>
+        <p className="text-[10px] text-[var(--color-muted)] mb-4">Most active commanders this week by total events</p>
+        {data.topUsers.length === 0 ? (
+          <p className="text-xs text-[var(--color-muted)]">No activity this week</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-surface-light)]">
+                  <th className="text-left text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">#</th>
+                  <th className="text-left text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Commander</th>
+                  <th className="text-left text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Tier</th>
+                  <th className="text-right text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Events</th>
+                  <th className="text-left text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Top Feature</th>
+                  <th className="text-right text-[10px] uppercase tracking-wide text-[var(--color-muted)] py-2 px-2">Last Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topUsers.map((u, i) => (
+                  <tr key={`${u.displayName}-${i}`} className="border-b border-[var(--color-surface-light)] last:border-0">
+                    <td className="py-2 px-2 text-[var(--color-muted)]">{i + 1}</td>
+                    <td className="py-2 px-2 text-[var(--color-foreground)] font-medium">{u.displayName}</td>
+                    <td className="py-2 px-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${u.tier === "PREMIUM" ? "bg-amber-500/15 text-amber-400" : "bg-slate-500/15 text-slate-400"}`}>
+                        {u.tier}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2 text-right text-[var(--color-foreground)] font-mono">{u.eventCount}</td>
+                    <td className="py-2 px-2 text-[var(--color-muted)]">{u.topFeature}</td>
+                    <td className="py-2 px-2 text-right text-[var(--color-muted)]">{u.lastActive}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -67,6 +67,26 @@ const mockInsightsData = {
     { feature: "Team Builder", adoption: 15 },
   ],
   tierSplit: { FREE: 72, PREMIUM: 28 },
+  freeVsPremium: {
+    featureBreakdown: [
+      { feature: "AI Advisor", freeUsers: 85, premiumUsers: 57 },
+      { feature: "Roster", freeUsers: 120, premiumUsers: 36 },
+      { feature: "DD Planner", freeUsers: 12, premiumUsers: 28 },
+    ],
+    engagement: {
+      free: { uniqueUsers: 132, avgSessionDepth: 3.1 },
+      premium: { uniqueUsers: 51, avgSessionDepth: 7.4 },
+    },
+  },
+  topUsers: [
+    { displayName: "WarMachine_X", tier: "PREMIUM", eventCount: 347, lastActive: "2026-05-01", topFeature: "AI Advisor" },
+    { displayName: "DarkPhoenix_42", tier: "FREE", eventCount: 215, lastActive: "2026-04-30", topFeature: "Roster" },
+    { displayName: "SymbioteKing", tier: "PREMIUM", eventCount: 198, lastActive: "2026-04-30", topFeature: "DD Planner" },
+  ],
+  premiumValueSignals: [
+    { feature: "DD Planner", premiumShare: 70, lift: 150, premiumUsers: 28, freeUsers: 12 },
+    { feature: "AI Advisor", premiumShare: 40, lift: 43, premiumUsers: 57, freeUsers: 85 },
+  ],
 };
 
 test.describe("Usage Insights Dashboard", () => {
@@ -159,6 +179,29 @@ test.describe("Usage Insights Dashboard", () => {
     await expect(tier).toBeVisible();
     await expect(tier).toContainText("Free 72%");
     await expect(tier).toContainText("Premium 28%");
+
+    // Free vs Premium behavior
+    const fvp = page.getByTestId("insights-free-vs-premium");
+    await expect(fvp).toBeVisible();
+    await expect(fvp).toContainText("Free Users");
+    await expect(fvp).toContainText("132");
+    await expect(fvp).toContainText("3.1 pages/visit");
+    await expect(fvp).toContainText("Premium Users");
+    await expect(fvp).toContainText("51");
+    await expect(fvp).toContainText("7.4 pages/visit");
+
+    // Top users
+    const topUsers = page.getByTestId("insights-top-users");
+    await expect(topUsers).toBeVisible();
+    await expect(topUsers).toContainText("WarMachine_X");
+    await expect(topUsers).toContainText("347");
+    await expect(topUsers).toContainText("PREMIUM");
+
+    // Premium value signals
+    const signals = page.getByTestId("insights-premium-signals");
+    await expect(signals).toBeVisible();
+    await expect(signals).toContainText("DD Planner");
+    await expect(signals).toContainText("150% lift");
   });
 
   test("shows skeleton while loading", async ({ page }) => {
@@ -191,6 +234,9 @@ test.describe("Usage Insights Dashboard", () => {
       atRiskCommanders: [],
       atRiskCount: 0,
       newUserJourney: [],
+      freeVsPremium: { featureBreakdown: [], engagement: { free: { uniqueUsers: 0, avgSessionDepth: 0 }, premium: { uniqueUsers: 0, avgSessionDepth: 0 } } },
+      topUsers: [],
+      premiumValueSignals: [],
     };
 
     await page.route("**/api/admin/usage-insights", async (route) => {

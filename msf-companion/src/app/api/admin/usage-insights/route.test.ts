@@ -170,4 +170,80 @@ describe("GET /api/admin/usage-insights", () => {
     expect(body.tierSplit.FREE).toBe(70);
     expect(body.tierSplit.PREMIUM).toBe(30);
   });
+
+  it("returns freeVsPremium behavior breakdown", async () => {
+    mockGetAdminSession.mockResolvedValue({ isAdmin: true });
+    mockGroupBy.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+    mockQueryRawUnsafe.mockResolvedValue([]);
+    mockFindMany.mockResolvedValue([]);
+    mockFindFirst.mockResolvedValue(null);
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body).toHaveProperty("freeVsPremium");
+    expect(body.freeVsPremium).toHaveProperty("featureBreakdown");
+    expect(body.freeVsPremium).toHaveProperty("engagement");
+    expect(body.freeVsPremium.engagement).toHaveProperty("free");
+    expect(body.freeVsPremium.engagement).toHaveProperty("premium");
+    expect(body.freeVsPremium.engagement.free).toHaveProperty("uniqueUsers");
+    expect(body.freeVsPremium.engagement.free).toHaveProperty("avgSessionDepth");
+  });
+
+  it("returns topUsers array", async () => {
+    mockGetAdminSession.mockResolvedValue({ isAdmin: true });
+    mockGroupBy.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+    mockFindMany.mockResolvedValue([]);
+    mockFindFirst.mockResolvedValue(null);
+
+    mockQueryRawUnsafe.mockImplementation((sql: string) => {
+      if (sql.includes('"eventCount"')) {
+        return [
+          { commanderId: "user1", eventCount: BigInt(42), lastActive: new Date("2026-05-01"), tier: "PREMIUM" },
+        ];
+      }
+      if (sql.includes("cnt")) {
+        return [{ commanderId: "user1", eventName: "/advisor", cnt: BigInt(20) }];
+      }
+      return [];
+    });
+
+    // findMany for commander names
+    mockFindMany.mockImplementation((args: Record<string, unknown>) => {
+      const where = args.where as Record<string, unknown>;
+      if (where?.id) {
+        return [{ id: "user1", displayName: "TestCommander" }];
+      }
+      return [];
+    });
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body).toHaveProperty("topUsers");
+    expect(Array.isArray(body.topUsers)).toBe(true);
+    if (body.topUsers.length > 0) {
+      expect(body.topUsers[0]).toHaveProperty("displayName");
+      expect(body.topUsers[0]).toHaveProperty("tier");
+      expect(body.topUsers[0]).toHaveProperty("eventCount");
+      expect(body.topUsers[0]).toHaveProperty("topFeature");
+    }
+  });
+
+  it("returns premiumValueSignals array", async () => {
+    mockGetAdminSession.mockResolvedValue({ isAdmin: true });
+    mockGroupBy.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+    mockQueryRawUnsafe.mockResolvedValue([]);
+    mockFindMany.mockResolvedValue([]);
+    mockFindFirst.mockResolvedValue(null);
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body).toHaveProperty("premiumValueSignals");
+    expect(Array.isArray(body.premiumValueSignals)).toBe(true);
+  });
 });

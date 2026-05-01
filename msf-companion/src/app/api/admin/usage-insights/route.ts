@@ -282,6 +282,151 @@ export async function GET() {
     tierSplit = { FREE: freePercent, PREMIUM: 100 - freePercent };
   }
 
+  // ─── Free vs Premium Behavior ─────────────────────────────────
+  // Per-feature usage broken down by tier
+  const tierBehavior = await Promise.all(
+    Object.entries(featurePages).map(async ([path, label]) => {
+      const [freeUsers, premiumUsers] = await Promise.all([
+        prisma.usageEvent.groupBy({
+          by: ["commanderId"],
+          where: {
+            eventName: path,
+            eventType: "page_view",
+            tier: "FREE",
+            createdAt: { gte: weekStart },
+          },
+        }),
+        prisma.usageEvent.groupBy({
+          by: ["commanderId"],
+          where: {
+            eventName: path,
+            eventType: "page_view",
+            tier: "PREMIUM",
+            createdAt: { gte: weekStart },
+          },
+        }),
+      ]);
+      return {
+        feature: label,
+        freeUsers: freeUsers.length,
+        premiumUsers: premiumUsers.length,
+      };
+    }),
+  );
+
+  // Tier-level engagement stats
+  const [freePageViews, premiumPageViews, freeUniqueUsers, premiumUniqueUsers] = await Promise.all([
+    prisma.usageEvent.count({
+      where: { eventType: "page_view", tier: "FREE", createdAt: { gte: weekStart } },
+    }),
+    prisma.usageEvent.count({
+      where: { eventType: "page_view", tier: "PREMIUM", createdAt: { gte: weekStart } },
+    }),
+    prisma.usageEvent.groupBy({
+      by: ["commanderId"],
+      where: { tier: "FREE", createdAt: { gte: weekStart } },
+    }),
+    prisma.usageEvent.groupBy({
+      by: ["commanderId"],
+      where: { tier: "PREMIUM", createdAt: { gte: weekStart } },
+    }),
+  ]);
+
+  const freeVsPremium = {
+    featureBreakdown: tierBehavior.filter((f) => f.freeUsers > 0 || f.premiumUsers > 0),
+    engagement: {
+      free: {
+        uniqueUsers: freeUniqueUsers.length,
+        avgSessionDepth: freeUniqueUsers.length > 0
+          ? Math.round((freePageViews / freeUniqueUsers.length) * 10) / 10
+          : 0,
+      },
+      premium: {
+        uniqueUsers: premiumUniqueUsers.length,
+        avgSessionDepth: premiumUniqueUsers.length > 0
+          ? Math.round((premiumPageViews / premiumUniqueUsers.length) * 10) / 10
+          : 0,
+      },
+    },
+  };
+
+  // ─── Top Users (Power Users) ──────────────────────────────────
+  const topUsersRaw = await prisma.$queryRawUnsafe<
+    Array<{ commanderId: string; eventCount: bigint; lastActive: Date; tier: string }>
+  >(
+    `SELECT "commanderId", COUNT(*) as "eventCount",
+            MAX("createdAt") as "lastActive", MAX("tier") as tier
+     FROM "UsageEvent"
+     WHERE "createdAt" >= $1
+     GROUP BY "commanderId"
+     ORDER BY "eventCount" DESC
+     LIMIT 15`,
+    weekStart,
+  );
+
+  // Enrich with display names and top feature
+  const topUserIds = topUsersRaw.map((u) => u.commanderId);
+  const topUserDetails = topUserIds.length > 0
+    ? await prisma.commander.findMany({
+        where: { id: { in: topUserIds } },
+        select: { id: true, displayName: true },
+      })
+    : [];
+
+  const topUserFeatures = topUserIds.length > 0
+    ? await prisma.$queryRawUnsafe<Array<{ commanderId: string; eventName: string; cnt: bigint }>>(
+        `SELECT "commanderId", "eventName", COUNT(*) as cnt
+         FROM "UsageEvent"
+         WHERE "commanderId" = ANY($1)
+           AND "eventType" = 'page_view'
+           AND "createdAt" >= $2
+         GROUP BY "commanderId", "eventName"
+         ORDER BY "commanderId", cnt DESC`,
+        topUserIds,
+        weekStart,
+      )
+    : [];
+
+  // Build a map of commanderId -> top feature
+  const topFeatureMap = new Map<string, string>();
+  for (const row of topUserFeatures) {
+    if (!topFeatureMap.has(row.commanderId)) {
+      topFeatureMap.set(row.commanderId, featurePages[row.eventName] || row.eventName);
+    }
+  }
+
+  const nameMap = new Map(topUserDetails.map((u) => [u.id, u.displayName || "Unknown"]));
+
+  const topUsers = topUsersRaw.map((u) => ({
+    displayName: nameMap.get(u.commanderId) || "Unknown",
+    tier: u.tier,
+    eventCount: Number(u.eventCount),
+    lastActive: u.lastActive instanceof Date ? u.lastActive.toISOString().slice(0, 10) : String(u.lastActive).slice(0, 10),
+    topFeature: topFeatureMap.get(u.commanderId) || "—",
+  }));
+
+  // ─── Premium Value Signals ────────────────────────────────────
+  // Features where premium usage is disproportionately higher
+  const premiumValueSignals = tierBehavior
+    .filter((f) => f.premiumUsers > 0)
+    .map((f) => {
+      const totalUsers = f.freeUsers + f.premiumUsers;
+      const premiumShare = Math.round((f.premiumUsers / totalUsers) * 100);
+      // Compare premium share of feature vs overall premium share
+      const overallPremiumShare = tierSplit.PREMIUM;
+      const lift = overallPremiumShare > 0
+        ? Math.round(((premiumShare - overallPremiumShare) / overallPremiumShare) * 100)
+        : 0;
+      return {
+        feature: f.feature,
+        premiumShare,
+        lift,
+        premiumUsers: f.premiumUsers,
+        freeUsers: f.freeUsers,
+      };
+    })
+    .sort((a, b) => b.lift - a.lift);
+
   return NextResponse.json({
     summary: {
       activeToday: todayCount,
@@ -300,5 +445,8 @@ export async function GET() {
     weeklyActiveCount: weekCount,
     newUserJourney,
     tierSplit,
+    freeVsPremium,
+    topUsers,
+    premiumValueSignals,
   });
 }
