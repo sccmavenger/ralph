@@ -179,6 +179,7 @@ export default function UsageInsightsClient() {
           <a href="/admin/dashboard" className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors whitespace-nowrap">Commanders</a>
           <a href="/admin/ai-dashboard" className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors whitespace-nowrap">AI Dashboard</a>
           <span className="px-3 py-2 text-sm font-medium border-b-2 border-[var(--color-accent)] text-[var(--color-accent)] whitespace-nowrap">Usage Insights</span>
+          <a href="/admin/monetization" className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors whitespace-nowrap">Monetization</a>
         </nav>
       </header>
 
