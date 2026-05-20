@@ -152,7 +152,7 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "First UI story. Depends on US-001 API route. Keep it simple — just the shell and empty/active states."
     },
     {
