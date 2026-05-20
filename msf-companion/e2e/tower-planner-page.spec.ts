@@ -24,12 +24,40 @@ const mockNoTower = {
   tower: null,
 };
 
+const mockRooms = [
+  { id: "room_a1", rayId: "ray_a", name: "Floor 1", requirements: { traits: ["Mutant"], minGearTier: 16, minStars: 5, minLevel: 85 }, week: 1 },
+  { id: "room_a2", rayId: "ray_a", name: "Floor 2", requirements: { traits: ["Bio"], minGearTier: 17, minStars: 6, minLevel: 90 }, week: 1 },
+  { id: "room_b1", rayId: "ray_b", name: "Floor 3", requirements: { traits: ["Tech"], minGearTier: 17, minStars: 7, minLevel: 95 }, week: 2 },
+];
+
+const mockReadiness: Record<string, { status: string; eligibleCount: number }> = {
+  room_a1: { status: "ready", eligibleCount: 7 },
+  room_a2: { status: "almost", eligibleCount: 4 },
+  room_b1: { status: "blocked", eligibleCount: 1 },
+};
+
 async function setupMockRoutes(page: Page, towerResponse: unknown) {
   await page.route("**/api/tower/events", (route) => {
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(towerResponse),
+    });
+  });
+
+  await page.route("**/api/tower/rooms*", (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockRooms),
+    });
+  });
+
+  await page.route("**/api/tower/readiness*", (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockReadiness),
     });
   });
 }
@@ -73,5 +101,35 @@ test.describe("Tower Planner Page", () => {
     const scrollWidth = await body.evaluate((el) => el.scrollWidth);
     const clientWidth = await body.evaluate((el) => el.clientWidth);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
+  test("room cards render with correct status badges", async ({ page }) => {
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    await expect(page.locator("[data-testid='room-card']")).toHaveCount(3);
+    await expect(page.getByText("Ready to go")).toBeVisible();
+    await expect(page.getByText("Almost there")).toBeVisible();
+    await expect(page.getByText("Not possible yet")).toBeVisible();
+  });
+
+  test("summary bar shows counts", async ({ page }) => {
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    const summary = page.locator("[data-testid='tower-summary-bar']");
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText("1 ready");
+    await expect(summary).toContainText("1 almost");
+    await expect(summary).toContainText("1 blocked");
+  });
+
+  test("week 2 divider is visible", async ({ page }) => {
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    const divider = page.locator("[data-testid='week-2-divider']");
+    await expect(divider).toBeVisible();
+    await expect(divider).toContainText("Week 2");
   });
 });
