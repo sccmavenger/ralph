@@ -40,6 +40,8 @@ model Commander {
   pushSubscriptions        PushSubscription[]
   dailyTokenUsages         DailyTokenUsage[]
   usageEvents              UsageEvent[]
+  churnInterventions       ChurnIntervention[]
+  towerResults             TowerResult[]
 }
 
 model RosterSnapshot {
@@ -126,6 +128,7 @@ model CommanderNotification {
   title       String
   message     String
   linkUrl     String?
+  metadata    Json?
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())
   commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
@@ -198,4 +201,45 @@ model UsageEvent {
   @@index([commanderId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+model ChurnIntervention {
+  id          String    @id @default(cuid())
+  commanderId String
+  type        String    // "nudge" | "re-engage" | "retention" | "dunning" | "win-back"
+  channel     String    // "email" | "notification" | "both"
+  riskScore   Int?
+  sentAt      DateTime  @default(now())
+  scheduledAt DateTime?
+  delivered   Boolean   @default(false)
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@index([commanderId, type, sentAt])
+  @@index([scheduledAt, delivered])
+}
+
+model GameCharacter {
+  id              String   @id @default(cuid())
+  characterId     String   @unique
+  name            String
+  traits          Json     @default("[]")
+  firstDetectedAt DateTime @default(now())
+
+  @@index([characterId])
+}
+
+model TowerResult {
+  id            String    @id @default(cuid())
+  commanderId   String
+  towerEventId  String
+  towerName     String
+  roomsCleared  Int
+  totalRooms    Int
+  week1Cleared  Int
+  week2Cleared  Int
+  completedAt   DateTime
+  commander     Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+
+  @@unique([commanderId, towerEventId])
+  @@index([commanderId])
 }
