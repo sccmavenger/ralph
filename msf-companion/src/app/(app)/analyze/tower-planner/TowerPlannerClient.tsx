@@ -53,6 +53,15 @@ interface SolverResult {
   unassignableRooms: string[];
 }
 
+interface TowerHistoryEntry {
+  id: string;
+  towerEventId: string;
+  towerName: string;
+  roomsCleared: number;
+  totalRooms: number;
+  completedAt: string;
+}
+
 export default function TowerPlannerClient() {
   const [loading, setLoading] = useState(true);
   const [towerData, setTowerData] = useState<TowerEventsResponse | null>(null);
@@ -66,6 +75,7 @@ export default function TowerPlannerClient() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [upgrades, setUpgrades] = useState<UpgradeRecommendation[]>([]);
   const [howItWorksExpanded, setHowItWorksExpanded] = useState(false);
+  const [history, setHistory] = useState<TowerHistoryEntry[]>([]);
 
   useEffect(() => {
     // Check if first visit
@@ -154,6 +164,13 @@ export default function TowerPlannerClient() {
               setUpgrades(upgradesData);
             }
           }
+        }
+
+        // Always fetch history (even when no active tower)
+        const historyRes = await fetch("/api/tower/history");
+        if (historyRes.ok) {
+          const historyData: TowerHistoryEntry[] = await historyRes.json();
+          setHistory(historyData);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -387,6 +404,41 @@ export default function TowerPlannerClient() {
         {week2Rooms.map((room) => (
           <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} cleared={clearedRooms.has(room.id)} onMarkCleared={() => markRoomCleared(room.id)} />
         ))}
+      </div>
+
+      {/* History Section */}
+      <div className="mt-6" data-testid="tower-history-section">
+        <h3 className="text-sm font-semibold text-gray-300 mb-3">History</h3>
+        {history.length === 0 ? (
+          <p className="text-xs text-gray-500" data-testid="history-empty">Complete your first tower to see history here</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {history.map((entry, i) => {
+              const prev = history[i + 1];
+              const diff = prev ? entry.roomsCleared - prev.roomsCleared : null;
+              return (
+                <div key={entry.id} className="flex items-center justify-between rounded-lg bg-gray-800/50 p-3" data-testid="history-entry">
+                  <div>
+                    <span className="text-xs text-white font-medium">{entry.towerName}</span>
+                    <span className="ml-2 text-xs text-gray-400">{new Date(entry.completedAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-300">{entry.roomsCleared}/{entry.totalRooms}</span>
+                    {diff === null ? (
+                      <span className="text-xs text-gray-500" data-testid="history-first">First time</span>
+                    ) : diff > 0 ? (
+                      <span className="text-xs text-green-400" data-testid="history-up">↑{diff}</span>
+                    ) : diff < 0 ? (
+                      <span className="text-xs text-red-400" data-testid="history-down">↓{Math.abs(diff)}</span>
+                    ) : (
+                      <span className="text-xs text-gray-500">=</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
