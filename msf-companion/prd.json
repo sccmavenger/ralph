@@ -190,7 +190,7 @@
         "Tests pass"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-004 (solver), US-006 (meta teams), US-009 (room list UI). Wires the solver to the UI."
     },
     {

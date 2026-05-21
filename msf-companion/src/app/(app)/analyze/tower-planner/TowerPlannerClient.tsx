@@ -40,11 +40,25 @@ interface RoomReadiness {
   eligibleCount: number;
 }
 
+interface TeamAssignment {
+  characters: Array<{ id: string; name: string }>;
+  power: number;
+  confidence: "strong" | "shouldWork" | "risky";
+  reason: string;
+}
+
+interface SolverResult {
+  assignments: Record<string, TeamAssignment>;
+  unassignableRooms: string[];
+}
+
 export default function TowerPlannerClient() {
   const [loading, setLoading] = useState(true);
   const [towerData, setTowerData] = useState<TowerEventsResponse | null>(null);
   const [rooms, setRooms] = useState<TowerRoom[]>([]);
   const [roomReadiness, setRoomReadiness] = useState<Map<string, RoomReadiness>>(new Map());
+  const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
+  const [solving, setSolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,6 +153,25 @@ export default function TowerPlannerClient() {
   // Calculate Week 2 unlock date (7 days after event start)
   const week2UnlockDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+  async function handlePickMyTeams() {
+    setSolving(true);
+    try {
+      const res = await fetch("/api/tower/solve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rooms, roster: [], metaTeams: [] }),
+      });
+      if (res.ok) {
+        const data: SolverResult = await res.json();
+        setSolverResult(data);
+      }
+    } catch {
+      // Solver error — silently fail
+    } finally {
+      setSolving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4" data-testid="tower-planner-active">
       <div className="flex flex-wrap items-center gap-3">
@@ -165,10 +198,22 @@ export default function TowerPlannerClient() {
         </div>
       )}
 
+      {/* Pick My Teams button */}
+      {totalRooms > 0 && (
+        <button
+          onClick={handlePickMyTeams}
+          disabled={solving}
+          className="w-full rounded-lg bg-purple-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
+          data-testid="pick-my-teams-btn"
+        >
+          {solving ? "Solving..." : "Pick My Teams"}
+        </button>
+      )}
+
       {/* Week 1 Rooms */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
         {week1Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} />
+          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} />
         ))}
 
         {/* Week 2 Divider */}
@@ -184,14 +229,15 @@ export default function TowerPlannerClient() {
 
         {/* Week 2 Rooms */}
         {week2Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} />
+          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} />
         ))}
       </div>
     </div>
   );
 }
 
-function RoomCard({ room, readiness }: { room: TowerRoom; readiness?: RoomReadiness }) {
+function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment }) {
+  const [showReason, setShowReason] = useState(false);
   const status = readiness?.status || "blocked";
   const eligibleCount = readiness?.eligibleCount || 0;
 
@@ -199,6 +245,12 @@ function RoomCard({ room, readiness }: { room: TowerRoom; readiness?: RoomReadin
     ready: { text: "Ready to go", className: "bg-green-600 text-white" },
     almost: { text: "Almost there", className: "bg-yellow-600 text-white" },
     blocked: { text: "Not possible yet", className: "bg-red-600 text-white" },
+  };
+
+  const confidenceConfig = {
+    strong: { text: "Strong pick", className: "bg-green-600 text-white" },
+    shouldWork: { text: "Should work", className: "bg-yellow-600 text-white" },
+    risky: { text: "Risky", className: "bg-red-600 text-white" },
   };
 
   const badge = badgeConfig[status];
@@ -222,6 +274,33 @@ function RoomCard({ room, readiness }: { room: TowerRoom; readiness?: RoomReadin
       <div className="mt-1 text-xs text-gray-500">
         {eligibleCount} eligible character{eligibleCount !== 1 ? "s" : ""}
       </div>
+
+      {/* Solver assignment */}
+      {assignment && (
+        <div className="mt-3 border-t border-gray-700 pt-3" data-testid="team-assignment">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-300">
+              {assignment.characters.map((c) => c.name).join(", ")}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${confidenceConfig[assignment.confidence].className}`} data-testid="confidence-badge">
+              {confidenceConfig[assignment.confidence].text}
+            </span>
+          </div>
+          <div className="mt-1 text-xs text-gray-500">
+            Total power: {(assignment.power / 1000).toFixed(0)}k
+          </div>
+          <button
+            onClick={() => setShowReason(!showReason)}
+            className="mt-1 text-xs text-purple-400 hover:text-purple-300"
+            data-testid="why-this-team"
+          >
+            {showReason ? "Hide" : "Why this team?"}
+          </button>
+          {showReason && (
+            <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
