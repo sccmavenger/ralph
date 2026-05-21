@@ -315,7 +315,7 @@
         "Tests pass"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Uses existing subscription infrastructure. Check how other premium features gate access and follow that pattern."
     },
     {
