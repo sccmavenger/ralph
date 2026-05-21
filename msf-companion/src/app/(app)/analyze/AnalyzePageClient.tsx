@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 const MODES = [
   {
@@ -10,6 +11,15 @@ const MODES = [
     color: "#6366f1",
     letter: "D",
     href: "/analyze/dd-planner",
+  },
+  {
+    name: "Tower Planner",
+    description: "Plan your teams for tower events — maximize clears with optimal allocation",
+    count: "",
+    color: "#8b5cf6",
+    letter: "T",
+    href: "/analyze/tower-planner",
+    dynamic: true,
   },
   {
     name: "Farming Guide",
@@ -53,8 +63,22 @@ const MODES = [
   },
 ];
 
-export default function AnalyzePageClient() {
+export default function AnalyzePageClient({ upgradeTokensEnabled }: { upgradeTokensEnabled: boolean }) {
   const router = useRouter();
+  const [towerStatus, setTowerStatus] = useState<string>("No active tower");
+
+  useEffect(() => {
+    fetch("/api/tower/events")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.active && data.tower) {
+          setTowerStatus(`${data.tower.name} — Week ${data.tower.currentWeek}`);
+        }
+      })
+      .catch(() => {/* ignore */});
+  }, []);
+
+  const visibleModes = upgradeTokensEnabled ? MODES : MODES.filter((m) => m.name !== "Upgrade Tokens");
 
   return (
     <div className="px-4 py-4">
@@ -70,7 +94,7 @@ export default function AnalyzePageClient() {
       </h3>
 
       <div className="space-y-3">
-        {MODES.map((mode) => (
+        {visibleModes.map((mode) => (
           <div
             key={mode.name}
             onClick={mode.href ? () => router.push(mode.href) : undefined}
@@ -90,7 +114,7 @@ export default function AnalyzePageClient() {
               {mode.description}
             </p>
             <p className="mt-1 text-xs text-[var(--color-muted)]">
-              {mode.count}
+              {(mode as { dynamic?: boolean }).dynamic ? towerStatus : mode.count}
             </p>
           </div>
         ))}

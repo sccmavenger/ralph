@@ -244,4 +244,48 @@ test.describe("Tower Planner Page", () => {
     await page.locator("[data-testid='how-it-works-toggle']").click();
     await expect(page.locator("[data-testid='how-it-works-content']")).not.toBeVisible();
   });
+
+  test("Analyze page shows Tower Planner card with active tower", async ({ page }) => {
+    await page.route("**/api/tower/events", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockActiveTower) })
+    );
+    await page.goto("/analyze");
+    await dismissModals(page);
+
+    // Card should be visible
+    await expect(page.getByText("Tower Planner")).toBeVisible();
+    // Should show tower name
+    await expect(page.getByText("Alpha Tower — Week 1")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("Analyze page Tower Planner card shows 'No active tower' when inactive", async ({ page }) => {
+    await page.route("**/api/tower/events", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ active: false, tower: null }) })
+    );
+    await page.goto("/analyze");
+    await dismissModals(page);
+
+    await expect(page.getByText("Tower Planner")).toBeVisible();
+    await expect(page.getByText("No active tower")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("Analyze page Tower Planner card navigates on click", async ({ page }) => {
+    await page.route("**/api/tower/events", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockActiveTower) })
+    );
+    await page.route("**/api/tower/rooms*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    );
+    await page.route("**/api/tower/readiness*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
+    );
+    await page.route("**/api/tower/upgrades*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    );
+    await page.goto("/analyze");
+    await dismissModals(page);
+
+    await page.getByText("Tower Planner").click();
+    await expect(page).toHaveURL(/\/analyze\/tower-planner/);
+  });
 });
