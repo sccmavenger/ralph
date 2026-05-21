@@ -75,6 +75,24 @@ async function setupMockRoutes(page: Page, towerResponse: unknown, upgradesRespo
   });
 }
 
+async function dismissModals(page: Page) {
+  const skipBtn = page.getByText("Skip for now");
+  if (await skipBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await skipBtn.click();
+    await page.waitForTimeout(500);
+  }
+  const skipTour = page.getByText("Skip Tour");
+  if (await skipTour.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await skipTour.click();
+    await page.waitForTimeout(500);
+  }
+  const installDismiss = page.locator("[data-testid='install-dismiss']");
+  if (await installDismiss.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await installDismiss.click();
+    await page.waitForTimeout(500);
+  }
+}
+
 test.describe("Tower Planner Page", () => {
   test("page loads at /analyze/tower-planner", async ({ page }) => {
     await setupMockRoutes(page, mockActiveTower);
@@ -180,5 +198,50 @@ test.describe("Tower Planner Page", () => {
 
     await page.goto("/analyze/tower-planner");
     await expect(page.locator("[data-testid='upgrades-section']")).not.toBeVisible();
+  });
+
+  test("How It Works expanded on first visit", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem("tower-planner-seen");
+    });
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    const content = page.locator("[data-testid='how-it-works-content']");
+    await expect(content).toBeVisible();
+    await expect(page.locator("[data-testid='how-step-1']")).toBeVisible();
+    await expect(page.locator("[data-testid='how-step-2']")).toBeVisible();
+    await expect(page.locator("[data-testid='how-step-3']")).toBeVisible();
+  });
+
+  test("How It Works collapsed on second visit", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("tower-planner-seen", "1");
+    });
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    await expect(page.locator("[data-testid='how-it-works-section']")).toBeVisible();
+    await expect(page.locator("[data-testid='how-it-works-content']")).not.toBeVisible();
+  });
+
+  test("How It Works toggle works", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("tower-planner-seen", "1");
+    });
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+    await dismissModals(page);
+
+    // Initially collapsed
+    await expect(page.locator("[data-testid='how-it-works-content']")).not.toBeVisible();
+
+    // Click to expand
+    await page.locator("[data-testid='how-it-works-toggle']").click();
+    await expect(page.locator("[data-testid='how-it-works-content']")).toBeVisible();
+
+    // Click to collapse
+    await page.locator("[data-testid='how-it-works-toggle']").click();
+    await expect(page.locator("[data-testid='how-it-works-content']")).not.toBeVisible();
   });
 });

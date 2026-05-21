@@ -65,6 +65,16 @@ export default function TowerPlannerClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [upgrades, setUpgrades] = useState<UpgradeRecommendation[]>([]);
+  const [howItWorksExpanded, setHowItWorksExpanded] = useState(false);
+
+  useEffect(() => {
+    // Check if first visit
+    const seen = localStorage.getItem("tower-planner-seen");
+    if (!seen) {
+      setHowItWorksExpanded(true);
+      localStorage.setItem("tower-planner-seen", "1");
+    }
+  }, []);
 
   function getClearedStorageKey(eventId: string, week: number) {
     return `tower-cleared-${eventId}-w${week}`;
@@ -244,6 +254,27 @@ export default function TowerPlannerClient() {
       <p className="text-sm text-gray-400">
         Ends {endDate.toLocaleDateString()} ({daysLeft} day{daysLeft !== 1 ? "s" : ""} left)
       </p>
+
+      {/* How It Works */}
+      <div className="rounded-lg border border-gray-700 bg-gray-800/50" data-testid="how-it-works-section">
+        <button
+          onClick={() => setHowItWorksExpanded(!howItWorksExpanded)}
+          className="flex w-full items-center justify-between p-3 text-left"
+          data-testid="how-it-works-toggle"
+        >
+          <span className="text-sm font-medium text-gray-300">How Tower Events Work</span>
+          <span className="text-xs text-gray-500">{howItWorksExpanded ? "▲" : "▼"}</span>
+        </button>
+        {howItWorksExpanded && (
+          <div className="border-t border-gray-700 p-3" data-testid="how-it-works-content">
+            <ol className="flex flex-col gap-2 text-xs text-gray-400 list-decimal pl-4">
+              <li data-testid="how-step-1">Each battle has trait rules — only characters with matching traits can enter</li>
+              <li data-testid="how-step-2">Used teams get locked for the week — plan carefully to maximize clears</li>
+              <li data-testid="how-step-3">We plan your teams so you clear the most rooms with what you have</li>
+            </ol>
+          </div>
+        )}
+      </div>
 
       {/* Summary bar */}
       {totalRooms > 0 && (
