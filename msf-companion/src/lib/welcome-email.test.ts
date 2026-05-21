@@ -14,7 +14,7 @@ describe("buildWelcomeEmailHtml", () => {
 
   it("includes Discord invite link", () => {
     const html = buildWelcomeEmailHtml("Test");
-    expect(html).toContain("discord.gg/yyTq7KfX");
+    expect(html).toContain("discord.gg/2ptFQ2Vefk");
     expect(html).toContain("Join the Discord");
   });
 

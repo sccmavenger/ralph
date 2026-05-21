@@ -25,7 +25,7 @@ async function main() {
   const title = "� Discord Link Updated!";
   const message =
     "Heads up, Commander! Our Discord invite link has been updated. If you tried joining before and it didn't work — sorry about that! Here's the new link. Come chat with the dev team, share feedback, and help shape what we build next!";
-  const linkUrl = "https://discord.gg/yyTq7KfX";
+  const linkUrl = "https://discord.gg/2ptFQ2Vefk";
   const type = "announcement";
 
   // Build bulk insert

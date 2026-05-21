@@ -78,7 +78,7 @@ test.describe("FAQ Page", () => {
 
   test("TC-008: Discord link has correct href and target", async ({ page }) => {
     const discordLink = page.getByRole("link", { name: "Discord" });
-    await expect(discordLink).toHaveAttribute("href", "https://discord.gg/yyTq7KfX");
+    await expect(discordLink).toHaveAttribute("href", "https://discord.gg/2ptFQ2Vefk");
     await expect(discordLink).toHaveAttribute("target", "_blank");
   });
 

@@ -10,15 +10,31 @@ interface TowerRay {
 
 interface TowerData {
   id: string;
+  eventId?: string;
   name: string;
+  subName?: string;
+  cardArt?: string;
+  popupArt?: string;
+  popupDetails?: string;
   endDate: string;
   currentWeek: number;
   rays: TowerRay[];
+  completedTier?: number | null;
 }
 
 interface TowerEventsResponse {
   active: boolean;
   tower: TowerData | null;
+  towers?: TowerData[];
+}
+
+interface CharacterFilter {
+  allTraits: string[];
+  anyTraits: string[];
+  anyCharacters: string[];
+  gearTier: number;
+  minStars: number;
+  minLevel: number;
 }
 
 interface RoomRequirements {
@@ -26,6 +42,10 @@ interface RoomRequirements {
   minGearTier: number;
   minStars: number;
   minLevel: number;
+  minCharacters?: number;
+  maxCharacters?: number;
+  filters?: CharacterFilter[];
+  specificCharacters?: string[];
 }
 
 interface TowerRoom {
@@ -62,9 +82,26 @@ interface TowerHistoryEntry {
   completedAt: string;
 }
 
+const cellNumberOf = (name: string): number | null => {
+  const m = name.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+};
+
+// Compute the set of room IDs that the API says are cleared (cell# <= completedTier).
+function computeAutoCleared(rooms: TowerRoom[], completedTier: number | null | undefined): Set<string> {
+  const out = new Set<string>();
+  if (typeof completedTier !== "number" || completedTier <= 0) return out;
+  for (const r of rooms) {
+    const c = cellNumberOf(r.name);
+    if (c !== null && c <= completedTier) out.add(r.id);
+  }
+  return out;
+}
+
 export default function TowerPlannerClient() {
   const [loading, setLoading] = useState(true);
   const [towerData, setTowerData] = useState<TowerEventsResponse | null>(null);
+  const [activeTowerIndex, setActiveTowerIndex] = useState(0);
   const [rooms, setRooms] = useState<TowerRoom[]>([]);
   const [roomReadiness, setRoomReadiness] = useState<Map<string, RoomReadiness>>(new Map());
   const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
@@ -84,45 +121,54 @@ export default function TowerPlannerClient() {
       setHowItWorksExpanded(true);
       localStorage.setItem("tower-planner-seen", "1");
     }
+    // One-time cleanup of legacy `tower-cleared-*` keys. The old code persisted cleared cells to
+    // localStorage, and a prior pairing bug saved corrupted data under both tower IDs. The API's
+    // completedTier is now the single source of truth, so wipe these stale keys.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("tower-cleared-")) localStorage.removeItem(k);
+      }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  function getClearedStorageKey(eventId: string, week: number) {
-    return `tower-cleared-${eventId}-w${week}`;
+  // Active tower derived from towerData + activeTowerIndex. Returns null until towerData loads.
+  function getActiveTower(): TowerData | null {
+    if (!towerData) return null;
+    const list = towerData.towers ?? (towerData.tower ? [towerData.tower] : []);
+    return list[activeTowerIndex] ?? null;
   }
 
-  function loadClearedRooms(eventId: string, week: number): Set<string> {
-    try {
-      const stored = localStorage.getItem(getClearedStorageKey(eventId, week));
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch {
-      return new Set();
-    }
-  }
-
-  function saveClearedRooms(eventId: string, week: number, cleared: Set<string>) {
-    localStorage.setItem(getClearedStorageKey(eventId, week), JSON.stringify([...cleared]));
-  }
-
+  // Cleared rooms are derived primarily from the API's `completedTier` (authoritative per tower).
+  // Manual "Mark Cleared" is an in-memory prediction layer for cells the API hasn't seen yet —
+  // not persisted, so switching tabs or refreshing always reflects the real game state.
   function markRoomCleared(roomId: string) {
-    if (!towerData?.tower) return;
-    const newCleared = new Set(clearedRooms);
-    newCleared.add(roomId);
-    setClearedRooms(newCleared);
-    saveClearedRooms(towerData.tower.id, towerData.tower.currentWeek, newCleared);
+    setClearedRooms((prev) => {
+      const next = new Set(prev);
+      next.add(roomId);
+      return next;
+    });
   }
 
   function resetAllCleared() {
-    if (!towerData?.tower) return;
-    setClearedRooms(new Set<string>());
-    saveClearedRooms(towerData.tower.id, towerData.tower.currentWeek, new Set());
+    // Reset to API truth: cells with cell# <= completedTier remain cleared.
+    const t = getActiveTower();
+    if (!t) {
+      setClearedRooms(new Set<string>());
+    } else {
+      setClearedRooms(computeAutoCleared(rooms, t.completedTier));
+    }
     setShowResetConfirm(false);
   }
 
   async function handleRefreshProgress() {
-    if (!towerData?.tower) return;
+    const t = getActiveTower();
+    if (!t) return;
     setRefreshing(true);
     try {
-      const roomsRes = await fetch(`/api/tower/rooms?towerId=${towerData.tower.id}`);
+      const roomsRes = await fetch(`/api/tower/rooms?towerId=${t.id}`);
       if (roomsRes.ok) {
         const roomsData: TowerRoom[] = await roomsRes.json();
         setRooms(roomsData);
@@ -139,32 +185,7 @@ export default function TowerPlannerClient() {
         if (!res.ok) throw new Error("Failed to fetch tower status");
         const data: TowerEventsResponse = await res.json();
         setTowerData(data);
-
-        if (data.active && data.tower) {
-          // Load cleared rooms from localStorage
-          setClearedRooms(loadClearedRooms(data.tower.id, data.tower.currentWeek));
-
-          // Fetch rooms
-          const roomsRes = await fetch(`/api/tower/rooms?towerId=${data.tower.id}`);
-          if (roomsRes.ok) {
-            const roomsData: TowerRoom[] = await roomsRes.json();
-            setRooms(roomsData);
-
-            // Fetch readiness (simple version — uses roster from API)
-            const readinessRes = await fetch(`/api/tower/readiness?towerId=${data.tower.id}`);
-            if (readinessRes.ok) {
-              const readinessData: Record<string, RoomReadiness> = await readinessRes.json();
-              setRoomReadiness(new Map(Object.entries(readinessData)));
-            }
-
-            // Fetch upgrade recommendations
-            const upgradesRes = await fetch(`/api/tower/upgrades?towerId=${data.tower.id}`);
-            if (upgradesRes.ok) {
-              const upgradesData: UpgradeRecommendation[] = await upgradesRes.json();
-              setUpgrades(upgradesData);
-            }
-          }
-        }
+        setActiveTowerIndex(0);
 
         // Always fetch history (even when no active tower)
         const historyRes = await fetch("/api/tower/history");
@@ -181,6 +202,64 @@ export default function TowerPlannerClient() {
 
     fetchTowerStatus();
   }, []);
+
+  // Load per-tower data (rooms, readiness, upgrades) whenever the active tower changes. Always
+  // re-fetches `/api/tower/events` first so the freshly-clicked tab uses the latest in-game
+  // `completedTier` (which is the authoritative source for cleared cells per tower).
+  useEffect(() => {
+    const towers = towerData?.towers ?? (towerData?.tower ? [towerData.tower] : []);
+    const activeTowerInitial = towers[activeTowerIndex];
+    if (!activeTowerInitial) return;
+    let cancelled = false;
+    (async () => {
+      // Clear stale state so the UI doesn't show the previous tower's cells while loading.
+      setClearedRooms(new Set<string>());
+      setSolverResult(null);
+      setRooms([]);
+      setRoomReadiness(new Map());
+      setUpgrades([]);
+      try {
+        // Re-fetch events to get the latest completedTier for the clicked tower.
+        let activeTower = activeTowerInitial;
+        try {
+          const evRes = await fetch("/api/tower/events", { cache: "no-store" });
+          if (!cancelled && evRes.ok) {
+            const fresh: TowerEventsResponse = await evRes.json();
+            const freshList = fresh.towers ?? (fresh.tower ? [fresh.tower] : []);
+            const match = freshList.find((t) => t.id === activeTowerInitial.id);
+            if (match) {
+              activeTower = match;
+              setTowerData(fresh);
+            }
+          }
+        } catch {
+          /* fall back to existing towerData */
+        }
+        if (cancelled) return;
+
+        const roomsRes = await fetch(`/api/tower/rooms?towerId=${activeTower.id}`);
+        if (!cancelled && roomsRes.ok) {
+          const roomsData: TowerRoom[] = await roomsRes.json();
+          setRooms(roomsData);
+          // Derive cleared cells purely from API completedTier. No localStorage union.
+          setClearedRooms(computeAutoCleared(roomsData, activeTower.completedTier));
+        }
+        const readinessRes = await fetch(`/api/tower/readiness?towerId=${activeTower.id}`);
+        if (!cancelled && readinessRes.ok) {
+          const readinessData: Record<string, RoomReadiness> = await readinessRes.json();
+          setRoomReadiness(new Map(Object.entries(readinessData)));
+        }
+        const upgradesRes = await fetch(`/api/tower/upgrades?towerId=${activeTower.id}`);
+        if (!cancelled && upgradesRes.ok) setUpgrades(await upgradesRes.json());
+      } catch (err) {
+        console.error("[TowerPlanner] Tower switch fetch error:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTowerIndex, towerData?.towers?.length]);
 
   if (loading) {
     return (
@@ -223,9 +302,12 @@ export default function TowerPlannerClient() {
     );
   }
 
-  const { tower } = towerData;
+  const allTowers = towerData.towers ?? [towerData.tower];
+  const tower = allTowers[activeTowerIndex] ?? towerData.tower;
   const endDate = new Date(tower.endDate);
-  const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const msLeft = Math.max(0, endDate.getTime() - Date.now());
+  const daysLeft = Math.floor(msLeft / 86_400_000);
+  const hoursLeft = Math.floor((msLeft % 86_400_000) / 3_600_000);
 
   // Calculate summary counts
   const readyCount = [...roomReadiness.values()].filter((r) => r.status === "ready").length;
@@ -234,12 +316,21 @@ export default function TowerPlannerClient() {
   const totalRooms = rooms.length;
   const clearable = readyCount + almostCount;
 
-  // Separate rooms by week
-  const week1Rooms = rooms.filter((r) => r.week === 1);
-  const week2Rooms = rooms.filter((r) => r.week === 2);
-
-  // Calculate Week 2 unlock date (7 days after event start)
-  const week2UnlockDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Game-order: cells are presented as a single linear sequence (CELL 1 .. CELL N).
+  // The game UI lists them top-down with the highest cell at the top, current/next cell
+  // highlighted, and previously cleared cells dimmed below it. We mirror that.
+  const cellOf = (r: TowerRoom): number => cellNumberOf(r.name) ?? 0;
+  const roomsByCellDesc = [...rooms].sort((a, b) => cellOf(b) - cellOf(a));
+  const clearedSet = clearedRooms;
+  // The next cell to clear = (highest cleared cell number) + 1.
+  const maxClearedCell = rooms.reduce(
+    (max, r) => (clearedSet.has(r.id) ? Math.max(max, cellOf(r)) : max),
+    0
+  );
+  const nextCellNumber = maxClearedCell + 1;
+  const isAvailableNow = (r: TowerRoom): boolean =>
+    !clearedSet.has(r.id) && cellOf(r) === nextCellNumber;
+  const availableNowCount = rooms.filter((r) => isAvailableNow(r)).length;
 
   async function handlePickMyTeams() {
     setSolving(true);
@@ -247,14 +338,21 @@ export default function TowerPlannerClient() {
       const res = await fetch("/api/tower/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rooms, roster: [], metaTeams: [] }),
+        body: JSON.stringify({
+          towerId: tower.id,
+          clearedRooms: [...clearedRooms],
+          metaTeams: [],
+        }),
       });
       if (res.ok) {
         const data: SolverResult = await res.json();
         setSolverResult(data);
+      } else {
+        const errText = await res.text().catch(() => "");
+        console.error(`[TowerPlanner] Solve API failed: ${res.status} ${errText}`);
       }
-    } catch {
-      // Solver error — silently fail
+    } catch (err) {
+      console.error("[TowerPlanner] Solve error:", err);
     } finally {
       setSolving(false);
     }
@@ -262,15 +360,71 @@ export default function TowerPlannerClient() {
 
   return (
     <div className="flex flex-col gap-4 p-4" data-testid="tower-planner-active">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-bold text-white">{tower.name}</h1>
-        <span className="rounded-full bg-purple-600 px-3 py-1 text-xs font-medium text-white">
-          Week {tower.currentWeek}
-        </span>
+      {/* Tower selector tabs (shown when multiple towers are active simultaneously, e.g. STORM + STORM OMEGA). */}
+      {allTowers.length > 1 && (
+        <div className="flex flex-wrap gap-2" data-testid="tower-tabs">
+          {allTowers.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTowerIndex(i)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                i === activeTowerIndex
+                  ? "bg-purple-600 text-white"
+                  : "border border-gray-600 text-gray-300 hover:bg-gray-800"
+              }`}
+              data-testid={`tower-tab-${i}`}
+              aria-pressed={i === activeTowerIndex}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Event banner — mirrors the in-game event-selection card (cardArt + name + subName + countdown). */}
+      <div
+        className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900"
+        data-testid="tower-event-banner"
+      >
+        {tower.cardArt && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={tower.cardArt}
+            alt={tower.name}
+            className="h-32 w-full object-cover opacity-80"
+          />
+        )}
+        <div
+          className={
+            tower.cardArt
+              ? "absolute inset-0 flex flex-col justify-end gap-1 bg-gradient-to-t from-gray-900 via-gray-900/70 to-transparent p-3"
+              : "flex flex-col gap-1 p-3"
+          }
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-bold text-white drop-shadow" data-testid="tower-name">
+              {tower.name}
+            </h1>
+            <span
+              className="rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-medium text-white"
+              data-testid="tower-week"
+            >
+              Week {tower.currentWeek}
+            </span>
+          </div>
+          {tower.subName && (
+            <p className="text-xs text-gray-200 drop-shadow" data-testid="tower-subname">
+              {tower.subName}
+            </p>
+          )}
+          <p className="text-[11px] text-gray-300 drop-shadow" data-testid="tower-ends-in">
+            {msLeft > 0 ? (
+              <>Ends in {daysLeft}d {hoursLeft}h · {endDate.toLocaleDateString()}</>
+            ) : (
+              <>Ended</>
+            )}
+          </p>
+        </div>
       </div>
-      <p className="text-sm text-gray-400">
-        Ends {endDate.toLocaleDateString()} ({daysLeft} day{daysLeft !== 1 ? "s" : ""} left)
-      </p>
 
       {/* How It Works */}
       <div className="rounded-lg border border-gray-700 bg-gray-800/50" data-testid="how-it-works-section">
@@ -297,12 +451,14 @@ export default function TowerPlannerClient() {
       {totalRooms > 0 && (
         <div className="rounded-lg bg-gray-800 p-3" data-testid="tower-summary-bar">
           <div className="flex items-center gap-3 text-sm">
+            <span className="text-blue-300" data-testid="available-now-count">{availableNowCount} available now</span>
+            <span className="text-gray-500">·</span>
             <span className="text-green-400">{readyCount} ready</span>
             <span className="text-yellow-400">{almostCount} almost</span>
             <span className="text-red-400">{blockedCount} blocked</span>
           </div>
           <p className="mt-1 text-xs text-gray-400">
-            You can likely clear {clearable} of {totalRooms} battles this tower
+            <span className="text-gray-300">{availableNowCount}</span> cells lit up in-game right now · you can likely clear <span className="text-gray-300">{clearable}</span> of <span className="text-gray-300">{totalRooms}</span> across the whole tower
           </p>
         </div>
       )}
@@ -383,26 +539,18 @@ export default function TowerPlannerClient() {
         </div>
       )}
 
-      {/* Week 1 Rooms */}
+      {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view. */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
-        {week1Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} cleared={clearedRooms.has(room.id)} onMarkCleared={() => markRoomCleared(room.id)} />
-        ))}
-
-        {/* Week 2 Divider */}
-        {week2Rooms.length > 0 && (
-          <div className="my-2 flex items-center gap-2" data-testid="week-2-divider">
-            <div className="flex-1 border-t border-gray-700" />
-            <span className="text-xs text-gray-400">
-              Week 2 — unlocks {week2UnlockDate.toLocaleDateString()}
-            </span>
-            <div className="flex-1 border-t border-gray-700" />
-          </div>
-        )}
-
-        {/* Week 2 Rooms */}
-        {week2Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} cleared={clearedRooms.has(room.id)} onMarkCleared={() => markRoomCleared(room.id)} />
+        {roomsByCellDesc.map((room) => (
+          <RoomCard
+            key={room.id}
+            room={room}
+            readiness={roomReadiness.get(room.id)}
+            assignment={solverResult?.assignments[room.id]}
+            cleared={clearedRooms.has(room.id)}
+            availableNow={isAvailableNow(room)}
+            onMarkCleared={() => markRoomCleared(room.id)}
+          />
         ))}
       </div>
 
@@ -444,7 +592,21 @@ export default function TowerPlannerClient() {
   );
 }
 
-function RoomCard({ room, readiness, assignment, cleared, onMarkCleared }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; onMarkCleared: () => void }) {
+function formatFilters(filters: CharacterFilter[]): string {
+  const parts = filters.map((f) => {
+    const tokens: string[] = [];
+    if (f.allTraits.length > 0) tokens.push(f.allTraits.join("+"));
+    if (f.anyTraits.length > 0) tokens.push(`any of ${f.anyTraits.join("/")}`);
+    if (f.anyCharacters.length > 0) tokens.push(`${f.anyCharacters.length} specific char${f.anyCharacters.length > 1 ? "s" : ""}`);
+    if (f.gearTier > 0) tokens.push(`G${f.gearTier}+`);
+    if (f.minStars > 0) tokens.push(`${f.minStars}★+`);
+    if (f.minLevel > 0) tokens.push(`Lv${f.minLevel}+`);
+    return tokens.join(" ");
+  });
+  return parts.join(" OR ");
+}
+
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -465,24 +627,50 @@ function RoomCard({ room, readiness, assignment, cleared, onMarkCleared }: { roo
   const badge = badgeConfig[status];
 
   return (
-    <div className={`rounded-lg border border-gray-700 bg-gray-800/50 p-3 ${cleared ? "opacity-50" : ""}`} data-testid="room-card">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-white">{room.name}</h3>
+      <div className={`rounded-lg border p-3 ${cleared ? "border-gray-700 bg-gray-800/30 opacity-50" : availableNow ? "border-blue-500/60 bg-gray-800/70" : "border-gray-700 bg-gray-800/40 opacity-70"}`} data-testid="room-card" data-room-id={room.id} data-available-now={availableNow ? "true" : "false"}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h3 className="text-base font-bold text-white truncate" data-testid="room-cell-name">{room.name}</h3>
+        </div>
         {cleared ? (
-          <span className="text-xs text-green-400 font-medium" data-testid="cleared-badge">✓ Cleared</span>
+          <span className="text-xs text-green-400 font-medium whitespace-nowrap" data-testid="cleared-badge">✓ Cleared</span>
         ) : (
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`} data-testid="readiness-badge">
-            {badge.text}
-          </span>
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            {availableNow && (
+              <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-medium text-white" data-testid="available-now-badge">Lit up</span>
+            )}
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`} data-testid="readiness-badge">
+              {badge.text}
+            </span>
+          </div>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-400">
-        {room.requirements.traits.length > 0 && (
-          <span>Traits: {room.requirements.traits.join(", ")}</span>
+        {room.requirements.filters && room.requirements.filters.length > 0 ? (
+          <span>{formatFilters(room.requirements.filters)}</span>
+        ) : (
+          <>
+            {room.requirements.traits.length > 0 && (
+              <span>Traits: {room.requirements.traits.join(", ")}</span>
+            )}
+            {room.requirements.minGearTier > 0 && <span>G{room.requirements.minGearTier}+</span>}
+            {room.requirements.minStars > 0 && <span>{room.requirements.minStars}★+</span>}
+            {room.requirements.minLevel > 0 && <span>Lv{room.requirements.minLevel}+</span>}
+            {!room.requirements.minGearTier &&
+              !room.requirements.minStars &&
+              !room.requirements.minLevel &&
+              room.requirements.traits.length === 0 && (
+                <span className="text-gray-500">No trait restrictions</span>
+              )}
+          </>
         )}
-        <span>G{room.requirements.minGearTier}+</span>
-        <span>{room.requirements.minStars}★+</span>
-        <span>Lv{room.requirements.minLevel}+</span>
+        {room.requirements.maxCharacters && room.requirements.maxCharacters !== 5 && (
+          <span className="text-gray-500">
+            ({room.requirements.minCharacters === room.requirements.maxCharacters
+              ? `${room.requirements.maxCharacters} chars`
+              : `${room.requirements.minCharacters ?? 1}-${room.requirements.maxCharacters} chars`})
+          </span>
+        )}
       </div>
       {!cleared && (
         <div className="mt-1 flex items-center justify-between text-xs text-gray-500">

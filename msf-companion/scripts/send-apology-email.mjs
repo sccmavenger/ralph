@@ -1,6 +1,6 @@
 import pg from "pg";
 
-const DISCORD_INVITE = "https://discord.gg/rFCn6fsk";
+const DISCORD_INVITE = "https://discord.gg/2ptFQ2Vefk";
 const BASE_URL = "https://themsftoolkit.com";
 const CONTACT_EMAIL = "info@themsftoolkit.com";
 const FROM = "MSF Companion <info@themsftoolkit.com>";

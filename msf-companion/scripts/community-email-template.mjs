@@ -1,5 +1,5 @@
 const BASE_URL = "https://themsftoolkit.com";
-const DISCORD_INVITE = "https://discord.gg/rFCn6fsk";
+const DISCORD_INVITE = "https://discord.gg/2ptFQ2Vefk";
 const CONTACT_EMAIL = "info@themsftoolkit.com";
 
 export function buildCommunityEmailHtml(displayName) {

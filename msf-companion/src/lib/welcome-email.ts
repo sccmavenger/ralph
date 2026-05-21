@@ -1,5 +1,5 @@
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://themsftoolkit.com";
-const DISCORD_INVITE = "https://discord.gg/yyTq7KfX";
+const DISCORD_INVITE = "https://discord.gg/2ptFQ2Vefk";
 const FAQ_URL = `${BASE_URL}/faq`;
 const CONTACT_EMAIL = "info@themsftoolkit.com";
 

@@ -282,7 +282,7 @@ export default function FaqPage() {
             </a>
             {/* Discord */}
             <a
-              href="https://discord.gg/yyTq7KfX"
+              href="https://discord.gg/2ptFQ2Vefk"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 rounded-lg bg-[var(--color-surface)] px-4 py-3 text-sm font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-background)]"

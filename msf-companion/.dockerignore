@@ -9,3 +9,15 @@ infra
 playwright-report
 test-results
 e2e
+functions
+tasks
+docs
+mockups
+scripts
+*.log
+azd-deploy.log
+all-test-results.txt
+e2e-results.txt
+test-results-output.txt
+test-stderr.txt
+test-stdout.txt

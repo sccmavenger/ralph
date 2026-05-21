@@ -146,7 +146,7 @@ function DesktopLanding() {
           </a>
           <span>•</span>
           <a
-            href="https://discord.gg/yyTq7KfX"
+            href="https://discord.gg/2ptFQ2Vefk"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[var(--color-accent)] hover:underline"
