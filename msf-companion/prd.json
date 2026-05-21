@@ -371,7 +371,7 @@
         "Tests pass"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-007 (history API), US-012 (progress tracking). Runs client-side on page load comparison."
     }
   ]
