@@ -60,6 +60,55 @@ export default function TowerPlannerClient() {
   const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
   const [solving, setSolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clearedRooms, setClearedRooms] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  function getClearedStorageKey(eventId: string, week: number) {
+    return `tower-cleared-${eventId}-w${week}`;
+  }
+
+  function loadClearedRooms(eventId: string, week: number): Set<string> {
+    try {
+      const stored = localStorage.getItem(getClearedStorageKey(eventId, week));
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveClearedRooms(eventId: string, week: number, cleared: Set<string>) {
+    localStorage.setItem(getClearedStorageKey(eventId, week), JSON.stringify([...cleared]));
+  }
+
+  function markRoomCleared(roomId: string) {
+    if (!towerData?.tower) return;
+    const newCleared = new Set(clearedRooms);
+    newCleared.add(roomId);
+    setClearedRooms(newCleared);
+    saveClearedRooms(towerData.tower.id, towerData.tower.currentWeek, newCleared);
+  }
+
+  function resetAllCleared() {
+    if (!towerData?.tower) return;
+    setClearedRooms(new Set<string>());
+    saveClearedRooms(towerData.tower.id, towerData.tower.currentWeek, new Set());
+    setShowResetConfirm(false);
+  }
+
+  async function handleRefreshProgress() {
+    if (!towerData?.tower) return;
+    setRefreshing(true);
+    try {
+      const roomsRes = await fetch(`/api/tower/rooms?towerId=${towerData.tower.id}`);
+      if (roomsRes.ok) {
+        const roomsData: TowerRoom[] = await roomsRes.json();
+        setRooms(roomsData);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     async function fetchTowerStatus() {
@@ -70,6 +119,9 @@ export default function TowerPlannerClient() {
         setTowerData(data);
 
         if (data.active && data.tower) {
+          // Load cleared rooms from localStorage
+          setClearedRooms(loadClearedRooms(data.tower.id, data.tower.currentWeek));
+
           // Fetch rooms
           const roomsRes = await fetch(`/api/tower/rooms?towerId=${data.tower.id}`);
           if (roomsRes.ok) {
@@ -210,10 +262,54 @@ export default function TowerPlannerClient() {
         </button>
       )}
 
+      {/* Progress controls */}
+      {totalRooms > 0 && (
+        <div className="flex gap-2" data-testid="progress-controls">
+          <button
+            onClick={handleRefreshProgress}
+            disabled={refreshing}
+            className="flex-1 rounded-lg border border-gray-600 py-2 text-xs text-gray-300 hover:bg-gray-700 disabled:opacity-50"
+            data-testid="refresh-progress-btn"
+          >
+            {refreshing ? "Refreshing..." : "Refresh Progress"}
+          </button>
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            className="flex-1 rounded-lg border border-red-600/50 py-2 text-xs text-red-400 hover:bg-red-900/20"
+            data-testid="reset-all-btn"
+          >
+            Reset All
+          </button>
+        </div>
+      )}
+
+      {/* Reset confirmation dialog */}
+      {showResetConfirm && (
+        <div className="rounded-lg border border-red-600 bg-gray-900 p-3" data-testid="reset-confirm-dialog">
+          <p className="text-sm text-gray-300">Clear all manual progress marks?</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={resetAllCleared}
+              className="flex-1 rounded bg-red-600 py-1 text-xs text-white"
+              data-testid="reset-confirm-yes"
+            >
+              Yes, reset
+            </button>
+            <button
+              onClick={() => setShowResetConfirm(false)}
+              className="flex-1 rounded border border-gray-600 py-1 text-xs text-gray-300"
+              data-testid="reset-confirm-no"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Week 1 Rooms */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
         {week1Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} />
+          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} cleared={clearedRooms.has(room.id)} onMarkCleared={() => markRoomCleared(room.id)} />
         ))}
 
         {/* Week 2 Divider */}
@@ -229,14 +325,14 @@ export default function TowerPlannerClient() {
 
         {/* Week 2 Rooms */}
         {week2Rooms.map((room) => (
-          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} />
+          <RoomCard key={room.id} room={room} readiness={roomReadiness.get(room.id)} assignment={solverResult?.assignments[room.id]} cleared={clearedRooms.has(room.id)} onMarkCleared={() => markRoomCleared(room.id)} />
         ))}
       </div>
     </div>
   );
 }
 
-function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment }) {
+function RoomCard({ room, readiness, assignment, cleared, onMarkCleared }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; onMarkCleared: () => void }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -257,12 +353,16 @@ function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?
   const badge = badgeConfig[status];
 
   return (
-    <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3" data-testid="room-card">
+    <div className={`rounded-lg border border-gray-700 bg-gray-800/50 p-3 ${cleared ? "opacity-50" : ""}`} data-testid="room-card">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-white">{room.name}</h3>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`} data-testid="readiness-badge">
-          {badge.text}
-        </span>
+        {cleared ? (
+          <span className="text-xs text-green-400 font-medium" data-testid="cleared-badge">✓ Cleared</span>
+        ) : (
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`} data-testid="readiness-badge">
+            {badge.text}
+          </span>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-400">
         {room.requirements.traits.length > 0 && (
@@ -272,12 +372,21 @@ function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?
         <span>{room.requirements.minStars}★+</span>
         <span>Lv{room.requirements.minLevel}+</span>
       </div>
-      <div className="mt-1 text-xs text-gray-500">
-        {eligibleCount} eligible character{eligibleCount !== 1 ? "s" : ""}
-      </div>
+      {!cleared && (
+        <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+          <span>{eligibleCount} eligible character{eligibleCount !== 1 ? "s" : ""}</span>
+          <button
+            onClick={onMarkCleared}
+            className="text-green-400 hover:text-green-300"
+            data-testid="mark-cleared-btn"
+          >
+            Mark as Cleared
+          </button>
+        </div>
+      )}
 
       {/* Solver assignment */}
-      {assignment && (
+      {assignment && !cleared && (
         <div className="mt-3 border-t border-gray-700 pt-3" data-testid="team-assignment">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-300">
