@@ -238,6 +238,7 @@ export default function TowerPlannerClient() {
 
 function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment }) {
   const [showReason, setShowReason] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
   const eligibleCount = readiness?.eligibleCount || 0;
 
@@ -286,8 +287,15 @@ function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?
               {confidenceConfig[assignment.confidence].text}
             </span>
           </div>
-          <div className="mt-1 text-xs text-gray-500">
-            Total power: {(assignment.power / 1000).toFixed(0)}k
+          <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+            <span>Total power: {(assignment.power / 1000).toFixed(0)}k</span>
+            <button
+              onClick={() => setShowPicker(!showPicker)}
+              className="text-purple-400 hover:text-purple-300"
+              data-testid="edit-assignment-btn"
+            >
+              Edit
+            </button>
           </div>
           <button
             onClick={() => setShowReason(!showReason)}
@@ -298,6 +306,25 @@ function RoomCard({ room, readiness, assignment }: { room: TowerRoom; readiness?
           </button>
           {showReason && (
             <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
+          )}
+          {showPicker && (
+            <div className="mt-2 rounded border border-gray-600 bg-gray-900 p-2" data-testid="character-picker">
+              <p className="text-xs text-gray-400 mb-2">Select characters for this room (eligible only):</p>
+              <div className="flex flex-wrap gap-1">
+                {assignment.characters.map((c) => (
+                  <span key={c.id} className="rounded bg-purple-700 px-2 py-0.5 text-xs text-white">
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowPicker(false)}
+                className="mt-2 w-full rounded bg-purple-600 py-1 text-xs text-white"
+                data-testid="confirm-override-btn"
+              >
+                Confirm & Re-solve Others
+              </button>
+            </div>
           )}
         </div>
       )}

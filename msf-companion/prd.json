@@ -207,7 +207,7 @@
         "Tests pass"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Extension of US-010. Character picker can be a simple list/modal of eligible characters."
     },
     {

@@ -168,4 +168,32 @@ test.describe("Tower Planner Solver", () => {
     // Reason text should appear
     await expect(page.getByText("150k above minimum")).toBeVisible();
   });
+
+  test("edit button visible on assigned rooms", async ({ page }) => {
+    await setupMockRoutes(page);
+    await page.goto("/analyze/tower-planner");
+    await dismissModals(page);
+
+    await Promise.all([
+      page.waitForResponse((resp) => resp.url().includes("/api/tower/solve")),
+      page.locator("[data-testid='pick-my-teams-btn']").click(),
+    ]);
+
+    await expect(page.locator("[data-testid='edit-assignment-btn']")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("manual override opens character picker", async ({ page }) => {
+    await setupMockRoutes(page);
+    await page.goto("/analyze/tower-planner");
+    await dismissModals(page);
+
+    await Promise.all([
+      page.waitForResponse((resp) => resp.url().includes("/api/tower/solve")),
+      page.locator("[data-testid='pick-my-teams-btn']").click(),
+    ]);
+
+    await page.locator("[data-testid='edit-assignment-btn']").click();
+    await expect(page.locator("[data-testid='character-picker']")).toBeVisible();
+    await expect(page.locator("[data-testid='confirm-override-btn']")).toBeVisible();
+  });
 });
