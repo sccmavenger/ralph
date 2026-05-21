@@ -37,6 +37,15 @@
     },
     "scopelyRedirectUri": {
       "value": "${SCOPELY_REDIRECT_URI}"
+    },
+    "resendApiKey": {
+      "value": "${RESEND_API_KEY}"
+    },
+    "adminEmail": {
+      "value": "${ADMIN_EMAIL}"
+    },
+    "digestTestEmail": {
+      "value": "${DIGEST_TEST_EMAIL}"
     }
   }
 }

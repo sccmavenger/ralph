@@ -44,6 +44,19 @@ param youtubeApiKey string
 @secure()
 param databaseUrl string
 
+@description('Resend API key for email sending')
+@secure()
+param resendApiKey string = ''
+
+@description('Email from address')
+param emailFrom string = 'MSF Companion <info@msftoolkit.com>'
+
+@description('Admin email address')
+param adminEmail string = ''
+
+@description('Test email for weekly digest (empty = send to all)')
+param digestTestEmail string = ''
+
 // Storage Account for Functions runtime
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageName
@@ -100,6 +113,10 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'AZURE_OPENAI_GPT4O_MINI_DEPLOYMENT', value: 'gpt-4o-mini' }
         { name: 'YOUTUBE_API_KEY', value: youtubeApiKey }
         { name: 'DATABASE_URL', value: databaseUrl }
+        { name: 'RESEND_API_KEY', value: resendApiKey }
+        { name: 'EMAIL_FROM', value: emailFrom }
+        { name: 'ADMIN_EMAIL', value: adminEmail }
+        { name: 'DIGEST_TEST_EMAIL', value: digestTestEmail }
       ]
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'

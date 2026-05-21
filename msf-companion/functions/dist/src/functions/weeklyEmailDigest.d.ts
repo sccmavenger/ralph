@@ -18,6 +18,7 @@ export interface EmailDigestDeps {
 }
 export interface DigestData {
     displayName: string;
+    email: string;
     tips: Array<{
         content: string;
         sourceCreatorName?: string;

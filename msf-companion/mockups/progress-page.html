@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Progress Mockup — MSF Companion</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1118;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --border: #2e3254;
+      --text: #e4e4f0;
+      --text-dim: #8b8fa8;
+      --accent: #6366f1;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.12);
+      --yellow: #eab308;
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --gold: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1.page-h1 { font-size: 22px; margin-bottom: 4px; }
+    .page-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    /* === Card === */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .view-link {
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* === Widget === */
+    .widget-phone-frame {
+      background: #000;
+      border-radius: 28px;
+      padding: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .widget-phone-inner {
+      background: var(--bg);
+      border-radius: 22px;
+      padding: 20px 14px;
+    }
+    .widget-phone-header {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .tcp-change {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--green);
+      margin-bottom: 6px;
+    }
+    .tcp-label { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .stat-row .icon {
+      width: 24px; height: 24px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface2);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .stat-row strong { color: var(--green); }
+    .stat-row.spend strong { color: var(--red); }
+
+    /* === Charts === */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .chart-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .chart-head h4 { font-size: 13px; font-weight: 700; }
+    .chart-head .delta {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .delta.up { background: var(--green-bg); color: var(--green); }
+    .delta.down { background: var(--red-bg); color: var(--red); }
+    .chart-wrap { height: 160px; position: relative; }
+
+    /* === Detail Diff === */
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface2);
+      border-radius: 10px;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-right: 4px;
+    }
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 600px) { .diff-grid { grid-template-columns: 1fr; } }
+    .diff-col h5 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .item-row {
+      display: flex; justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 13px;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row .gain { color: var(--green); font-weight: 600; }
+    .item-row .spend { color: var(--red); font-weight: 600; }
+
+    .char-list { display: flex; flex-direction: column; gap: 6px; }
+    .char-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px;
+      background: var(--surface2);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .char-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 800;
+      font-size: 11px;
+    }
+    .char-row .meta { font-size: 11px; color: var(--text-dim); }
+    .star { color: var(--gold); }
+    .tier-badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      background: var(--green-bg);
+      color: var(--green);
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      font-size: 11px; color: var(--text-dim);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="page-h1">Progress Feature — Mockup</h1>
+  <p class="page-sub">Left: <strong>Weekly Progress widget</strong> on the dashboard. Right: full <strong>/profile/progress</strong> page.</p>
+
+  <div class="layout">
+
+    <!-- ============ LEFT: Dashboard widget ============ -->
+    <div>
+      <div class="section-label">On your dashboard</div>
+      <div class="widget-phone-frame">
+        <div class="widget-phone-inner">
+          <div class="widget-phone-header">9:41 — Dashboard</div>
+
+          <div class="card">
+            <h3>
+              <span>Weekly Progress</span>
+              <a class="view-link" href="#progress">View →</a>
+            </h3>
+            <div class="tcp-change">+245K</div>
+            <div class="tcp-label">TCP gained this week</div>
+
+            <div class="stat-row">
+              <span class="icon">★</span>
+              <span><strong>3</strong> new unlocks</span>
+            </div>
+            <div class="stat-row">
+              <span class="icon">⭐</span>
+              <span><strong>5</strong> star promotions</span>
+            </div>
+            <div class="stat-row">
+              <span class="icon">⚙</span>
+              <span><strong>8</strong> gear tier-ups</span>
+            </div>
+            <div class="stat-row">
+              <span class="icon">📦</span>
+              <span>Top gain: <strong>Gold +2.1M</strong></span>
+            </div>
+            <div class="stat-row spend">
+              <span class="icon">💸</span>
+              <span>Top spend: <strong>Training Mats -450K</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+        Hidden if there aren't at least 2 snapshots. Loads via <code style="color:var(--accent);">/api/profile/snapshots/diff</code>.
+      </p>
+    </div>
+
+    <!-- ============ RIGHT: Full Progress page ============ -->
+    <div id="progress">
+      <div class="section-label">Tap "View →" to land here</div>
+
+      <h2 style="font-size:18px;margin-bottom:4px;">Your Progress</h2>
+      <p style="font-size:13px;color:var(--text-dim);margin-bottom:18px;">
+        <span class="pill">Apr 21 → May 21</span>
+        <span class="pill">30 snapshots</span>
+      </p>
+
+      <!-- TCP chart -->
+      <div class="chart-card">
+        <div class="chart-head">
+          <h4>Total Collection Power</h4>
+          <span class="delta up">+9.4%</span>
+        </div>
+        <div class="chart-wrap"><canvas id="tcpChart"></canvas></div>
+      </div>
+
+      <!-- Roster size chart -->
+      <div class="chart-card">
+        <div class="chart-head">
+          <h4>Roster Size</h4>
+          <span class="delta up">+4</span>
+        </div>
+        <div class="chart-wrap"><canvas id="rosterChart"></canvas></div>
+      </div>
+
+      <!-- Avg gear tier -->
+      <div class="chart-card">
+        <div class="chart-head">
+          <h4>Avg Gear Tier</h4>
+          <span class="delta up">+0.3</span>
+        </div>
+        <div class="chart-wrap"><canvas id="gearChart"></canvas></div>
+      </div>
+
+      <!-- Roster diff -->
+      <div class="chart-card">
+        <h4 style="font-size:13px;margin-bottom:10px;">Roster changes this week</h4>
+        <div class="char-list">
+          <div class="char-row">
+            <span class="char-avatar">DD</span>
+            <div>
+              <div>Daredevil <span class="star">★★★★</span></div>
+              <div class="meta">New unlock</div>
+            </div>
+            <span class="tier-badge">UNLOCK</span>
+          </div>
+          <div class="char-row">
+            <span class="char-avatar">SM</span>
+            <div>
+              <div>Spider-Man (Symbiote)</div>
+              <div class="meta">Gear T14 → T15</div>
+            </div>
+            <span class="tier-badge">+1 TIER</span>
+          </div>
+          <div class="char-row">
+            <span class="char-avatar">IM</span>
+            <div>
+              <div>Iron Man</div>
+              <div class="meta">★6 → ★7</div>
+            </div>
+            <span class="tier-badge">+1 STAR</span>
+          </div>
+          <div class="char-row">
+            <span class="char-avatar">SC</span>
+            <div>
+              <div>Scarlet Witch</div>
+              <div class="meta">Gear T16 → T17</div>
+            </div>
+            <span class="tier-badge">+1 TIER</span>
+          </div>
+        </div>
+        <p style="text-align:center;font-size:12px;color:var(--text-dim);margin-top:10px;">+ 12 more changes</p>
+      </div>
+
+      <!-- Inventory diff -->
+      <div class="chart-card">
+        <h4 style="font-size:13px;margin-bottom:10px;">Inventory movement</h4>
+        <div class="diff-grid">
+          <div class="diff-col">
+            <h5>Top Gains</h5>
+            <div class="item-row"><span>Gold</span><span class="gain">+2.1M</span></div>
+            <div class="item-row"><span>Orb Fragments</span><span class="gain">+1,840</span></div>
+            <div class="item-row"><span>Blue Gear Frags</span><span class="gain">+340</span></div>
+            <div class="item-row"><span>Raid Credits</span><span class="gain">+12,500</span></div>
+          </div>
+          <div class="diff-col">
+            <h5>Top Spends</h5>
+            <div class="item-row"><span>Training Mats</span><span class="spend">-450K</span></div>
+            <div class="item-row"><span>Purple Gear (T15)</span><span class="spend">-28</span></div>
+            <div class="item-row"><span>Iso-8 Crystals</span><span class="spend">-2,100</span></div>
+            <div class="item-row"><span>Ability Mats</span><span class="spend">-86</span></div>
+          </div>
+        </div>
+        <div class="legend">
+          <span>📦 Categorized using <code style="color:var(--accent);">inventory-labels.ts</code> classifier</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // 30-day mock data ending May 21
+    const labels = Array.from({length: 30}, (_, i) => {
+      const d = new Date('2026-04-22');
+      d.setDate(d.getDate() + i);
+      return `${d.getMonth()+1}/${d.getDate()}`;
+    });
+
+    const baseTcp = 2_600_000;
+    const tcpData = labels.map((_, i) => Math.round(baseTcp + i * 8200 + Math.sin(i/3) * 18000));
+    const rosterData = labels.map((_, i) => 142 + Math.floor(i / 7));
+    const gearData = labels.map((_, i) => +(14.2 + i * 0.012 + Math.sin(i/4)*0.05).toFixed(2));
+
+    const commonOpts = (color) => ({
+      type: 'line',
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1a1d2e' } },
+        scales: {
+          x: { ticks: { color: '#8b8fa8', font: { size: 10 }, maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: '#8b8fa8', font: { size: 10 } }, grid: { color: '#2e3254' } }
+        },
+        elements: { point: { radius: 0, hoverRadius: 4 } }
+      }
+    });
+
+    new Chart(document.getElementById('tcpChart'), {
+      ...commonOpts(),
+      data: { labels, datasets: [{ data: tcpData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 }] }
+    });
+    new Chart(document.getElementById('rosterChart'), {
+      ...commonOpts(),
+      data: { labels, datasets: [{ data: rosterData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.1, stepped: true }] }
+    });
+    new Chart(document.getElementById('gearChart'), {
+      ...commonOpts(),
+      data: { labels, datasets: [{ data: gearData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }] }
+    });
+  </script>
+</body>
+</html>

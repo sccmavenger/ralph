@@ -64,6 +64,16 @@ param searchEndpoint string = ''
 @description('Azure AI Search admin key')
 param searchKey string = ''
 
+@secure()
+@description('Resend API key for transactional email')
+param resendApiKey string = ''
+
+@description('Admin email address')
+param adminEmail string = ''
+
+@description('Test email for weekly digest')
+param digestTestEmail string = ''
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -214,6 +224,9 @@ module functions './functions/functions.bicep' = {
     openAiKey: openAi.outputs.key
     youtubeApiKey: youtubeApiKey
     databaseUrl: database.outputs.connectionString
+    resendApiKey: resendApiKey
+    adminEmail: adminEmail
+    digestTestEmail: digestTestEmail
   }
 }
 

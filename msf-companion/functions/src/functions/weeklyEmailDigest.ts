@@ -1,4 +1,5 @@
 import { app, InvocationContext, Timer } from "@azure/functions";
+import { getPool } from "../lib/pgClient.js";
 
 export interface EmailDigestDeps {
   fetchEligibleCommanders: () => Promise<
@@ -15,6 +16,7 @@ export interface EmailDigestDeps {
 
 export interface DigestData {
   displayName: string;
+  email: string;
   tips: Array<{ content: string; sourceCreatorName?: string }>;
   notifications: Array<{ type: string; title: string; message: string }>;
 }
@@ -38,6 +40,7 @@ export async function sendWeeklyDigests(
 
     const html = formatDigestEmail({
       displayName: commander.displayName,
+      email: commander.email,
       tips: tips.slice(0, 3),
       notifications,
     });
@@ -101,13 +104,13 @@ export function formatDigestEmail(data: DigestData): string {
 
   // CTA
   html += `<div style="text-align: center; padding: 20px 0;">`;
-  html += `<a href="https://msf-companion.example.com/advisor" style="display: inline-block; background: #4f9cf7; color: white; padding: 12px 24px; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 14px;">Talk to your AI Advisor →</a>`;
+  html += `<a href="https://themsftoolkit.com/advisor" style="display: inline-block; background: #4f9cf7; color: white; padding: 12px 24px; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 14px;">Talk to your AI Advisor →</a>`;
   html += `</div>`;
 
   // Footer with unsubscribe
   html += `<div style="text-align: center; padding: 20px 0; border-top: 1px solid #333; font-size: 12px; color: #666;">`;
   html += `<p>MSF Companion — Your Marvel Strike Force Assistant</p>`;
-  html += `<a href="https://msf-companion.example.com/api/email/unsubscribe" style="color: #888; text-decoration: underline;">Unsubscribe from weekly digest</a>`;
+  html += `<a href="https://themsftoolkit.com/api/email/unsubscribe?token=${encodeURIComponent(data.email)}" style="color: #888; text-decoration: underline;">Unsubscribe from weekly digest</a>`;
   html += `</div>`;
 
   html += `</div></body></html>`;
@@ -119,11 +122,80 @@ app.timer("weeklyEmailDigest", {
   handler: async (_timer: Timer, context: InvocationContext) => {
     context.log("Starting weekly email digest");
 
+    const pool = getPool();
+    const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+    const EMAIL_FROM = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+    // Testing phase: only send to admin until validated
+    const TEST_RECIPIENT = process.env.DIGEST_TEST_EMAIL || "";
+
     const deps: EmailDigestDeps = {
-      fetchEligibleCommanders: async () => [],
-      fetchWeeklyTips: async () => [],
-      fetchUnreadNotifications: async () => [],
-      sendEmail: async () => {},
+      fetchEligibleCommanders: async () => {
+        if (TEST_RECIPIENT) {
+          // Testing mode: send only to the test recipient
+          return [{ id: "test-admin", email: TEST_RECIPIENT, displayName: "Commander" }];
+        }
+        const res = await pool.query(
+          `SELECT id, email, "displayName"
+           FROM "Commander"
+           WHERE email IS NOT NULL
+             AND "emailDigestOptOut" = false
+             AND disabled = false`
+        );
+        return res.rows.map((r) => ({
+          id: r.id as string,
+          email: r.email as string,
+          displayName: (r.displayName as string) || "Commander",
+        }));
+      },
+
+      fetchWeeklyTips: async (_commanderId: string) => {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const res = await pool.query(
+          `SELECT content, "sourceCreatorName"
+           FROM "DailyTip"
+           WHERE "createdAt" >= $1
+           ORDER BY "createdAt" DESC
+           LIMIT 3`,
+          [sevenDaysAgo]
+        );
+        return res.rows.map((r) => ({
+          content: r.content as string,
+          sourceCreatorName: r.sourceCreatorName as string | undefined,
+        }));
+      },
+
+      fetchUnreadNotifications: async (commanderId: string) => {
+        if (commanderId === "test-admin") return [];
+        const res = await pool.query(
+          `SELECT type, title, message
+           FROM "CommanderNotification"
+           WHERE "commanderId" = $1 AND read = false
+           ORDER BY "createdAt" DESC
+           LIMIT 10`,
+          [commanderId]
+        );
+        return res.rows.map((r) => ({
+          type: r.type as string,
+          title: r.title as string,
+          message: r.message as string,
+        }));
+      },
+
+      sendEmail: async (to: string, subject: string, html: string) => {
+        if (!RESEND_API_KEY) {
+          context.log("[Email] RESEND_API_KEY not configured — skipping");
+          return;
+        }
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: EMAIL_FROM, to, subject, html }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Resend API failed (${response.status}): ${text}`);
+        }
+      },
     };
 
     await sendWeeklyDigests(deps, context);

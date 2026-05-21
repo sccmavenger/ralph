@@ -97,6 +97,36 @@ export async function POST(request: Request) {
           stripeSubscriptionId: null,
         },
       });
+
+      // Schedule win-back intervention (3 days later)
+      const cancelledCommander = await prisma.commander.findFirst({
+        where: { stripeCustomerId: customerId },
+        select: { id: true, displayName: true },
+      });
+      if (cancelledCommander) {
+        const winBackDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+        await prisma.churnIntervention.create({
+          data: {
+            commanderId: cancelledCommander.id,
+            type: "win-back",
+            channel: "email",
+            riskScore: null,
+            scheduledAt: winBackDate,
+            delivered: false,
+          },
+        });
+
+        // Immediate farewell notification
+        await prisma.commanderNotification.create({
+          data: {
+            commanderId: cancelledCommander.id,
+            type: "churn_prevention",
+            title: "We're sorry to see you go",
+            message: "Your premium features are now paused. You can resubscribe anytime to pick up where you left off.",
+            linkUrl: "/subscribe",
+          },
+        });
+      }
       break;
     }
 
@@ -131,8 +161,63 @@ export async function POST(request: Request) {
         ? typeof invoice.customer === "string"
           ? invoice.customer
           : invoice.customer.id
-        : "unknown";
-      console.warn(`[Stripe] Payment failed for customer ${customerId}`);
+        : null;
+
+      if (customerId) {
+        const failedCommander = await prisma.commander.findFirst({
+          where: { stripeCustomerId: customerId },
+          select: { id: true, email: true, displayName: true },
+        });
+
+        if (failedCommander) {
+          // Check cooldown — only one dunning per 7 days
+          const lastDunning = await prisma.churnIntervention.findFirst({
+            where: { commanderId: failedCommander.id, type: "dunning" },
+            orderBy: { sentAt: "desc" },
+          });
+          const cooldownExpired = !lastDunning || (Date.now() - lastDunning.sentAt.getTime() >= 7 * 24 * 60 * 60 * 1000);
+
+          if (cooldownExpired) {
+            // Send dunning email
+            if (failedCommander.email) {
+              try {
+                const { buildDunningEmailHtml } = await import("@/lib/churn-emails");
+                await sendEmail(
+                  failedCommander.email,
+                  "Action needed: update your payment method",
+                  buildDunningEmailHtml(failedCommander.displayName ?? "")
+                );
+              } catch (err) {
+                console.warn(`[Stripe] Dunning email failed: ${err}`);
+              }
+            }
+
+            // Create notification
+            await prisma.commanderNotification.create({
+              data: {
+                commanderId: failedCommander.id,
+                type: "churn_prevention",
+                title: "Payment issue detected",
+                message: "Please update your payment method to continue your premium subscription.",
+                linkUrl: "/subscribe",
+              },
+            });
+
+            // Log intervention
+            await prisma.churnIntervention.create({
+              data: {
+                commanderId: failedCommander.id,
+                type: "dunning",
+                channel: failedCommander.email ? "both" : "notification",
+                riskScore: null,
+                delivered: true,
+              },
+            });
+          }
+        }
+      }
+
+      console.warn(`[Stripe] Payment failed for customer ${customerId ?? "unknown"}`);
       break;
     }
 

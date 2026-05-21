@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>New Character — Bell Notification Mockup</title>
+<style>
+  :root {
+    --color-background: #0f1117;
+    --color-surface: #1a1d27;
+    --color-surface-light: #2a2d3a;
+    --color-foreground: #e4e4e7;
+    --color-muted: #71717a;
+    --color-accent: #6366f1;
+    --color-green: #22c55e;
+    --color-amber: #f59e0b;
+    --color-red: #ef4444;
+    --color-purple: #a855f7;
+    --color-gold: #eab308;
+    --color-teal: #14b8a6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #08090c;
+    color: var(--color-foreground);
+    padding: 20px 0 80px;
+  }
+
+  /* Layout: side-by-side steps */
+  .flow-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    justify-content: center;
+    padding: 0 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .step {
+    width: 380px;
+    flex-shrink: 0;
+  }
+  .step-label {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .step-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-foreground);
+  }
+  .step-desc {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  /* Phone frame */
+  .phone {
+    width: 380px;
+    background: var(--color-background);
+    border-radius: 24px;
+    border: 2px solid var(--color-surface-light);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* App Header — matches real AppHeader.tsx */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--color-background);
+    border-bottom: 1px solid var(--color-surface-light);
+    position: relative;
+    z-index: 30;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .msf-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #dc2626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: white;
+  }
+  .app-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-foreground);
+    letter-spacing: -0.3px;
+  }
+  .faq-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--color-surface-light);
+    background: none;
+    color: var(--color-muted);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Bell icon */
+  .bell-btn {
+    position: relative;
+    padding: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .bell-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-muted);
+  }
+  .bell-btn.active .bell-icon {
+    color: var(--color-foreground);
+  }
+  .bell-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-red);
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .bell-badge.pulse {
+    animation: badgePulse 2s ease-in-out infinite;
+  }
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* Avatar */
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #eab308, #dc2626);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+  }
+  .username {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-foreground);
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ==========================================
+     NOTIFICATION PANEL — matches real component
+     ========================================== */
+  .notif-panel {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 56px;
+    max-height: 420px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid var(--color-surface-light);
+    background: var(--color-surface);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    z-index: 60;
+    animation: panelSlide 0.2s ease;
+  }
+  @keyframes panelSlide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .notif-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-surface-light);
+  }
+  .notif-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-foreground);
+  }
+  .notif-close {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  /* Individual notification item */
+  .notif-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-surface-light);
+    transition: opacity 0.2s;
+  }
+  .notif-item.read {
+    opacity: 0.5;
+  }
+  .notif-item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .notif-item-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .notif-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .notif-item-msg {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 2px;
+  }
+  .notif-item-link {
+    font-size: 12px;
+    color: var(--color-accent);
+    text-decoration: none;
+    margin-top: 4px;
+    display: inline-block;
+  }
+  .notif-dismiss {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 2px;
+  }
+
+  /* ==========================================
+     NEW CHARACTER notification — special style
+     ========================================== */
+  .notif-item.new-character {
+    background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(168,85,247,0.04) 100%);
+    border-left: 3px solid var(--color-accent);
+    padding-left: 13px;
+  }
+  .notif-char-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .notif-char-portrait {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2a2d3a, #1e2338);
+    border: 1.5px solid rgba(99,102,241,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .notif-char-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .notif-char-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--color-accent);
+    margin-bottom: 2px;
+  }
+  .notif-char-badge .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+  .notif-char-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-foreground);
+  }
+  .notif-char-traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 3px;
+  }
+  .notif-trait {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(99,102,241,0.1);
+    color: var(--color-accent);
+    border: 1px solid rgba(99,102,241,0.15);
+  }
+  .notif-trait.bio { background: rgba(34,197,94,0.1); color: var(--color-green); border-color: rgba(34,197,94,0.15); }
+  .notif-trait.cosmic { background: rgba(234,179,8,0.1); color: var(--color-gold); border-color: rgba(234,179,8,0.15); }
+  .notif-char-meta {
+    font-size: 10px;
+    color: var(--color-muted);
+    margin-top: 4px;
+  }
+  .notif-char-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .notif-char-action:hover {
+    text-decoration: underline;
+  }
+
+  /* Dashboard content behind */
+  .dashboard {
+    padding: 16px;
+  }
+  .dashboard.dimmed {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+  .dash-greeting {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-foreground);
+    margin-bottom: 4px;
+  }
+  .dash-subtitle {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-bottom: 16px;
+  }
+  .dash-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-surface-light);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .dash-card h4 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-muted);
+    margin-bottom: 8px;
+  }
+  .dash-stats {
+    display: flex;
+    gap: 1px;
+    background: var(--color-surface-light);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .dash-stat {
+    flex: 1;
+    background: var(--color-surface);
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .dash-stat .val { font-size: 16px; font-weight: 700; color: var(--color-foreground); }
+  .dash-stat .lbl { font-size: 9px; color: var(--color-muted); margin-top: 2px; text-transform: uppercase; }
+
+  .dash-event-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-surface-light);
+  }
+  .dash-event-row:last-child { border-bottom: none; }
+  .event-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .event-dot.amber { background: var(--color-amber); }
+  .event-dot.green { background: var(--color-green); }
+  .event-dot.red { background: var(--color-red); }
+  .event-info { flex: 1; }
+  .event-name { font-size: 12px; color: var(--color-foreground); font-weight: 500; }
+  .event-time { font-size: 10px; color: var(--color-muted); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0 16px;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-surface-light);
+  }
+  .nav-item {
+    text-align: center;
+    font-size: 9px;
+    color: var(--color-muted);
+  }
+  .nav-item .icon { font-size: 16px; margin-bottom: 2px; }
+  .nav-item.active .icon, .nav-item.active { color: var(--color-accent); }
+
+  /* Flow arrow */
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    font-size: 28px;
+    color: var(--color-surface-light);
+    padding-top: 40px;
+  }
+
+  /* Section divider */
+  .section-divider {
+    width: 100%;
+    text-align: center;
+    padding: 40px 16px 20px;
+  }
+  .section-divider h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-foreground);
+    margin-bottom: 4px;
+  }
+  .section-divider p {
+    font-size: 12px;
+    color: var(--color-muted);
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== SECTION: Bell Badge → Panel Open → Character Detail ====== -->
+<div class="section-divider">
+  <h2>New Character Detection — Bell Notification Flow</h2>
+  <p>What the commander sees when logging in after a new character has been added</p>
+</div>
+
+<div class="flow-container">
+
+  <!-- ====== STEP 1: Bell has badge ====== -->
+  <div class="step">
+    <div class="step-label">
+      <span class="step-number">1</span>
+      <span class="step-title">Badge Appears on Bell</span>
+      <div class="step-desc">Commander logs in and sees the red badge</div>
+    </div>
+    <div class="phone">
+      <div class="app-header">
+        <div class="header-left">
+          <div class="msf-logo">MSF</div>
+          <span class="app-name">Companion</span>
+          <span class="faq-btn">?</span>
+        </div>
+        <div class="header-right">
+          <!-- BELL WITH BADGE -->
+          <div class="bell-btn">
+            <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="bell-badge pulse">1</span>
+          </div>
+          <div class="avatar">D</div>
+          <span class="username">DGuil</span>
+        </div>
+      </div>
+      <div class="dashboard">
+        <div class="dash-greeting">Good morning, Commander</div>
+        <div class="dash-subtitle">Here's your daily briefing for May 8, 2026</div>
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="val">248</div><div class="lbl">Roster</div></div>
+          <div class="dash-stat"><div class="val">165M</div><div class="lbl">TCP</div></div>
+          <div class="dash-stat"><div class="val">12</div><div class="lbl">Events</div></div>
+        </div>
+        <div class="dash-card">
+          <h4>Active Events</h4>
+          <div class="dash-event-row">
+            <div class="event-dot amber"></div>
+            <div class="event-info">
+              <div class="event-name">Cosmic Crucible Season 18</div>
+              <div class="event-time">Ends in 3d 14h</div>
+            </div>
+          </div>
+          <div class="dash-event-row">
+            <div class="event-dot green"></div>
+            <div class="event-info">
+              <div class="event-name">Web Warriors Blitz</div>
+              <div class="event-time">Starts in 4d</div>
+            </div>
+          </div>
+          <div class="dash-event-row">
+            <div class="event-dot red"></div>
+            <div class="event-info">
+              <div class="event-name">Time Heist: Tier 16</div>
+              <div class="event-time">Ends in 1d 8h</div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-card">
+          <h4>Recommendations</h4>
+          <div class="dash-event-row">
+            <div class="event-dot green"></div>
+            <div class="event-info">
+              <div class="event-name">Upgrade Spider-Man (Noir) to G16</div>
+              <div class="event-time">Unlocks Time Heist Tier 16</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><div class="icon">🏠</div>Home</div>
+        <div class="nav-item"><div class="icon">📊</div>Analyze</div>
+        <div class="nav-item"><div class="icon">👥</div>Teams</div>
+        <div class="nav-item"><div class="icon">📅</div>Planner</div>
+        <div class="nav-item"><div class="icon">⚙️</div>More</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <!-- ====== STEP 2: Panel open with new character notification ====== -->
+  <div class="step">
+    <div class="step-label">
+      <span class="step-number">2</span>
+      <span class="step-title">Tap Bell → Panel Opens</span>
+      <div class="step-desc">New character notification has special styling with portrait &amp; traits</div>
+    </div>
+    <div class="phone">
+      <div class="app-header">
+        <div class="header-left">
+          <div class="msf-logo">MSF</div>
+          <span class="app-name">Companion</span>
+          <span class="faq-btn">?</span>
+        </div>
+        <div class="header-right">
+          <div class="bell-btn active">
+            <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="bell-badge">1</span>
+          </div>
+          <div class="avatar">D</div>
+          <span class="username">DGuil</span>
+        </div>
+      </div>
+
+      <!-- NOTIFICATION PANEL — OPEN -->
+      <div class="notif-panel">
+        <div class="notif-header">
+          <h3>Notifications</h3>
+          <button class="notif-close">✕</button>
+        </div>
+
+        <!-- ★ NEW CHARACTER NOTIFICATION — special treatment -->
+        <div class="notif-item new-character">
+          <div class="notif-char-row">
+            <div class="notif-char-portrait">🕷️</div>
+            <div class="notif-char-info">
+              <div class="notif-char-badge"><span class="dot"></span> New Character Detected</div>
+              <div class="notif-char-name">Araña</div>
+              <div class="notif-char-traits">
+                <span class="notif-trait bio">Bio</span>
+                <span class="notif-trait">Brawler</span>
+                <span class="notif-trait cosmic">Hero</span>
+                <span class="notif-trait">Spider-Verse</span>
+                <span class="notif-trait">Web Warriors</span>
+              </div>
+              <div class="notif-char-meta">Detected today · Blitz release May 12</div>
+              <a class="notif-char-action">View Character Details →</a>
+            </div>
+            <button class="notif-dismiss">✕</button>
+          </div>
+        </div>
+
+        <!-- Regular notifications below -->
+        <div class="notif-item read">
+          <div class="notif-item-row">
+            <div class="notif-item-body">
+              <div class="notif-item-title">Time Heist Tier 16 ending soon</div>
+              <div class="notif-item-msg">You haven't completed this tier yet — 1d 8h remaining</div>
+              <a class="notif-item-link" href="#">View →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="notif-item read">
+          <div class="notif-item-row">
+            <div class="notif-item-body">
+              <div class="notif-item-title">2 new farming recommendations</div>
+              <div class="notif-item-msg">Your advisor has new suggestions based on roster changes</div>
+              <a class="notif-item-link" href="#">View →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="notif-item read">
+          <div class="notif-item-row">
+            <div class="notif-item-body">
+              <div class="notif-item-title">Knowledge base updated</div>
+              <div class="notif-item-msg">4 new articles synced from community sources</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard dimmed">
+        <div class="dash-greeting">Good morning, Commander</div>
+        <div class="dash-subtitle">Here's your daily briefing for May 8, 2026</div>
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="val">248</div><div class="lbl">Roster</div></div>
+          <div class="dash-stat"><div class="val">165M</div><div class="lbl">TCP</div></div>
+          <div class="dash-stat"><div class="val">12</div><div class="lbl">Events</div></div>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item active"><div class="icon">🏠</div>Home</div>
+        <div class="nav-item"><div class="icon">📊</div>Analyze</div>
+        <div class="nav-item"><div class="icon">👥</div>Teams</div>
+        <div class="nav-item"><div class="icon">📅</div>Planner</div>
+        <div class="nav-item"><div class="icon">⚙️</div>More</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <!-- ====== STEP 3: Multiple new characters scenario ====== -->
+  <div class="step">
+    <div class="step-label">
+      <span class="step-number">3</span>
+      <span class="step-title">Multiple Characters at Once</span>
+      <div class="step-desc">When Scopely drops a batch — each gets its own notification</div>
+    </div>
+    <div class="phone">
+      <div class="app-header">
+        <div class="header-left">
+          <div class="msf-logo">MSF</div>
+          <span class="app-name">Companion</span>
+          <span class="faq-btn">?</span>
+        </div>
+        <div class="header-right">
+          <div class="bell-btn active">
+            <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="bell-badge">3</span>
+          </div>
+          <div class="avatar">D</div>
+          <span class="username">DGuil</span>
+        </div>
+      </div>
+
+      <!-- NOTIFICATION PANEL — MULTIPLE NEW CHARACTERS -->
+      <div class="notif-panel">
+        <div class="notif-header">
+          <h3>Notifications</h3>
+          <button class="notif-close">✕</button>
+        </div>
+
+        <!-- Character 1 -->
+        <div class="notif-item new-character">
+          <div class="notif-char-row">
+            <div class="notif-char-portrait">🕷️</div>
+            <div class="notif-char-info">
+              <div class="notif-char-badge"><span class="dot"></span> New Character Detected</div>
+              <div class="notif-char-name">Araña</div>
+              <div class="notif-char-traits">
+                <span class="notif-trait bio">Bio</span>
+                <span class="notif-trait">Brawler</span>
+                <span class="notif-trait">Web Warriors</span>
+              </div>
+              <div class="notif-char-meta">Detected today</div>
+              <a class="notif-char-action">View Character Details →</a>
+            </div>
+            <button class="notif-dismiss">✕</button>
+          </div>
+        </div>
+
+        <!-- Character 2 -->
+        <div class="notif-item new-character">
+          <div class="notif-char-row">
+            <div class="notif-char-portrait">⚡</div>
+            <div class="notif-char-info">
+              <div class="notif-char-badge"><span class="dot"></span> New Character Detected</div>
+              <div class="notif-char-name">Surge</div>
+              <div class="notif-char-traits">
+                <span class="notif-trait" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.15);">Mutant</span>
+                <span class="notif-trait">Controller</span>
+                <span class="notif-trait">New Mutants</span>
+              </div>
+              <div class="notif-char-meta">Detected today</div>
+              <a class="notif-char-action">View Character Details →</a>
+            </div>
+            <button class="notif-dismiss">✕</button>
+          </div>
+        </div>
+
+        <!-- Character 3 -->
+        <div class="notif-item new-character">
+          <div class="notif-char-row">
+            <div class="notif-char-portrait">🔥</div>
+            <div class="notif-char-info">
+              <div class="notif-char-badge"><span class="dot"></span> New Character Detected</div>
+              <div class="notif-char-name">Firestar</div>
+              <div class="notif-char-traits">
+                <span class="notif-trait" style="background: rgba(168,85,247,0.1); color: #a855f7; border-color: rgba(168,85,247,0.15);">Mutant</span>
+                <span class="notif-trait">Blaster</span>
+                <span class="notif-trait">New Warriors</span>
+              </div>
+              <div class="notif-char-meta">Detected today</div>
+              <a class="notif-char-action">View Character Details →</a>
+            </div>
+            <button class="notif-dismiss">✕</button>
+          </div>
+        </div>
+
+        <!-- Older notification -->
+        <div class="notif-item read">
+          <div class="notif-item-row">
+            <div class="notif-item-body">
+              <div class="notif-item-title">Knowledge base updated</div>
+              <div class="notif-item-msg">4 new articles synced from community sources</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard dimmed">
+        <div class="dash-greeting">Good morning, Commander</div>
+        <div class="dash-subtitle">Here's your daily briefing for May 8, 2026</div>
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="val">248</div><div class="lbl">Roster</div></div>
+          <div class="dash-stat"><div class="val">165M</div><div class="lbl">TCP</div></div>
+          <div class="dash-stat"><div class="val">12</div><div class="lbl">Events</div></div>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item active"><div class="icon">🏠</div>Home</div>
+        <div class="nav-item"><div class="icon">📊</div>Analyze</div>
+        <div class="nav-item"><div class="icon">👥</div>Teams</div>
+        <div class="nav-item"><div class="icon">📅</div>Planner</div>
+        <div class="nav-item"><div class="icon">⚙️</div>More</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

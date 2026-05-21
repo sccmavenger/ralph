@@ -220,6 +220,51 @@ export async function GET(request: Request) {
         results.room = room.data;
         break;
       }
+      case "tower-room": {
+        // Try a per-room tower endpoint (similar to DD pattern)
+        const tId = searchParams.get("id") || "survivaltower_01";
+        const rId = searchParams.get("room") || "A1";
+        try {
+          const r = await msfApiFetch<{ data?: unknown }>({
+            path: `/game/v1/survivalTowers/${tId}/${rId}?nodeReqs=full&pieceInfo=full&traitFormat=id`,
+            accessToken: token,
+          });
+          results.towerRoom = r;
+        } catch (err) {
+          results.towerRoomGameError = err instanceof Error ? err.message : String(err);
+        }
+        try {
+          const r2 = await msfApiFetch<{ data?: unknown }>({
+            path: `/player/v1/survivalTowers/${tId}/${rId}?nodeReqs=full&pieceInfo=full&traitFormat=id`,
+            accessToken: token,
+          });
+          results.towerRoomPlayer = r2;
+        } catch (err) {
+          results.towerRoomPlayerError = err instanceof Error ? err.message : String(err);
+        }
+        break;
+      }
+      case "tower-player": {
+        // Try player-specific tower endpoint variations
+        const tId = searchParams.get("id") || "survivaltower_01";
+        const tryPaths = [
+          `/player/v1/survivalTowers/${tId}`,
+          `/player/v1/survivalTowers/${tId}?nodeReqs=full&traitFormat=id`,
+          `/player/v1/survivalTowers`,
+          `/game/v1/survivalTowers/${tId}/nodes`,
+          `/game/v1/survivalTowers/${tId}/rooms`,
+          `/game/v1/combatNodes?towerId=${tId}`,
+        ];
+        for (const p of tryPaths) {
+          try {
+            const r = await msfApiFetch<{ data?: unknown }>({ path: p, accessToken: token });
+            results[p] = { keys: Object.keys(r as object), dataPreview: JSON.stringify(r).slice(0, 500) };
+          } catch (err) {
+            results[p] = `error: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        }
+        break;
+      }
       case "wishlist": {
         const wl = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
           path: "/player/v1/itemWishlist?itemFormat=id&perPage=50",
@@ -240,8 +285,127 @@ export async function GET(request: Request) {
         results.meta = orbs.meta;
         break;
       }
+      case "tower-detail": {
+        // Get a specific tower with full room/floor data
+        const towerId = searchParams.get("id") || "";
+        if (!towerId) {
+          results.error = "Provide ?id=TOWER_ID (get IDs from ?endpoint=towers)";
+          break;
+        }
+        const tower = await msfApiFetch<unknown>({
+          path: `/game/v1/survivalTowers/${towerId}?raidInfo=full&nodeReqs=full&traitFormat=id`,
+          accessToken: token,
+        });
+        results.tower = tower;
+        break;
+      }
+      case "tower-events": {
+        // Find active tower-type events specifically
+        const ev = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
+          path: "/game/v1/events?eventInfo=full&perPage=100",
+          accessToken: token,
+        });
+        const towerEvents = (ev.data || []).filter((e: any) => 
+          e.type === "tower" || e.type === "survivalTower" || 
+          (e.name && (e.name.toLowerCase().includes("tower") || e.name.toLowerCase().includes("mighty")))
+        );
+        results.towerEvents = towerEvents;
+        results.allEventTypes = [...new Set((ev.data || []).map((e: any) => e.type))];
+        results.totalEvents = (ev.data || []).length;
+        break;
+      }
+      case "tower-episodic": {
+        // Try tower as an episodic type
+        const epTypes = ["tower", "survivalTower", "towerEvent", "mighty_tower"];
+        for (const t of epTypes) {
+          try {
+            const ep = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
+              path: `/game/v1/episodics/${t}?perPage=20&nodeReqs=full&traitFormat=id`,
+              accessToken: token,
+            });
+            results[t] = { total: (ep.meta as any)?.total, data: ep.data };
+          } catch (err) {
+            results[t] = `error: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        }
+        break;
+      }
+      case "crucible-offense": {
+        // Check if crucible offense endpoint exists
+        try {
+          const co = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
+            path: "/game/v1/analysis/crucible/offense?page=1&perPage=50",
+            accessToken: token,
+          });
+          results.crucibleOffense = {
+            total: (co.meta as any)?.total,
+            teams: (co.data || []).slice(0, 10).map((t: any) => ({
+              characters: t.characters,
+              total: t.total,
+              wins: t.wins,
+              attacks: t.attacks,
+              defeats: t.defeats,
+            })),
+          };
+        } catch (err) {
+          results.crucibleOffenseError = err instanceof Error ? err.message : String(err);
+        }
+        // Also try war crucible offense patterns
+        try {
+          const matchups = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
+            path: "/game/v1/analysis/crucible/matchups?page=1&perPage=20",
+            accessToken: token,
+          });
+          results.crucibleMatchups = {
+            total: (matchups.meta as any)?.total,
+            sample: (matchups.data || []).slice(0, 5),
+          };
+        } catch (err) {
+          results.crucibleMatchupsError = err instanceof Error ? err.message : String(err);
+        }
+        break;
+      }
+      case "analysis-all": {
+        // Discover all available analysis endpoints
+        const analysisModes = [
+          "war/offense", "war/defense", 
+          "crucible/defense", "crucible/offense",
+          "crucible/matchups", "crucible/counters",
+          "arena/offense", "arena/defense",
+          "tower/offense", "tower/defense",
+        ];
+        for (const mode of analysisModes) {
+          try {
+            const a = await msfApiFetch<{ data?: unknown[]; meta?: unknown }>({
+              path: `/game/v1/analysis/${mode}?page=1&perPage=5`,
+              accessToken: token,
+            });
+            results[mode] = {
+              exists: true,
+              total: (a.meta as any)?.total,
+              sampleFields: Object.keys((a.data || [])[0] || {}),
+              sample: (a.data || []).slice(0, 2),
+            };
+          } catch (err) {
+            results[mode] = { exists: false, error: err instanceof Error ? err.message : String(err) };
+          }
+        }
+        break;
+      }
+      case "raw": {
+        // Generic passthrough for ad-hoc probing. Pass ?endpoint=raw&path=/player/v1/...
+        const rawPath = searchParams.get("path");
+        if (!rawPath) { results.error = "path query param required"; break; }
+        try {
+          const r = await msfApiFetch<unknown>({ path: rawPath, accessToken: token });
+          results.raw = r;
+        } catch (err) {
+          results.rawError = err instanceof Error ? err.message : String(err);
+        }
+        break;
+      }
       default:
-        results.error = `Unknown endpoint: ${endpoint}. Try: events, player-events, team-order, upgrade-data, inventory, squads, raids, episodics, towers, dds, wishlist, orbs`;
+        results.error = `Unknown endpoint: ${endpoint}. Try: events, player-events, team-order, upgrade-data, inventory, squads, raids, episodics, towers, tower-detail, tower-events, tower-episodic, crucible-offense, analysis-all, dds, wishlist, orbs`;
     }
   } catch (err) {
     results.error = err instanceof Error ? err.message : String(err);

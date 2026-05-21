@@ -5,10 +5,7 @@
  * meaningful segments, and uploads to Azure AI Search.
  */
 
-import { execSync } from "child_process";
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { YoutubeTranscript } from "youtube-transcript";
 
 // MSF Creator Channels
 export const MSF_CREATORS = [
@@ -99,37 +96,22 @@ export async function fetchChannelVideos(channelId: string, creatorName: string,
 }
 
 /**
- * Fetch transcript for a YouTube video using yt-dlp
+ * Fetch transcript for a YouTube video using youtube-transcript package.
+ * Note: YouTube blocks transcript access from Azure/cloud datacenter IPs.
+ * Use scripts/refresh-kb.ts locally to populate the knowledge base.
  */
 export async function fetchTranscript(videoId: string): Promise<string | null> {
   // Validate videoId format (YouTube IDs are 11 chars of [A-Za-z0-9_-])
   if (!/^[A-Za-z0-9_-]{10,12}$/.test(videoId)) return null;
 
-  const tempDir = mkdtempSync(join(tmpdir(), "yt-"));
   try {
-    const outPath = join(tempDir, "sub");
-    execSync(
-      `yt-dlp --write-auto-sub --sub-lang en --sub-format json3 --skip-download --no-warnings -o "${outPath}" "https://www.youtube.com/watch?v=${videoId}"`,
-      { encoding: "utf-8", timeout: 60000, stdio: "pipe" }
-    );
-
-    const subFile = join(tempDir, "sub.en.json3");
-    if (!existsSync(subFile)) return null;
-
-    const content = readFileSync(subFile, "utf-8");
-    const data = JSON.parse(content);
-    const events = (data.events || []).filter((e: { segs?: unknown }) => e.segs);
-    if (events.length === 0) return null;
-
-    return events
-      .map((e: { segs: Array<{ utf8?: string }> }) =>
-        e.segs.map((s) => s.utf8 || "").join("")
-      )
-      .join(" ");
-  } catch {
+    const items = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
+    if (!items || items.length === 0) return null;
+    return items.map(item => item.text).join(" ");
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[fetchTranscript] ${videoId}: ${msg}`);
     return null;
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true });
   }
 }
 

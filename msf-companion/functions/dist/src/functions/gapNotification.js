@@ -163,9 +163,22 @@ functions_1.app.timer("gapNotification", {
                     context.log("Admin email not configured — skipping");
                     return;
                 }
-                const _html = formatEmailHtml(report);
-                // Email sending would use Azure Communication Services or SendGrid here
-                context.log(`Email digest generated for ${ADMIN_EMAIL}`);
+                const apiKey = process.env.RESEND_API_KEY;
+                if (!apiKey) {
+                    context.log("RESEND_API_KEY not configured — skipping email");
+                    return;
+                }
+                const html = formatEmailHtml(report);
+                const fromAddress = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+                const response = await fetch("https://api.resend.com/emails", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ from: fromAddress, to: ADMIN_EMAIL, subject: "MSF Companion — Daily Gap Report", html }),
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    context.warn(`Gap notification email failed (${response.status}): ${text}`);
+                }
             },
         };
         await sendGapNotifications(deps, context);

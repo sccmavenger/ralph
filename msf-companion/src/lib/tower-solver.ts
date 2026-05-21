@@ -1,14 +1,11 @@
-import { Character } from "./tower-readiness";
+import { Character, RoomRequirements } from "./tower-readiness";
 
 export interface RoomForSolver {
   id: string;
   name: string;
-  requirements: {
-    traits: string[];
-    minGearTier: number;
-    minStars: number;
-    minLevel: number;
-  };
+  requirements: RoomRequirements;
+  /** Minimum characters required to clear this room (defaults to 5). */
+  minCharacters?: number;
 }
 
 export interface MetaTeam {
@@ -31,8 +28,28 @@ export interface SolverResult {
 
 /**
  * Check if a character meets a room's requirements.
+ * Supports both flat (traits/minGearTier/etc) and structured (filters) requirement shapes.
  */
-function meetsRequirements(char: Character, req: RoomForSolver["requirements"]): boolean {
+function meetsRequirements(char: Character, req: RoomRequirements): boolean {
+  if (req.filters && req.filters.length > 0) {
+    const charTraits = new Set(char.traits.map((t) => t.toLowerCase()));
+    return req.filters.some((f) => {
+      if (f.allTraits.length > 0) {
+        for (const t of f.allTraits) {
+          if (!charTraits.has(t.toLowerCase())) return false;
+        }
+      }
+      if (f.anyTraits.length > 0) {
+        if (!f.anyTraits.some((t) => charTraits.has(t.toLowerCase()))) return false;
+      }
+      if (f.anyCharacters.length > 0 && !f.anyCharacters.includes(char.id)) return false;
+      if (f.gearTier > 0 && char.gearTier < f.gearTier) return false;
+      if (f.minStars > 0 && char.stars < f.minStars) return false;
+      if (f.minLevel > 0 && char.level < f.minLevel) return false;
+      return true;
+    });
+  }
+
   const traitMatch =
     req.traits.length === 0 ||
     req.traits.some((trait) =>
@@ -115,13 +132,13 @@ export function solveTowerAllocation(
 
   // For each room (hardest first), find the best viable team
   for (const room of sortedRooms) {
+    const teamSize = room.minCharacters ?? 5;
     // Get eligible characters that haven't been used
     const eligible = roster.filter(
       (char) => !usedCharIds.has(char.id) && meetsRequirements(char, room.requirements)
     );
 
-    if (eligible.length < 5) {
-      // Can't fill a team — check if we can assign with fewer (minimum 5 required per AC)
+    if (eligible.length < teamSize) {
       unassignableRooms.push(room.id);
       continue;
     }
@@ -129,8 +146,8 @@ export function solveTowerAllocation(
     // Sort eligible by power ascending — we want the weakest viable team
     const sortedEligible = [...eligible].sort((a, b) => a.power - b.power);
 
-    // Take the weakest 5 as default assignment
-    let assignedTeam = sortedEligible.slice(0, 5);
+    // Take the weakest N as default assignment
+    let assignedTeam = sortedEligible.slice(0, teamSize);
 
     // Check if a meta team is available within 10% power of the weakest assignment
     const weakestPower = teamPower(assignedTeam);
@@ -141,11 +158,10 @@ export function solveTowerAllocation(
 
     if (metaMatch) {
       const metaChars = eligible.filter((c) => metaMatch.squad.includes(c.id));
-      if (metaChars.length >= 5) {
-        const metaPower = teamPower(metaChars.slice(0, 5));
-        // If meta team power is within 10% of weakest viable, prefer meta
+      if (metaChars.length >= teamSize) {
+        const metaPower = teamPower(metaChars.slice(0, teamSize));
         if (Math.abs(metaPower - weakestPower) / Math.max(weakestPower, 1) <= 0.1) {
-          assignedTeam = metaChars.slice(0, 5);
+          assignedTeam = metaChars.slice(0, teamSize);
         }
       }
     }
@@ -156,7 +172,7 @@ export function solveTowerAllocation(
     // Generate reason text
     let reason: string;
     if (confidence === "strong") {
-      const surplus = Math.round((power - teamPower(sortedEligible.slice(0, 5))) / 1000);
+      const surplus = Math.round((power - teamPower(sortedEligible.slice(0, teamSize))) / 1000);
       reason = surplus > 0
         ? `Your strongest viable team — ${surplus}k above minimum`
         : `Strong team with good margin above requirements`;

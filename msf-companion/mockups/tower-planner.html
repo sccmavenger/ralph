@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tower Event Planner — MSF Companion Mockup</title>
+  <style>
+    :root {
+      --bg: #0f1118;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --border: #2e3254;
+      --text: #e4e4f0;
+      --text-dim: #8b8fa8;
+      --accent: #6366f1;
+      --accent-dim: #4f46e5;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.12);
+      --yellow: #eab308;
+      --yellow-bg: rgba(234, 179, 8, 0.12);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --orange: #f97316;
+      --cooldown: #6b7280;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header h1 .icon { font-size: 28px; }
+    .header .event-info {
+      text-align: right;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    .header .event-info .event-name {
+      color: var(--yellow);
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .header .event-info .timer {
+      color: var(--orange);
+      font-weight: 500;
+    }
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      flex: 1;
+      min-width: 160px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 22px; font-weight: 700; }
+    .stat-card .value.green { color: var(--green); }
+    .stat-card .value.yellow { color: var(--yellow); }
+    .stat-card .value.red { color: var(--red); }
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-dim); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--surface2); }
+    .btn-icon { display: inline-flex; align-items: center; gap: 6px; }
+    .toggle-group {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-left: auto;
+    }
+    .toggle-group button {
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .toggle-group button.active {
+      background: var(--accent);
+      color: white;
+    }
+    .tower-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .ray {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .ray-header {
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ray-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ray-header .progress {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 500;
+    }
+    .room {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .room:last-child { border-bottom: none; }
+    .room:hover { background: var(--surface2); }
+    .room.selected { background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--accent); }
+    .room-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .room-id {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-dim);
+      width: 28px;
+    }
+    .room-trait {
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+    }
+    .room-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .room-status.ready { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .room-status.partial { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+    .room-status.blocked { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .room-status.cooldown { background: var(--cooldown); }
+    .room-team {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .char-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .char-avatar.assigned { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+    .char-avatar.cooldown { border-color: var(--cooldown); opacity: 0.5; }
+    .room-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .room-meta .tag {
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface2);
+    }
+    .room-meta .tag.green { background: var(--green-bg); color: var(--green); }
+    .room-meta .tag.yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .room-meta .tag.red { background: var(--red-bg); color: var(--red); }
+
+    .detail-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+    }
+    .detail-panel h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .detail-panel h2 .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .detail-panel h2 .badge.green { background: var(--green-bg); color: var(--green); }
+    .team-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .suggestion {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .suggestion.recommended { border-color: var(--accent); }
+    .suggestion .rank {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-dim);
+      width: 28px;
+      text-align: center;
+    }
+    .suggestion.recommended .rank { color: var(--accent); }
+    .suggestion .team-chars {
+      display: flex;
+      gap: 6px;
+      flex: 1;
+    }
+    .suggestion .char-pill {
+      padding: 4px 8px;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .suggestion .stats {
+      text-align: right;
+      min-width: 100px;
+    }
+    .suggestion .stats .win-rate {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--green);
+    }
+    .suggestion .stats .meta-use {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .suggestion .action-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .week-tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 20px;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 3px;
+      width: fit-content;
+      border: 1px solid var(--border);
+    }
+    .week-tabs button {
+      padding: 8px 20px;
+      border: none;
+      background: none;
+      color: var(--text-dim);
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .week-tabs button.active {
+      background: var(--accent);
+      color: white;
+    }
+    .week-tabs button.locked {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .week-tabs button.locked::after {
+      content: "🔒";
+      margin-left: 4px;
+      font-size: 11px;
+    }
+    .cooldown-banner {
+      background: rgba(107, 114, 128, 0.15);
+      border: 1px solid var(--cooldown);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .cooldown-banner .icon { font-size: 18px; }
+    .cooldown-banner strong { color: var(--text); }
+    .legend {
+      display: flex;
+      gap: 16px;
+      padding: 12px 0;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    @media (max-width: 900px) {
+      .tower-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><span class="icon">🏰</span> Tower Event Planner</h1>
+    <div class="event-info">
+      <div class="event-name">MIGHTY TOWER: STORM</div>
+      <div>Cosmic Crucible Rules • 12 Rooms</div>
+      <div class="timer">⏱ 6d 14h remaining (Week 1)</div>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="label">Rooms Ready</div>
+      <div class="value green">8 / 12</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Partially Ready</div>
+      <div class="value yellow">3</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Blocked</div>
+      <div class="value red">1</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Teams on Cooldown</div>
+      <div class="value" style="color: var(--cooldown)">2 / 12</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Estimated Score</div>
+      <div class="value" style="color: var(--accent)">~2.4M</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary btn-icon">✨ Auto-Optimize All</button>
+    <button class="btn btn-secondary btn-icon">↺ Reset Assignments</button>
+    <button class="btn btn-secondary btn-icon">📋 Export Plan</button>
+    <div class="toggle-group">
+      <button class="active">Tower View</button>
+      <button>List View</button>
+    </div>
+  </div>
+
+  <div class="week-tabs">
+    <button class="active">Week 1 (Rooms 1-6)</button>
+    <button class="locked">Week 2 (Rooms 7-12)</button>
+  </div>
+
+  <div class="cooldown-banner">
+    <span class="icon">⏳</span>
+    <span><strong>2 teams</strong> on cooldown until Week 2 unlock (May 22). Black Order used on A1, Gamma used on B1.</span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background: var(--green)"></div> Full team ready</div>
+    <div class="legend-item"><div class="legend-dot" style="background: var(--yellow)"></div> Partial (need upgrades)</div>
+    <div class="legend-item"><div class="legend-dot" style="background: var(--red)"></div> Blocked (missing chars)</div>
+    <div class="legend-item"><div class="legend-dot" style="background: var(--cooldown)"></div> On cooldown</div>
+  </div>
+
+  <div class="tower-grid">
+    <!-- Ray A -->
+    <div class="ray">
+      <div class="ray-header">
+        <h3>⚡ Ray A — Offense Path</h3>
+        <span class="progress">4/5 ready</span>
+      </div>
+      <div class="room" style="opacity: 0.6">
+        <div class="room-top">
+          <span class="room-id">A1</span>
+          <span class="room-trait">Villains + Cosmic</span>
+          <div class="room-status cooldown"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar cooldown">CO</div>
+          <div class="char-avatar cooldown">TH</div>
+          <div class="char-avatar cooldown">CG</div>
+          <div class="char-avatar cooldown">PM</div>
+          <div class="char-avatar cooldown">EM</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag">✓ CLEARED</span>
+          <span class="tag">Black Order</span>
+          <span class="tag">⏳ Cooldown</span>
+        </div>
+      </div>
+      <div class="room selected">
+        <div class="room-top">
+          <span class="room-id">A2</span>
+          <span class="room-trait">Mutant</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">DB</div>
+          <div class="char-avatar assigned">MG</div>
+          <div class="char-avatar assigned">AA</div>
+          <div class="char-avatar assigned">PS</div>
+          <div class="char-avatar assigned">NM</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 892k power</span>
+          <span class="tag">Brotherhood</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">A3</span>
+          <span class="room-trait">Hero + Bio</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">WW</div>
+          <div class="char-avatar assigned">SC</div>
+          <div class="char-avatar assigned">V</div>
+          <div class="char-avatar assigned">SG</div>
+          <div class="char-avatar assigned">SM</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 845k power</span>
+          <span class="tag">Web Warriors</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">A4</span>
+          <span class="room-trait">Mystic + Villain</span>
+          <div class="room-status partial"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">MP</div>
+          <div class="char-avatar assigned">SS</div>
+          <div class="char-avatar assigned">KN</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag yellow">3/5 assigned — need 2 more</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">A5</span>
+          <span class="room-trait">Any (G18+ req)</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">AM</div>
+          <div class="char-avatar assigned">TI</div>
+          <div class="char-avatar assigned">UL</div>
+          <div class="char-avatar assigned">MO</div>
+          <div class="char-avatar assigned">KG</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 1.1M power</span>
+          <span class="tag">Masters of Evil</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ray B -->
+    <div class="ray">
+      <div class="ray-header">
+        <h3>🛡 Ray B — Defense Path</h3>
+        <span class="progress">3/5 ready</span>
+      </div>
+      <div class="room" style="opacity: 0.6">
+        <div class="room-top">
+          <span class="room-id">B1</span>
+          <span class="room-trait">Hero + Cosmic</span>
+          <div class="room-status cooldown"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar cooldown">HK</div>
+          <div class="char-avatar cooldown">RH</div>
+          <div class="char-avatar cooldown">AB</div>
+          <div class="char-avatar cooldown">AC</div>
+          <div class="char-avatar cooldown">SH</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag">✓ CLEARED</span>
+          <span class="tag">Gamma</span>
+          <span class="tag">⏳ Cooldown</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">B2</span>
+          <span class="room-trait">Tech</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">IM</div>
+          <div class="char-avatar assigned">WM</div>
+          <div class="char-avatar assigned">VS</div>
+          <div class="char-avatar assigned">RE</div>
+          <div class="char-avatar assigned">PG</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 780k power</span>
+          <span class="tag">New Avengers</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">B3</span>
+          <span class="room-trait">Skill + Military</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">DD</div>
+          <div class="char-avatar assigned">EL</div>
+          <div class="char-avatar assigned">HM</div>
+          <div class="char-avatar assigned">PU</div>
+          <div class="char-avatar assigned">SS</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 920k power</span>
+          <span class="tag">Shadowland</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">B4</span>
+          <span class="room-trait">X-Men</span>
+          <div class="room-status partial"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">CB</div>
+          <div class="char-avatar assigned">PO</div>
+          <div class="char-avatar assigned">BT</div>
+          <div class="char-avatar assigned">ST</div>
+          <div class="char-avatar">??</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag yellow">4/5 — Jean Grey G16 (need G17)</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">B5</span>
+          <span class="room-trait">Cosmic + Mystic</span>
+          <div class="room-status partial"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">TH</div>
+          <div class="char-avatar assigned">HE</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag yellow">2/5 — limited Cosmic Mystic roster</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ray C -->
+    <div class="ray">
+      <div class="ray-header">
+        <h3>🎯 Ray C — Boss Path</h3>
+        <span class="progress">1/2 ready</span>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">C1</span>
+          <span class="room-trait">Horsemen</span>
+          <div class="room-status ready"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar assigned">AP</div>
+          <div class="char-avatar assigned">MR</div>
+          <div class="char-avatar assigned">RA</div>
+          <div class="char-avatar assigned">OD</div>
+          <div class="char-avatar assigned">DR</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag green">READY — 1.4M power</span>
+          <span class="tag">Apocalypse Saga</span>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-top">
+          <span class="room-id">C2</span>
+          <span class="room-trait">Storm (Mighty) required</span>
+          <div class="room-status blocked"></div>
+        </div>
+        <div class="room-team">
+          <div class="char-avatar" style="border-color: var(--red); color: var(--red)">?!</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+          <div class="char-avatar">??</div>
+        </div>
+        <div class="room-meta">
+          <span class="tag red">BLOCKED — Storm (Mighty) not unlocked</span>
+        </div>
+      </div>
+      <div style="padding: 40px 16px; text-align: center; color: var(--text-dim); font-size: 13px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🔒</div>
+        Week 2 rooms unlock May 22<br>
+        <span style="font-size: 11px;">Plan ahead — your Week 1 teams will be on cooldown</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Panel for selected room -->
+  <div class="detail-panel">
+    <h2>
+      Room A2 — Mutant
+      <span class="badge green">READY</span>
+    </h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <div>
+        <h3 style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">REQUIREMENTS</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+          <div>🧬 Trait: <strong>Mutant</strong></div>
+          <div>⭐ Min Stars: <strong>5 Yellow</strong></div>
+          <div>⚙️ Min Gear: <strong>Tier 16</strong></div>
+          <div>📊 Min Level: <strong>85</strong></div>
+          <div>💪 Recommended Power: <strong>800k+</strong></div>
+        </div>
+        <h3 style="font-size: 14px; color: var(--text-dim); margin: 20px 0 12px;">YOUR ELIGIBLE CHARACTERS (14)</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <span style="padding: 4px 8px; background: var(--green-bg); border: 1px solid var(--green); border-radius: 6px; font-size: 11px; color: var(--green);">Dark Beast ★7 G18</span>
+          <span style="padding: 4px 8px; background: var(--green-bg); border: 1px solid var(--green); border-radius: 6px; font-size: 11px; color: var(--green);">Magneto ★7 G18</span>
+          <span style="padding: 4px 8px; background: var(--green-bg); border: 1px solid var(--green); border-radius: 6px; font-size: 11px; color: var(--green);">Archangel ★6 G17</span>
+          <span style="padding: 4px 8px; background: var(--green-bg); border: 1px solid var(--green); border-radius: 6px; font-size: 11px; color: var(--green);">Psylocke ★6 G17</span>
+          <span style="padding: 4px 8px; background: var(--green-bg); border: 1px solid var(--green); border-radius: 6px; font-size: 11px; color: var(--green);">Nemesis ★6 G17</span>
+          <span style="padding: 4px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">Wolverine ★7 G16</span>
+          <span style="padding: 4px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">Jean Grey ★5 G16</span>
+          <span style="padding: 4px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">Cable ★6 G16</span>
+          <span style="padding: 4px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">Polaris ★5 G16</span>
+          <span style="padding: 4px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">Beast ★5 G16</span>
+          <span style="padding: 4px 8px; background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 6px; font-size: 11px; color: var(--yellow);">Storm ★5 G15 ⚠️</span>
+          <span style="padding: 4px 8px; background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 6px; font-size: 11px; color: var(--yellow);">Cyclops ★4 G14 ⚠️</span>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">RECOMMENDED TEAMS</h3>
+        <div class="team-suggestions">
+          <div class="suggestion recommended">
+            <div class="rank">1</div>
+            <div class="team-chars">
+              <span class="char-pill">Dark Beast</span>
+              <span class="char-pill">Magneto</span>
+              <span class="char-pill">Archangel</span>
+              <span class="char-pill">Psylocke</span>
+              <span class="char-pill">Nemesis</span>
+            </div>
+            <div class="stats">
+              <div class="win-rate">892k</div>
+              <div class="meta-use">Used by 72% of players</div>
+            </div>
+            <button class="action-btn">Assign</button>
+          </div>
+          <div class="suggestion">
+            <div class="rank">2</div>
+            <div class="team-chars">
+              <span class="char-pill">Cable</span>
+              <span class="char-pill">Polaris</span>
+              <span class="char-pill">Beast</span>
+              <span class="char-pill">Storm</span>
+              <span class="char-pill">Jean Grey</span>
+            </div>
+            <div class="stats">
+              <div class="win-rate" style="color: var(--yellow)">640k</div>
+              <div class="meta-use">Used by 48% of players</div>
+            </div>
+            <button class="action-btn" style="background: var(--surface2); color: var(--text);">Assign</button>
+          </div>
+          <div class="suggestion">
+            <div class="rank">3</div>
+            <div class="team-chars">
+              <span class="char-pill">Wolverine</span>
+              <span class="char-pill">Magneto</span>
+              <span class="char-pill">Jean Grey</span>
+              <span class="char-pill">Cable</span>
+              <span class="char-pill">Polaris</span>
+            </div>
+            <div class="stats">
+              <div class="win-rate" style="color: var(--yellow)">580k</div>
+              <div class="meta-use">Used by 31% of players</div>
+            </div>
+            <button class="action-btn" style="background: var(--surface2); color: var(--text);">Assign</button>
+          </div>
+        </div>
+        <div style="margin-top: 16px; padding: 12px; background: rgba(99,102,241,0.08); border: 1px solid var(--accent); border-radius: 8px; font-size: 12px; color: var(--text-dim);">
+          💡 <strong style="color: var(--accent);">AI Tip:</strong> Save Brotherhood for A2 — they're your strongest Mutant team and A2 has harder enemies than B4 (which also needs X-Men). Use your backup X-Men squad for B4.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

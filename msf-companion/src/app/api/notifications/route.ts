@@ -32,6 +32,7 @@ export async function GET() {
       title: true,
       message: true,
       linkUrl: true,
+      metadata: true,
       read: true,
       createdAt: true,
     },

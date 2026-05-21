@@ -4,7 +4,7 @@
  */
 
 import { app, InvocationContext, Timer } from "@azure/functions";
-import { filterRelevantPosts, formatPostAsDocument, RedditPost } from "../lib/redditFetcher.js";
+import { fetchTopPosts as fetchRedditTopPosts, filterRelevantPosts, formatPostAsDocument, RedditPost } from "../lib/redditFetcher.js";
 import type { KBDocument } from "../lib/kbGameData.js";
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
@@ -86,10 +86,35 @@ app.timer("kbRedditSync", {
       return;
     }
     const deps: RedditSyncDeps = {
-      fetchTopPosts: async () => [],
-      getIndexedPostIds: async () => new Set(),
+      fetchTopPosts: async () => fetchRedditTopPosts("day"),
+      getIndexedPostIds: async () => {
+        try {
+          const response = await fetch(
+            `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs?api-version=2024-07-01&$filter=sourceType eq 'reddit-post'&$select=id&$top=1000`,
+            { headers: { "api-key": SEARCH_KEY } }
+          );
+          if (!response.ok) return new Set<string>();
+          const data = (await response.json()) as { value?: Array<{ id: string }> };
+          return new Set((data.value || []).map((d) => d.id));
+        } catch {
+          return new Set<string>();
+        }
+      },
       uploadDocuments: uploadToSearch,
-      deleteStaleDocuments: async () => 0,
+      deleteStaleDocuments: async (docIds: string[]) => {
+        if (docIds.length === 0) return 0;
+        const response = await fetch(
+          `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs/index?api-version=2024-07-01`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "api-key": SEARCH_KEY },
+            body: JSON.stringify({
+              value: docIds.map((id) => ({ "@search.action": "delete", id })),
+            }),
+          }
+        );
+        return response.ok ? docIds.length : 0;
+      },
     };
     await syncReddit(deps, context);
   },

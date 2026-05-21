@@ -4,7 +4,7 @@
  */
 
 import { app, InvocationContext, Timer } from "@azure/functions";
-import { chunkBlogContent, BlogMeta } from "../lib/blogScraper.js";
+import { chunkBlogContent, BlogMeta, extractBlogLinks } from "../lib/blogScraper.js";
 import type { KBDocument } from "../lib/kbGameData.js";
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
@@ -94,9 +94,45 @@ app.timer("kbBlogSync", {
       return;
     }
     const deps: BlogSyncDeps = {
-      fetchBlogList: async () => [],
-      fetchBlogContent: async () => null,
-      getIndexedBlogIds: async () => new Set(),
+      fetchBlogList: async () => {
+        const response = await fetch("https://marvelstrikeforce.com/en/updates", {
+          headers: { "User-Agent": "MSFCompanion/1.0 (KB Blog Sync)" },
+        });
+        if (!response.ok) return [];
+        const html = await response.text();
+        const links = extractBlogLinks(html);
+        return links.map((link) => ({ url: link.url, title: link.title, date: new Date().toISOString().split("T")[0] }));
+      },
+      fetchBlogContent: async (url: string) => {
+        try {
+          const response = await fetch(url, {
+            headers: { "User-Agent": "MSFCompanion/1.0 (KB Blog Sync)" },
+          });
+          if (!response.ok) return null;
+          const html = await response.text();
+          // Strip HTML tags to get text content
+          return html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        } catch {
+          return null;
+        }
+      },
+      getIndexedBlogIds: async () => {
+        try {
+          const response = await fetch(
+            `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs?api-version=2024-07-01&$filter=sourceType eq 'official-blog'&$select=id&$top=1000`,
+            { headers: { "api-key": SEARCH_KEY } }
+          );
+          if (!response.ok) return new Set<string>();
+          const data = (await response.json()) as { value?: Array<{ id: string }> };
+          return new Set((data.value || []).map((d) => d.id));
+        } catch {
+          return new Set<string>();
+        }
+      },
       uploadDocuments: uploadToSearch,
       trackSyncedUrl: async () => {},
     };

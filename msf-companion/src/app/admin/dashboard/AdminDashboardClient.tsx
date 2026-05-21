@@ -401,7 +401,7 @@ export default function AdminDashboardClient({
               {featureFlags.map((flag) => (
                 <div key={flag.key} className="flex items-center justify-between">
                   <span className="text-sm text-[var(--color-foreground)]">
-                    {flag.key === "meta_hash_caching" ? "Meta Hash Caching" : flag.key === "active_offers" ? "Active Offers" : flag.key}
+                    {flag.key === "meta_hash_caching" ? "Meta Hash Caching" : flag.key === "active_offers" ? "Active Offers" : flag.key === "upgrade_tokens" ? "Upgrade Tokens" : flag.key === "churn_prevention" ? "Churn Prevention" : flag.key}
                   </span>
                   <button
                     type="button"

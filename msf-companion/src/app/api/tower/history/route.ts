@@ -6,28 +6,33 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
-  const scopelyId = await getScopelyId(true);
+  try {
+    const session = await getSession();
+    const scopelyId = await getScopelyId(true);
 
-  if (!session.accessToken || !scopelyId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!session.accessToken || !scopelyId) {
+      return NextResponse.json([]);
+    }
 
-  const commander = await prisma.commander.findUnique({
-    where: { scopelyId },
-    select: { id: true },
-  });
+    const commander = await prisma.commander.findUnique({
+      where: { scopelyId },
+      select: { id: true },
+    });
 
-  if (!commander) {
+    if (!commander) {
+      return NextResponse.json([]);
+    }
+
+    const results = await prisma.towerResult.findMany({
+      where: { commanderId: commander.id },
+      orderBy: { completedAt: "desc" },
+    });
+
+    return NextResponse.json(results);
+  } catch (error) {
+    console.error("Tower history GET error:", error);
     return NextResponse.json([]);
   }
-
-  const results = await prisma.towerResult.findMany({
-    where: { commanderId: commander.id },
-    orderBy: { completedAt: "desc" },
-  });
-
-  return NextResponse.json(results);
 }
 
 export async function POST(request: NextRequest) {

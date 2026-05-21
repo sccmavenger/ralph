@@ -1,6 +1,12 @@
 /**
  * MSF Blog Scraper — fetches and processes official MSF blog posts.
  */
+import type { KBDocument } from "./kbGameData.js";
+export interface BlogMeta {
+    title: string;
+    url: string;
+    publishedDate: string;
+}
 export interface BlogPost {
     id: string;
     url: string;
@@ -67,4 +73,12 @@ export declare function scrapeBlog(deps: BlogScraperDeps): Promise<{
     skipped: number;
     errors: number;
 }>;
+/**
+ * Classify a blog post into a KB category.
+ */
+export declare function classifyBlogCategory(title: string, content: string): string;
+/**
+ * Chunk a blog post into ~1000-word KB documents with proper metadata.
+ */
+export declare function chunkBlogContent(content: string, meta: BlogMeta): KBDocument[];
 //# sourceMappingURL=blogScraper.d.ts.map

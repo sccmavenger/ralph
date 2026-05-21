@@ -10,3 +10,7 @@ services:
     docker:
       path: Dockerfile
       remoteBuild: true
+  functions:
+    project: ./functions
+    language: ts
+    host: function

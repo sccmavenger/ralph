@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Time Heist Guide v2 — Mockup (with Value)</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-light: #2a2d3a;
+    --fg: #e4e4e7;
+    --muted: #71717a;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --teal: #14b8a6;
+    --blue: #3b82f6;
+    --gold: #eab308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--fg); max-width: 430px; margin: 0 auto; min-height: 100vh; }
+
+  .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent); text-decoration: none; padding: 16px 16px 0; }
+  .back-link:hover { text-decoration: underline; }
+
+  .container { padding: 8px 16px 80px; }
+
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+  /* Hero Card */
+  .hero-card {
+    background: linear-gradient(135deg, #1e2338 0%, #1a1d27 100%);
+    border: 1px solid var(--accent);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .hero-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .hero-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .progress-ring {
+    width: 56px;
+    height: 56px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .progress-ring svg { transform: rotate(-90deg); }
+  .progress-ring .ring-bg { fill: none; stroke: var(--surface-light); stroke-width: 6; }
+  .progress-ring .ring-fill { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 157; stroke-dashoffset: 20; }
+  .progress-ring .ring-text {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--accent);
+  }
+  .progress-stats { flex: 1; }
+  .progress-stats .big-number { font-size: 14px; font-weight: 700; }
+  .progress-stats .detail { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .progress-bar-container { width: 100%; height: 6px; background: var(--surface-light); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), #818cf8); width: 87%; }
+
+  /* Target Build Tags */
+  .target-build { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .build-tag { font-size: 10px; background: var(--surface-light); padding: 3px 8px; border-radius: 4px; color: var(--fg); font-weight: 500; }
+
+  /* VALUE PROPOSITION SECTION */
+  .value-section {
+    background: rgba(34, 197, 94, 0.04);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .value-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .value-header h4 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--green);
+  }
+  .value-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .value-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .value-item .v-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .value-item .v-number {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .value-item .v-detail {
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .value-breakdown {
+    border-top: 1px solid rgba(34,197,94,0.15);
+    padding-top: 10px;
+    margin-bottom: 12px;
+  }
+  .value-breakdown h5 {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .vb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(42,45,58,0.4);
+  }
+  .vb-row:last-child { border-bottom: none; }
+  .vb-label { font-size: 11px; color: var(--fg); }
+  .vb-value { font-size: 11px; font-weight: 600; color: var(--green); }
+
+  /* Cost section */
+  .cost-section {
+    background: rgba(245, 158, 11, 0.04);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .cost-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .cost-header h4 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--amber);
+  }
+  .cost-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .cost-item .v-number { color: var(--amber); }
+
+  /* Net value callout */
+  .net-value {
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .net-label { font-size: 11px; color: var(--muted); }
+  .net-label strong { display: block; font-size: 13px; color: var(--fg); margin-top: 2px; }
+  .net-badge {
+    background: rgba(34,197,94,0.15);
+    border: 1px solid rgba(34,197,94,0.4);
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  /* Unlocks & Completions */
+  .rewards-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .reward-badge { font-size: 10px; background: rgba(20,184,166,0.12); color: var(--teal); border: 1px solid rgba(20,184,166,0.3); padding: 4px 8px; border-radius: 6px; }
+  .completion-badge { font-size: 10px; background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.3); padding: 4px 8px; border-radius: 6px; }
+  .char-unlock-badge { font-size: 10px; background: rgba(99,102,241,0.12); color: var(--accent); border: 1px solid rgba(99,102,241,0.3); padding: 4px 8px; border-radius: 6px; }
+
+  /* Characters Needing Upgrades */
+  .upgrades-section { border-top: 1px solid var(--surface-light); padding-top: 14px; }
+  .upgrades-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .upgrades-header h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .upgrades-header .count { font-size: 10px; color: var(--amber); font-weight: 600; }
+  .char-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(42,45,58,0.5); }
+  .char-row:last-child { border-bottom: none; }
+  .char-avatar { width: 36px; height: 36px; border-radius: 8px; background: var(--surface-light); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .char-info { flex: 1; min-width: 0; }
+  .char-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .char-deficits { font-size: 10px; color: var(--amber); margin-top: 2px; }
+  .char-effort { font-size: 10px; color: var(--green); background: rgba(34,197,94,0.1); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .squad-badge { font-size: 9px; color: var(--accent); background: rgba(99,102,241,0.12); padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
+  .show-all-btn { display: block; width: 100%; text-align: center; font-size: 11px; color: var(--accent); padding: 10px; margin-top: 8px; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; cursor: pointer; font-weight: 500; }
+
+  /* Completed Levels */
+  .completed-section { margin-bottom: 16px; }
+  .completed-section h3 { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .completed-level { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--surface-light); border-radius: 10px; margin-bottom: 8px; opacity: 0.6; }
+  .completed-check { color: var(--green); font-size: 16px; }
+  .completed-name { font-size: 12px; font-weight: 600; flex: 1; }
+  .completed-tcp { font-size: 11px; color: var(--muted); }
+
+  /* Upcoming Levels */
+  .upcoming-section h3 { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .upcoming-card { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .upcoming-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .upcoming-name { font-size: 13px; font-weight: 700; }
+  .upcoming-percent { font-size: 12px; font-weight: 700; }
+  .upcoming-percent.high { color: var(--green); }
+  .upcoming-percent.mid { color: var(--amber); }
+  .upcoming-percent.low { color: var(--red); }
+  .upcoming-bar { width: 100%; height: 4px; background: var(--surface-light); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+  .upcoming-bar-fill { height: 100%; border-radius: 2px; }
+  .upcoming-bar-fill.high { background: var(--green); }
+  .upcoming-bar-fill.mid { background: var(--amber); }
+  .upcoming-bar-fill.low { background: var(--red); }
+  .upcoming-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .upcoming-meta span { font-size: 10px; background: var(--surface-light); padding: 2px 6px; border-radius: 4px; color: var(--muted); }
+  .upcoming-value { margin-top: 8px; font-size: 10px; color: var(--green); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<a href="#" class="back-link">← Back to Analyze</a>
+
+<div class="container">
+  <h1>Time Heist Guide</h1>
+  <p class="subtitle">Your personalized progression tracker</p>
+
+  <!-- HERO CARD -->
+  <div class="hero-card">
+    <div class="hero-label">🎯 Your Next Time Heist</div>
+    <div class="hero-title">Level 50</div>
+
+    <div class="hero-progress-row">
+      <div class="progress-ring">
+        <svg width="56" height="56" viewBox="0 0 56 56">
+          <circle class="ring-bg" cx="28" cy="28" r="25" />
+          <circle class="ring-fill" cx="28" cy="28" r="25" />
+        </svg>
+        <div class="ring-text">87%</div>
+      </div>
+      <div class="progress-stats">
+        <div class="big-number">312 / 360 characters ready</div>
+        <div class="detail">48 characters need upgrades to complete this level</div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Build -->
+    <div class="target-build">
+      <span class="build-tag">Lv 50</span>
+      <span class="build-tag">G9</span>
+      <span class="build-tag">Basic 5</span>
+      <span class="build-tag">Special 4</span>
+      <span class="build-tag">Ult 4</span>
+      <span class="build-tag">Passive 3</span>
+      <span class="build-tag" style="color: #facc15;">★5 Yellow</span>
+      <span class="build-tag" style="color: #f87171;">★4 Red</span>
+    </div>
+
+    <!-- VALUE: What you GET -->
+    <div class="value-section">
+      <div class="value-header">
+        <h4>💰 What Completing This Saves You</h4>
+      </div>
+
+      <div class="value-grid">
+        <div class="value-item">
+          <span class="v-label">Gold Saved</span>
+          <span class="v-number">~18.5M</span>
+          <span class="v-detail">from free squad upgrades</span>
+        </div>
+        <div class="value-item">
+          <span class="v-label">Farming Saved</span>
+          <span class="v-number">~3 weeks</span>
+          <span class="v-detail">gear + ability mats</span>
+        </div>
+        <div class="value-item">
+          <span class="v-label">Characters Upgraded Free</span>
+          <span class="v-number">15</span>
+          <span class="v-detail">across 3 squads</span>
+        </div>
+        <div class="value-item">
+          <span class="v-label">New Content Access</span>
+          <span class="v-number">2 modes</span>
+          <span class="v-detail">permanent daily rewards</span>
+        </div>
+      </div>
+
+      <div class="value-breakdown">
+        <h5>Breakdown — Free Upgrades You Receive</h5>
+        <div class="vb-row">
+          <span class="vb-label">Insidious Six → G9/Lv50 (5 chars)</span>
+          <span class="vb-value">~6.2M gold</span>
+        </div>
+        <div class="vb-row">
+          <span class="vb-label">Fantastic Four → G9/Lv50 (5 chars)</span>
+          <span class="vb-value">~6.8M gold</span>
+        </div>
+        <div class="vb-row">
+          <span class="vb-label">Power Armor → G9/Lv50 (5 chars)</span>
+          <span class="vb-value">~5.5M gold</span>
+        </div>
+        <div class="vb-row">
+          <span class="vb-label">Heroes Campaign Ch. 6 first-clear rewards</span>
+          <span class="vb-value">~500 shards</span>
+        </div>
+        <div class="vb-row">
+          <span class="vb-label">Heist Challenge T6 (recurring weekly)</span>
+          <span class="vb-value">+50 T4 mats/wk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COST: What it takes from YOU -->
+    <div class="cost-section">
+      <div class="cost-header">
+        <h4>📊 Your Investment to Get There</h4>
+      </div>
+      <div class="cost-grid">
+        <div class="value-item cost-item">
+          <span class="v-label">Gold Needed</span>
+          <span class="v-number">~12M</span>
+          <span class="v-detail">to upgrade 48 characters</span>
+        </div>
+        <div class="value-item cost-item">
+          <span class="v-label">Time Estimate</span>
+          <span class="v-number">~2 weeks</span>
+          <span class="v-detail">at current pace</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- NET VALUE -->
+    <div class="net-value">
+      <div class="net-label">
+        Net Value
+        <strong>Spend 12M → Get 18.5M + permanent content</strong>
+      </div>
+      <div class="net-badge">+54% ROI</div>
+    </div>
+
+    <!-- What You Unlock -->
+    <div class="rewards-row">
+      <span class="reward-badge">🔓 Doom Raids (daily)</span>
+      <span class="reward-badge">🔓 ISO-8 Matrix</span>
+      <span class="completion-badge">✓ Heroes Ch. 6</span>
+      <span class="completion-badge">✓ Heist T6</span>
+      <span class="char-unlock-badge">⭐ New farms: Wolverine, Storm</span>
+    </div>
+
+    <!-- Characters Needing Upgrades -->
+    <div class="upgrades-section">
+      <div class="upgrades-header">
+        <h4>Characters Needing Upgrades</h4>
+        <span class="count">48 remaining • easiest first</span>
+      </div>
+
+      <div class="char-row">
+        <div class="char-avatar">🦸</div>
+        <div class="char-info">
+          <div class="char-name">Daredevil <span class="squad-badge">★ Insidious Six</span></div>
+          <div class="char-deficits">Level 48→50 • ~85K gold</div>
+        </div>
+        <span class="char-effort">+2 lvls</span>
+      </div>
+
+      <div class="char-row">
+        <div class="char-avatar">💀</div>
+        <div class="char-info">
+          <div class="char-name">Punisher</div>
+          <div class="char-deficits">Basic 4→5 • 1 T4 mat</div>
+        </div>
+        <span class="char-effort">+1 ability</span>
+      </div>
+
+      <div class="char-row">
+        <div class="char-avatar">🛡️</div>
+        <div class="char-info">
+          <div class="char-name">Thing <span class="squad-badge">★ Fantastic Four</span></div>
+          <div class="char-deficits">Gear 8→9 • ~320K gold</div>
+        </div>
+        <span class="char-effort">+1 gear</span>
+      </div>
+
+      <div class="char-row">
+        <div class="char-avatar">⚡</div>
+        <div class="char-info">
+          <div class="char-name">Elektra <span class="squad-badge">★ Insidious Six</span></div>
+          <div class="char-deficits">Gear 7→9, Level 42→50 • ~950K gold</div>
+        </div>
+        <span class="char-effort">+2 gear, +8 lvls</span>
+      </div>
+
+      <div class="char-row">
+        <div class="char-avatar">🔥</div>
+        <div class="char-info">
+          <div class="char-name">Human Torch <span class="squad-badge">★ Fantastic Four</span></div>
+          <div class="char-deficits">Special 3→4, Passive 2→3 • 2 T4 mats</div>
+        </div>
+        <span class="char-effort">+2 abilities</span>
+      </div>
+
+      <button class="show-all-btn">Show all 48 characters ▾ (est. total: ~12M gold)</button>
+    </div>
+  </div>
+
+  <!-- COMPLETED LEVELS -->
+  <div class="completed-section">
+    <h3>✓ Completed</h3>
+    <div class="completed-level">
+      <span class="completed-check">✓</span>
+      <span class="completed-name">Level 30</span>
+      <span class="completed-tcp">TCP: 42.1M</span>
+    </div>
+    <div class="completed-level">
+      <span class="completed-check">✓</span>
+      <span class="completed-name">Level 35</span>
+      <span class="completed-tcp">TCP: 68.3M</span>
+    </div>
+    <div class="completed-level">
+      <span class="completed-check">✓</span>
+      <span class="completed-name">Level 40</span>
+      <span class="completed-tcp">TCP: 102.5M</span>
+    </div>
+    <div class="completed-level">
+      <span class="completed-check">✓</span>
+      <span class="completed-name">Level 45</span>
+      <span class="completed-tcp">TCP: 165.6M</span>
+    </div>
+  </div>
+
+  <!-- UPCOMING LEVELS -->
+  <div class="upcoming-section">
+    <h3>Upcoming Levels</h3>
+
+    <div class="upcoming-card">
+      <div class="upcoming-header">
+        <span class="upcoming-name">Level 55</span>
+        <span class="upcoming-percent mid">64%</span>
+      </div>
+      <div class="upcoming-bar"><div class="upcoming-bar-fill mid" style="width:64%"></div></div>
+      <div class="upcoming-meta">
+        <span>Lv 55</span>
+        <span>G10</span>
+        <span>Basic 6</span>
+        <span>★5 Yellow</span>
+        <span>🔓 Stark Tech</span>
+      </div>
+      <div class="upcoming-value">💰 ~24M gold saved • 4 squads free • Unlocks Stark Tech</div>
+    </div>
+
+    <div class="upcoming-card">
+      <div class="upcoming-header">
+        <span class="upcoming-name">Level 60</span>
+        <span class="upcoming-percent mid">51%</span>
+      </div>
+      <div class="upcoming-bar"><div class="upcoming-bar-fill mid" style="width:51%"></div></div>
+      <div class="upcoming-meta">
+        <span>Lv 60</span>
+        <span>G11</span>
+        <span>Basic 6</span>
+        <span>Sp 5</span>
+        <span>🔓 Crucible</span>
+      </div>
+      <div class="upcoming-value">💰 ~32M gold saved • 5 squads free • Unlocks Crucible</div>
+    </div>
+
+    <div class="upcoming-card">
+      <div class="upcoming-header">
+        <span class="upcoming-name">Level 65</span>
+        <span class="upcoming-percent low">33%</span>
+      </div>
+      <div class="upcoming-bar"><div class="upcoming-bar-fill low" style="width:33%"></div></div>
+      <div class="upcoming-meta">
+        <span>Lv 65</span>
+        <span>G12</span>
+        <span>Basic 7</span>
+        <span>Sp 5</span>
+        <span>Ult 5</span>
+        <span>★6 Yellow</span>
+      </div>
+      <div class="upcoming-value">💰 ~45M gold saved • 6 squads free</div>
+    </div>
+
+    <div class="upcoming-card">
+      <div class="upcoming-header">
+        <span class="upcoming-name">Level 70</span>
+        <span class="upcoming-percent low">18%</span>
+      </div>
+      <div class="upcoming-bar"><div class="upcoming-bar-fill low" style="width:18%"></div></div>
+      <div class="upcoming-meta">
+        <span>Lv 70</span>
+        <span>G13</span>
+        <span>Basic 7</span>
+        <span>Sp 6</span>
+        <span>Ult 6</span>
+        <span>★6 Yellow</span>
+        <span>★5 Red</span>
+      </div>
+      <div class="upcoming-value">💰 ~62M gold saved • 7 squads free</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

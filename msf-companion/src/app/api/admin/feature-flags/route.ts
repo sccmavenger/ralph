@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 // Known flags that should always appear in the admin UI
-const KNOWN_FLAGS = ["active_offers", "meta_hash_caching"];
+const KNOWN_FLAGS = ["active_offers", "churn_prevention", "meta_hash_caching", "upgrade_tokens"];
 
 export async function GET() {
   const authError = await requireAdminSession();

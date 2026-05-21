@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tower Planner — MSF Companion</title>
+  <style>
+    :root {
+      --bg: #0f1118;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --border: #2e3254;
+      --text: #e4e4f0;
+      --text-dim: #8b8fa8;
+      --accent: #6366f1;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.1);
+      --yellow: #eab308;
+      --yellow-bg: rgba(234, 179, 8, 0.1);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.1);
+      --gold: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* === HERO SECTION === */
+    .hero {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .hero .event-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .hero .subtitle {
+      font-size: 15px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .hero .timer {
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    /* === YOUR READINESS === */
+    .readiness {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .readiness h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .readiness-bar {
+      height: 12px;
+      border-radius: 6px;
+      background: var(--surface2);
+      overflow: hidden;
+      display: flex;
+      margin-bottom: 12px;
+    }
+    .readiness-bar .segment-green { background: var(--green); }
+    .readiness-bar .segment-yellow { background: var(--yellow); }
+    .readiness-bar .segment-red { background: var(--red); }
+    .readiness-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+    .readiness-legend .item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .readiness-legend .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .readiness-legend .count { font-weight: 700; }
+    .readiness-summary {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--green-bg);
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--green);
+      line-height: 1.5;
+    }
+
+    /* === CTA === */
+    .cta-section {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .cta-btn {
+      flex: 1;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      text-align: center;
+    }
+    .cta-btn.primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: white;
+    }
+    .cta-btn.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .cta-btn .btn-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .cta-btn .btn-desc {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    /* === FLOOR LIST === */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-header h2 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .section-header .filter {
+      font-size: 12px;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 6px 12px;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+    }
+    .floor-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .floor-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .floor-card:hover { border-color: var(--accent); }
+    .floor-card.done { opacity: 0.6; }
+
+    .floor-top {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      gap: 14px;
+    }
+    .floor-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .floor-number.green { background: var(--green-bg); color: var(--green); border: 2px solid var(--green); }
+    .floor-number.yellow { background: var(--yellow-bg); color: var(--yellow); border: 2px solid var(--yellow); }
+    .floor-number.red { background: var(--red-bg); color: var(--red); border: 2px solid var(--red); }
+    .floor-number.done { background: var(--surface2); color: var(--text-dim); border: 2px solid var(--text-dim); }
+
+    .floor-info { flex: 1; }
+    .floor-info .trait {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .floor-info .detail {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .floor-status {
+      text-align: right;
+    }
+    .floor-status .status-label {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    .floor-status .status-label.green { background: var(--green-bg); color: var(--green); }
+    .floor-status .status-label.yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .floor-status .status-label.red { background: var(--red-bg); color: var(--red); }
+    .floor-status .status-label.done { background: var(--surface2); color: var(--text-dim); }
+
+    /* Expanded floor detail */
+    .floor-detail {
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .floor-detail .assigned-team {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .floor-detail .team-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 80px;
+    }
+    .floor-detail .team-names {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .floor-detail .char-chip {
+      padding: 4px 10px;
+      background: var(--surface2);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .floor-detail .char-chip.strong { border: 1px solid var(--green); color: var(--green); }
+    .floor-detail .char-chip.weak { border: 1px solid var(--yellow); color: var(--yellow); }
+    .floor-detail .why-box {
+      padding: 10px 14px;
+      background: rgba(99, 102, 241, 0.06);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .floor-detail .why-box strong { color: var(--accent); }
+
+    /* === NEEDS ATTENTION === */
+    .attention-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .attention-card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .attention-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .attention-item:last-child { border-bottom: none; }
+    .attention-item .emoji { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .attention-item strong { color: var(--text); }
+    .attention-item .action {
+      margin-top: 4px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    /* === HOW IT WORKS === */
+    .how-it-works {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .how-it-works h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .step-list { display: flex; flex-direction: column; gap: 14px; }
+    .step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-text {
+      font-size: 14px;
+      line-height: 1.5;
+      padding-top: 3px;
+    }
+    .step-text strong { color: var(--text); }
+    .step-text { color: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+  <!-- HERO: What is this? -->
+  <div class="hero">
+    <div class="event-badge">Active Tower Event</div>
+    <h1>Mighty Tower: Storm</h1>
+    <p class="subtitle">
+      This tower has <strong>12 battles</strong>. Each one requires specific characters.
+      We checked your roster — here's which ones you can win, and where you need help.
+    </p>
+    <div class="timer">⏱ Ends in 6 days — Week 2 floors unlock in 2 days</div>
+  </div>
+
+  <!-- HOW IT WORKS (first-time user) -->
+  <div class="how-it-works">
+    <h2>How Tower Events Work</h2>
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Each battle has rules</strong> — like "only Mutant characters" or "only Villains." You need to bring a team of 5 that fits.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Once you use a team, they're locked</strong> — you can't use those characters again until the next week. So you need to plan ahead.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>We figure out the best plan</strong> — based on your actual roster, we tell you which teams go where so you don't waste your strongest characters on easy fights.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- READINESS: How screwed am I? -->
+  <div class="readiness">
+    <h2>Your Roster vs. This Tower</h2>
+    <div class="readiness-bar">
+      <div class="segment-green" style="width: 58%"></div>
+      <div class="segment-yellow" style="width: 25%"></div>
+      <div class="segment-red" style="width: 17%"></div>
+    </div>
+    <div class="readiness-legend">
+      <div class="item">
+        <div class="dot" style="background: var(--green)"></div>
+        <span><span class="count">7</span> battles you can win</span>
+      </div>
+      <div class="item">
+        <div class="dot" style="background: var(--yellow)"></div>
+        <span><span class="count">3</span> winnable with upgrades</span>
+      </div>
+      <div class="item">
+        <div class="dot" style="background: var(--red)"></div>
+        <span><span class="count">2</span> you can't do yet</span>
+      </div>
+    </div>
+    <div class="readiness-summary">
+      ✅ You can likely clear <strong>10 of 12 battles</strong> this tower. That's enough to unlock Storm (Mighty) shards. Last tower you cleared 8 — this is an improvement!
+    </div>
+  </div>
+
+  <!-- CTA: What do I do? -->
+  <div class="cta-section">
+    <button class="cta-btn primary">
+      <div class="btn-title">🧠 Pick My Teams</div>
+      <div class="btn-desc">We'll assign your best characters to each battle automatically</div>
+    </button>
+    <button class="cta-btn secondary">
+      <div class="btn-title">🔍 I'll Pick Myself</div>
+      <div class="btn-desc">Browse each battle and choose your own teams</div>
+    </button>
+  </div>
+
+  <!-- NEEDS ATTENTION: What's blocking me? -->
+  <div class="attention-card">
+    <h3>⚠️ 3 Things That Would Help You</h3>
+    <div class="attention-item">
+      <span class="emoji">⬆️</span>
+      <div>
+        <div><strong>Jean Grey</strong> needs Gear Tier 17 for Battle 9 (X-Men required). She's at G16 — one tier away.</div>
+        <div class="action">→ See what materials you need</div>
+      </div>
+    </div>
+    <div class="attention-item">
+      <span class="emoji">🌟</span>
+      <div>
+        <div><strong>Battle 11</strong> requires 6-star characters. Your best Cosmic Mystic team has Storm at 5★. She needs 80 more shards.</div>
+        <div class="action">→ Where to farm Storm shards</div>
+      </div>
+    </div>
+    <div class="attention-item">
+      <span class="emoji">🚫</span>
+      <div>
+        <div><strong>Battle 12</strong> requires Storm (Mighty) — that's the character you're trying to unlock by completing this tower. You'll get her next time around.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOOR LIST -->
+  <div class="section-header">
+    <h2>All 12 Battles</h2>
+    <span class="filter">Show problems only</span>
+  </div>
+
+  <div class="floor-list">
+    <!-- Cleared -->
+    <div class="floor-card done">
+      <div class="floor-top">
+        <div class="floor-number done">1</div>
+        <div class="floor-info">
+          <div class="trait">Villains + Cosmic</div>
+          <div class="detail">Used: Black Order • 920k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label done">✓ Cleared</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card done">
+      <div class="floor-top">
+        <div class="floor-number done">2</div>
+        <div class="floor-info">
+          <div class="trait">Hero + Cosmic</div>
+          <div class="detail">Used: Gamma • 880k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label done">✓ Cleared</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready -->
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">3</div>
+        <div class="floor-info">
+          <div class="trait">Mutant characters only</div>
+          <div class="detail">You have 14 eligible characters • Best team: 892k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+      <div class="floor-detail">
+        <div class="assigned-team">
+          <span class="team-label">Best team:</span>
+          <div class="team-names">
+            <span class="char-chip strong">Dark Beast</span>
+            <span class="char-chip strong">Magneto</span>
+            <span class="char-chip strong">Archangel</span>
+            <span class="char-chip strong">Psylocke</span>
+            <span class="char-chip strong">Nemesis</span>
+          </div>
+        </div>
+        <div class="why-box">
+          <strong>Why this team?</strong> Brotherhood is the most-used team for this battle (72% of players use them here). Your Brotherhood is well-built at 892k power.
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready -->
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">4</div>
+        <div class="floor-info">
+          <div class="trait">Hero + Bio</div>
+          <div class="detail">You have 11 eligible characters • Best team: 845k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">5</div>
+        <div class="floor-info">
+          <div class="trait">Tech characters only</div>
+          <div class="detail">You have 9 eligible characters • Best team: 780k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">6</div>
+        <div class="floor-info">
+          <div class="trait">Skill + Military</div>
+          <div class="detail">You have 8 eligible characters • Best team: 920k power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEEK 2 DIVIDER -->
+    <div style="padding: 16px 0; text-align: center;">
+      <div style="font-size: 13px; color: var(--gold); font-weight: 600; display: flex; align-items: center; gap: 8px; justify-content: center;">
+        <div style="height: 1px; flex: 1; background: var(--border);"></div>
+        🔓 WEEK 2 — Unlocks May 22
+        <div style="height: 1px; flex: 1; background: var(--border);"></div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">
+        Your Week 1 teams will be available again when these open
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">7</div>
+        <div class="floor-info">
+          <div class="trait">Any characters (Gear 18+ required)</div>
+          <div class="detail">You have 6 eligible characters • Best team: 1.1M power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number green">8</div>
+        <div class="floor-info">
+          <div class="trait">Horsemen teams</div>
+          <div class="detail">You have 5 eligible characters • Best team: 1.4M power</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label green">Ready to go</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Needs upgrades -->
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number yellow">9</div>
+        <div class="floor-info">
+          <div class="trait">X-Men (Gear 17+ required)</div>
+          <div class="detail">You have 4 eligible, need 5 • Jean Grey needs 1 gear tier</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label yellow">Almost there</span>
+        </div>
+      </div>
+      <div class="floor-detail">
+        <div class="assigned-team">
+          <span class="team-label">Your team:</span>
+          <div class="team-names">
+            <span class="char-chip strong">Cable ★6 G17</span>
+            <span class="char-chip strong">Polaris ★5 G17</span>
+            <span class="char-chip strong">Beast ★5 G17</span>
+            <span class="char-chip strong">Storm ★5 G17</span>
+            <span class="char-chip weak">Jean Grey ★5 G16 ⚠️</span>
+          </div>
+        </div>
+        <div class="why-box">
+          <strong>What you need:</strong> Jean Grey is 1 gear tier short. Gear 17 requires 2 Teal Catalysts + 6 Teal Unique pieces. You currently have 1 catalyst. Farm the other from Doom 3 Raid.
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number yellow">10</div>
+        <div class="floor-info">
+          <div class="trait">Mystic + Villain</div>
+          <div class="detail">You have 3 eligible, need 5 • Limited roster depth</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label yellow">Almost there</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number yellow">11</div>
+        <div class="floor-info">
+          <div class="trait">Cosmic + Mystic (6★ required)</div>
+          <div class="detail">Storm needs 80 shards to reach 6★</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label yellow">Almost there</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blocked -->
+    <div class="floor-card">
+      <div class="floor-top">
+        <div class="floor-number red">12</div>
+        <div class="floor-info">
+          <div class="trait">Requires Storm (Mighty)</div>
+          <div class="detail">This is the character you unlock FROM this tower — it's for your 2nd run</div>
+        </div>
+        <div class="floor-status">
+          <span class="status-label red">Not possible yet</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

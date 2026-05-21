@@ -9,6 +9,7 @@ interface Notification {
   title: string;
   message: string;
   linkUrl: string | null;
+  metadata: Record<string, unknown> | null;
   read: boolean;
   createdAt: string;
 }
@@ -92,7 +93,74 @@ export default function NotificationBell() {
               No notifications yet
             </p>
           ) : (
-            notifications.map((n) => (
+            notifications.map((n) =>
+              n.type === "new-character" ? (
+                <div
+                  key={n.id}
+                  className={`border-b border-[var(--color-surface-light)] border-l-[3px] border-l-[var(--color-accent)] px-3 py-3 transition-opacity ${
+                    n.read ? "opacity-50" : ""
+                  }`}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.04))",
+                  }}
+                  data-testid="notification-item"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-[rgba(99,102,241,0.4)] text-xl"
+                      style={{
+                        background: "linear-gradient(135deg, #2a2d3a, #1e2338)",
+                      }}
+                    >
+                      ✦
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] font-bold uppercase tracking-wider text-[var(--color-accent)] mb-0.5 flex items-center gap-1">
+                        <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                        New Character Detected
+                      </p>
+                      <p className="text-sm font-bold text-[var(--color-foreground)]">
+                        {(n.metadata?.name as string) || n.title}
+                      </p>
+                      {Array.isArray(n.metadata?.traits) && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(n.metadata.traits as string[]).slice(0, 5).map((trait) => (
+                            <span
+                              key={trait}
+                              className="rounded px-1.5 py-0.5 text-[9px] font-semibold border"
+                              style={{
+                                background: "rgba(99,102,241,0.1)",
+                                color: "var(--color-accent)",
+                                borderColor: "rgba(99,102,241,0.15)",
+                              }}
+                            >
+                              {trait}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {n.linkUrl && (
+                        <a
+                          href={n.linkUrl}
+                          className="text-xs font-semibold text-[var(--color-accent)] hover:underline mt-1.5 inline-block"
+                        >
+                          View Character Details →
+                        </a>
+                      )}
+                    </div>
+                    {!n.read && (
+                      <button
+                        onClick={() => markAsRead(n.id)}
+                        className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] shrink-0"
+                        data-testid="dismiss-notification"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div
                 key={n.id}
                 className={`border-b border-[var(--color-surface-light)] px-4 py-3 transition-opacity ${
@@ -128,7 +196,8 @@ export default function NotificationBell() {
                   )}
                 </div>
               </div>
-            ))
+              )
+            )
           )}
         </div>,
         document.body
