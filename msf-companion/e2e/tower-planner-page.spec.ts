@@ -36,7 +36,12 @@ const mockReadiness: Record<string, { status: string; eligibleCount: number }> =
   room_b1: { status: "blocked", eligibleCount: 1 },
 };
 
-async function setupMockRoutes(page: Page, towerResponse: unknown) {
+const mockUpgrades = [
+  { characterName: "Jean Grey", currentValue: 16, targetValue: 17, upgradeType: "gear", roomsUnlocked: ["Floor 2"], impact: 3 },
+  { characterName: "Storm", currentValue: 5, targetValue: 6, upgradeType: "stars", roomsUnlocked: ["Floor 3"], impact: 2 },
+];
+
+async function setupMockRoutes(page: Page, towerResponse: unknown, upgradesResponse: unknown[] = mockUpgrades) {
   await page.route("**/api/tower/events", (route) => {
     return route.fulfill({
       status: 200,
@@ -58,6 +63,14 @@ async function setupMockRoutes(page: Page, towerResponse: unknown) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(mockReadiness),
+    });
+  });
+
+  await page.route("**/api/tower/upgrades*", (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(upgradesResponse),
     });
   });
 }
@@ -131,5 +144,41 @@ test.describe("Tower Planner Page", () => {
     const divider = page.locator("[data-testid='week-2-divider']");
     await expect(divider).toBeVisible();
     await expect(divider).toContainText("Week 2");
+  });
+
+  test("upgrade recommendations section renders when blocked rooms exist", async ({ page }) => {
+    await setupMockRoutes(page, mockActiveTower);
+    await page.goto("/analyze/tower-planner");
+
+    const section = page.locator("[data-testid='upgrades-section']");
+    await expect(section).toBeVisible();
+    await expect(section).toContainText("Things That Would Help You");
+    await expect(page.locator("[data-testid='upgrade-item']")).toHaveCount(2);
+    await expect(section).toContainText("Jean Grey");
+    await expect(section).toContainText("16 → 17");
+    await expect(section).toContainText("unlocks 1 room");
+  });
+
+  test("upgrade recommendations hidden when all rooms ready", async ({ page }) => {
+    // Override readiness to all ready
+    await page.route("**/api/tower/events", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockActiveTower) })
+    );
+    await page.route("**/api/tower/rooms*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockRooms) })
+    );
+    await page.route("**/api/tower/readiness*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ room_a1: { status: "ready", eligibleCount: 7 }, room_a2: { status: "ready", eligibleCount: 5 }, room_b1: { status: "ready", eligibleCount: 6 } }),
+      })
+    );
+    await page.route("**/api/tower/upgrades*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    );
+
+    await page.goto("/analyze/tower-planner");
+    await expect(page.locator("[data-testid='upgrades-section']")).not.toBeVisible();
   });
 });

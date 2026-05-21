@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { UpgradeRecommendation } from "@/lib/tower-upgrades";
 
 interface TowerRay {
   id: string;
@@ -63,6 +64,7 @@ export default function TowerPlannerClient() {
   const [clearedRooms, setClearedRooms] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [upgrades, setUpgrades] = useState<UpgradeRecommendation[]>([]);
 
   function getClearedStorageKey(eventId: string, week: number) {
     return `tower-cleared-${eventId}-w${week}`;
@@ -133,6 +135,13 @@ export default function TowerPlannerClient() {
             if (readinessRes.ok) {
               const readinessData: Record<string, RoomReadiness> = await readinessRes.json();
               setRoomReadiness(new Map(Object.entries(readinessData)));
+            }
+
+            // Fetch upgrade recommendations
+            const upgradesRes = await fetch(`/api/tower/upgrades?towerId=${data.tower.id}`);
+            if (upgradesRes.ok) {
+              const upgradesData: UpgradeRecommendation[] = await upgradesRes.json();
+              setUpgrades(upgradesData);
             }
           }
         }
@@ -247,6 +256,26 @@ export default function TowerPlannerClient() {
           <p className="mt-1 text-xs text-gray-400">
             You can likely clear {clearable} of {totalRooms} battles this tower
           </p>
+        </div>
+      )}
+
+      {/* Upgrade recommendations */}
+      {upgrades.length > 0 && blockedCount > 0 && (
+        <div className="rounded-lg border border-yellow-700/50 bg-yellow-900/20 p-3" data-testid="upgrades-section">
+          <h3 className="text-sm font-semibold text-yellow-300">Things That Would Help You</h3>
+          <ul className="mt-2 flex flex-col gap-2">
+            {upgrades.map((u, i) => (
+              <li key={i} className="text-xs text-gray-300" data-testid="upgrade-item">
+                <span className="font-medium text-white">{u.characterName}</span>
+                {": "}
+                {u.upgradeType === "gear" ? "Gear" : u.upgradeType === "stars" ? "Stars" : "Level"}{" "}
+                {u.currentValue} → {u.targetValue}
+                <span className="ml-2 text-yellow-400">
+                  (unlocks {u.roomsUnlocked.length} room{u.roomsUnlocked.length !== 1 ? "s" : ""})
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
