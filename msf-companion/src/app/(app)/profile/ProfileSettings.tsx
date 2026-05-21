@@ -45,6 +45,12 @@ export default function ProfileSettings({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const [towerNotifications, setTowerNotifications] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("tower-notifications") !== "false";
+    }
+    return true;
+  });
   const [snapshotCounts, setSnapshotCounts] = useState({
     roster: rosterSnapshotCount,
     inventory: inventorySnapshotCount,
@@ -336,6 +342,26 @@ export default function ProfileSettings({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Notification Preferences */}
+      <div className="mb-4 rounded-xl bg-[var(--color-surface)] p-4" data-testid="notification-preferences">
+        <h3 className="mb-3 text-sm font-bold text-[var(--color-foreground)]">
+          Notification Preferences
+        </h3>
+        <label className="flex items-center justify-between">
+          <span className="text-xs text-[var(--color-muted)]">Tower event notifications</span>
+          <input
+            type="checkbox"
+            checked={towerNotifications}
+            onChange={(e) => {
+              setTowerNotifications(e.target.checked);
+              localStorage.setItem("tower-notifications", e.target.checked ? "true" : "false");
+            }}
+            className="h-4 w-4 rounded accent-purple-600"
+            data-testid="tower-notifications-toggle"
+          />
+        </label>
       </div>
 
       {/* FAQ Link */}
