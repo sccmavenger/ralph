@@ -9,6 +9,7 @@ import WarMetaWidget from "@/app/components/WarMetaWidget";
 import CrucibleMetaWidget from "@/app/components/CrucibleMetaWidget";
 import OffersWidget from "@/app/components/OffersWidget";
 import DailyBriefingWidget from "@/app/components/DailyBriefingWidget";
+import TowerEventWidget from "@/app/components/TowerEventWidget";
 import { CharPortrait } from "@/app/components/CharPortrait";
 
 const ORIGINS = ["COSMIC", "BIO", "MYSTIC", "TECH", "MUTANT", "SKILL"] as const;
@@ -296,6 +297,9 @@ export default function DashboardOverview({
 
       {/* Offers Widget — behind feature flag */}
       {offersEnabled && <OffersWidget />}
+
+      {/* Tower Event Widget */}
+      <TowerEventWidget />
 
       {/* Planner Summary Widget */}
       <PlannerSummary />
