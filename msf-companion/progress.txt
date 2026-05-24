@@ -48,6 +48,11 @@ Tower endpoints:
 - API key alone (without bearer token) returns 401 — always need OAuth token
 - survivalTowers game endpoint doesn't include per-room requirements (only layout)
 
+### Testing Patterns
+- Tower routes that use `await import("@/lib/<module>")` (dynamic imports) MUST be `vi.mock`ed in tests — otherwise the alias fails to resolve at runtime and the route returns 500.
+- `/api/tower/solve` uses `getValidAccessTokenWithRefresh` from `@/lib/auth`; `/api/tower/rooms` uses `getSession` from `@/lib/session`. Mock the right one per route.
+- Use `Promise.allSettled` at route boundaries when calling external APIs per-item so a single failure doesn't break the whole response; expose failures as a structured field (e.g. `roomFetchErrors: string[]`).
+
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
 - Calls `/game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId}` via existing `msfApiFetch` helper.
@@ -63,4 +68,19 @@ Tower endpoints:
   - `encodeURIComponent` the `combatId` in the URL path; pass `towerId` via `difficultyGroup` query param.
   - Vitest config in this repo: `poolOptions` is deprecated in Vitest 4 (warning only, tests still run).
   - Run tests via `npx vitest run <file>` from the `msf-companion/` directory.
+---
+
+## 2026-05-24 - US-002 - Solve API exposes opponent power per room
+- Added optional `combatId?: string` to `TowerRoom` in `src/lib/tower-fetcher.ts` and propagated it from `detail.data?.combatId` (the MSF room detail response already carries it).
+- Updated `src/app/api/tower/solve/route.ts`:
+  - Calls `getEnemyTeam(combatId, towerId, userToken)` per fetchable room inside `Promise.allSettled`, so a single upstream failure doesn't break the response (the fetcher's own `getEnemyTeamsForRooms` uses `Promise.all` and rejects on first failure — the JSDoc explicitly directs route callers to use `allSettled`, which we do here).
+  - Response now includes `opponentPowers: Record<roomId, number>`, `opponentTeams: Record<roomId, EnemyTeam>`, and `roomFetchErrors: string[]` (failed combatIds).
+  - Rooms with no `combatId` are silently skipped (no fetch, no error entry).
+  - Existing `assignments` and `unassignableRooms` fields preserved.
+- New test file `src/app/api/tower/solve/route.test.ts` mocks `@/lib/auth`, `@/lib/msf-api` (roster), `@/lib/tower-fetcher`, `@/lib/tower-enemy-fetcher`, AND `@/lib/tower-solver`. All 3 tests pass.
+- **Learnings for future iterations:**
+  - The solve route uses `await import("@/lib/tower-solver")` (dynamic import). Vitest only intercepts this if you `vi.mock("@/lib/tower-solver", ...)` — otherwise the dynamic import fails with `ERR_MODULE_NOT_FOUND` at runtime (path alias isn't resolved for dynamic imports the same way as static ones). Always mock dynamically-imported modules in route tests.
+  - For graceful per-room degradation against an external API, prefer wrapping individual calls in `Promise.allSettled` at the route layer rather than modifying the shared fetcher helper — keeps the fetcher's contract simple (all-or-nothing) and the policy local to the consumer.
+  - Tower routes use `getValidAccessTokenWithRefresh` from `@/lib/auth` (NOT `getSession`) — different from `/api/tower/rooms` which uses `getSession`. Mock the right one.
+  - `npm run cleanup` exits 1 silently in this repo — proceed regardless; it's a pre-test housekeeping step, not a gate.
 ---

@@ -35,8 +35,8 @@
         "Tests pass"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Depends on US-001."
+      "passes": true,
+      "notes": "Implemented. Added optional combatId to TowerRoom (propagated from MSF room detail). Solve route now uses Promise.allSettled over getEnemyTeam per fetchable room; response gains opponentPowers, opponentTeams (keyed by roomId), and roomFetchErrors (failed combatIds). Rooms without combatId silently skipped. 3 new tests in route.test.ts all pass (mocks tower-solver dynamic import); typecheck + eslint clean."
     },
     {
       "id": "US-003",

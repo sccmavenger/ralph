@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getValidAccessTokenWithRefresh as getValidAccessToken } from "@/lib/auth";
 import { msfApiFetch } from "@/lib/msf-api";
 import { fetchTowerRooms } from "@/lib/tower-fetcher";
+import { getEnemyTeam, type EnemyTeam } from "@/lib/tower-enemy-fetcher";
 import type { Character } from "@/lib/tower-readiness";
 import type { RoomForSolver, MetaTeam } from "@/lib/tower-solver";
 
@@ -80,9 +81,40 @@ export async function POST(request: NextRequest) {
       assignments[key] = value;
     });
 
+    // Fetch real opponent teams per room. Use allSettled so a single failed
+    // combatId doesn't break the whole response — failures are surfaced via
+    // roomFetchErrors and the UI can fall back to legacy entry-req selection.
+    const fetchableRooms = towerRooms.filter(
+      (r): r is typeof r & { combatId: string } =>
+        typeof r.combatId === "string" && r.combatId.length > 0,
+    );
+    const enemyResults = await Promise.allSettled(
+      fetchableRooms.map((r) => getEnemyTeam(r.combatId, towerId, userToken)),
+    );
+
+    const opponentPowers: Record<string, number> = {};
+    const opponentTeams: Record<string, EnemyTeam> = {};
+    const roomFetchErrors: string[] = [];
+    enemyResults.forEach((res, idx) => {
+      const room = fetchableRooms[idx];
+      if (res.status === "fulfilled") {
+        opponentPowers[room.id] = res.value.totalPower;
+        opponentTeams[room.id] = res.value;
+      } else {
+        console.error(
+          `Failed to fetch enemy team for room ${room.id} (combatId=${room.combatId}):`,
+          res.reason,
+        );
+        roomFetchErrors.push(room.combatId);
+      }
+    });
+
     return NextResponse.json({
       assignments,
       unassignableRooms: result.unassignableRooms,
+      opponentPowers,
+      opponentTeams,
+      roomFetchErrors,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

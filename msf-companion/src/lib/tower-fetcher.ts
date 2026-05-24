@@ -85,6 +85,8 @@ export interface TowerRoom {
   name: string;
   requirements: TowerRoomRequirements;
   week: 1 | 2;
+  /** combatId for this room's node, used to fetch the real enemy team. */
+  combatId?: string;
 }
 
 const RAY_ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -196,6 +198,7 @@ async function doFetchTowerRooms(towerId: string, accessToken?: string): Promise
             name: detail.data?.name || roomId,
             requirements: flattenRequirements(detail.data?.requirements),
             week,
+            combatId: detail.data?.combatId,
           }))
           .catch((err) => {
             console.error(`Failed to fetch tower room ${roomId}:`, err);
