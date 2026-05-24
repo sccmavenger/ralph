@@ -54,6 +54,9 @@ Tower endpoints:
 - Use `Promise.allSettled` at route boundaries when calling external APIs per-item so a single failure doesn't break the whole response; expose failures as a structured field (e.g. `roomFetchErrors: string[]`).
 - Pre-existing failing tests on this branch (NOT caused by ralph work — verified via `git stash` baseline): `src/app/api/tower/events/route.test.ts` and `src/app/api/tower/rooms/route.test.ts` fail at module-load with `Cannot find package '@/lib/auth'` / `'@/lib/tower-fetcher'`, and `src/app/api/tower/history/route.test.ts > returns 401 when not authenticated` expects 401 but gets 200. Safe to ignore for unrelated stories; should be fixed in a dedicated cleanup story.
 - Solver extension pattern: when growing a public API (e.g. `solveTowerAllocation`), prefer adding an optional trailing `options?: { ... }` object rather than reordering positional args — keeps all existing call sites (`route.ts`, 7+ tests) compiling unchanged.
+- Confidence/margin model (US-004): `getConfidence(teamPower, opponentPower)` exported from `src/lib/tower-solver.ts` is the single source of truth. 4-state `TeamConfidence`: strong >=1.30, shouldWork >=1.10, risky >=0.95, likelyLoss <0.95 (constants in `CONFIDENCE_THRESHOLDS`). Every `TeamAssignment` carries `marginPct` (signed int). Deprecated single-arg overload `getConfidence(teamPower)` exists ONLY for the legacy no-opponent-power path; do not use it in new code.
+- TypeScript function overloads are the right tool for "deprecated single-arg + canonical multi-arg" public APIs — keeps the one legacy call site compiling without `// @ts-expect-error` while encoding the new required-second-arg contract.
+- When a solver-side union type widens (e.g. confidence 3→4 states), the inline UI-side mirror types in client components (e.g. `TowerPlannerClient.tsx`) won't error because API data is `any` at the boundary. Always grep for the old union string when widening any solver enum, and widen UI types in the same PR.
 
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
@@ -101,3 +104,18 @@ Tower endpoints:
   - When choosing test thresholds for the ordering invariant, make the easy room's smallest-viable subset (e.g. c1..c5) overlap with the hard room's only-viable subset (c5..c9) — that way the test actually fails if rooms are processed in the wrong order. Without overlap, both orderings happen to produce the same assignment.
   - The existing 1.30/1.10 ratio breakpoints for "strong"/"shouldWork" are reused from PRD US-004 spec for consistency — US-004 will add the 4th state (`likelyLoss`) and the boundary tests. Don't redefine these constants in US-004; reuse what's already here.
 
+
+## 2026-05-24 - US-004 - Honest confidence score from real margin
+- Removed self-referential `baselineEstimate = minCharPower * 5` logic and the temporary `getConfidenceVsOpponent` shim added in US-003.
+- New exported `getConfidence` in `src/lib/tower-solver.ts` is a 4-state classifier with TypeScript overloads: `(teamPower)` (deprecated, opponentPower = teamPower / SAFETY_MARGIN_DEFAULT) and `(teamPower, opponentPower)` (canonical). Returns new `TeamConfidence = "strong" | "shouldWork" | "risky" | "likelyLoss"`.
+- Thresholds (exported as `CONFIDENCE_THRESHOLDS`): strong >=1.30, shouldWork >=1.10, risky >=0.95, likelyLoss <0.95 (higher tier inclusive at the boundary).
+- `TeamAssignment` gained required `marginPct: number` (rounded integer, signed — negative means team is weaker). Both opponent-aware and legacy code paths set it.
+- All reason strings now reference the actual margin %, e.g. "Your team is ~25% stronger than the opponent." Centralized in `buildMarginReason` helper.
+- Legacy (no opponent power) path uses the deprecated overload, which yields confidence=shouldWork + marginPct≈10. Reason for that case explicitly notes "opponent data unavailable" so the UI can later distinguish.
+- 12 new tests in `tower-solver.test.ts`: all 4 tiers, all 3 boundary values (1.30/1.10/0.95 inclusive at higher tier), the deprecated overload returning shouldWork, CONFIDENCE_THRESHOLDS constants, marginPct presence on opponent path, likelyLoss + marginPct=-50 on fallback, marginPct=10 on legacy path. 30/30 tests across tower-solver + tower-enemy-fetcher + solve route pass. Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - TypeScript function overloads are the right primitive for "deprecated single-arg + canonical multi-arg" call shapes — keeps the legacy call site (`getConfidence(power)`) compiling untouched while encoding the new required-second-arg contract for everyone else.
+  - When a confidence enum widens (3-state → 4-state), the consuming UI types declared inline in client components (e.g. `TowerPlannerClient.tsx` line 67 `confidence: "strong" | "shouldWork" | "risky"`) do NOT cause compile errors because the data crosses the API as `any`. US-005 must widen those UI-side union types — TS won't flag it for you. Search for the old 3-state union string when widening any solver-typed enum.
+  - For numeric boundary tests (e.g. ratio >= 1.30 inclusive), pick test values where floating point won't bite: use integer pairs like `getConfidence(1300, 1000)` — ratio is exactly 1.3 — rather than `getConfidence(1.3, 1)` which has float-rep imprecision.
+  - Always centralize per-tier `reason` text into a single builder function (`buildMarginReason`) — avoids drift when you add a new tier (likelyLoss) and stops the per-branch if/else from sprawling.
+---

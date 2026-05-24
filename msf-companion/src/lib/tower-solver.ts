@@ -14,11 +14,19 @@ export interface MetaTeam {
   winRate?: number;
 }
 
+export type TeamConfidence = "strong" | "shouldWork" | "risky" | "likelyLoss";
+
 export interface TeamAssignment {
   characters: Character[];
   power: number;
-  confidence: "strong" | "shouldWork" | "risky";
+  confidence: TeamConfidence;
   reason: string;
+  /**
+   * Team power as a percentage margin over the opponent (rounded to nearest
+   * integer). e.g. 18 means "team is ~18% stronger than the opponent".
+   * Negative values indicate the team is weaker than the opponent.
+   */
+  marginPct: number;
   /**
    * True when no eligible subset met the configured safety margin and the
    * solver fell back to the strongest available team. UI should surface a
@@ -26,6 +34,16 @@ export interface TeamAssignment {
    */
   marginFallback?: boolean;
 }
+
+/**
+ * Confidence thresholds for getConfidence (ratio = teamPower / opponentPower).
+ * Boundary values are inclusive of the higher tier (e.g. 1.30 → "strong").
+ */
+export const CONFIDENCE_THRESHOLDS = {
+  strong: 1.3,
+  shouldWork: 1.1,
+  risky: 0.95,
+} as const;
 
 export interface SolverResult {
   assignments: Map<string, TeamAssignment>;
@@ -91,36 +109,62 @@ function teamPower(characters: Character[]): number {
 }
 
 /**
- * Legacy confidence heuristic used when no real opponent power is available
- * (e.g. enemy fetch failed). Estimates baseline from the weakest eligible.
+ * Honest confidence vs the real opponent power (US-004).
+ *
+ * Ratio = teamPower / opponentPower:
+ *   >= 1.30  → strong
+ *   >= 1.10  → shouldWork
+ *   >= 0.95  → risky
+ *   <  0.95  → likelyLoss
+ *
+ * @deprecated Calling with only `teamPower` (no opponent power) is a legacy
+ * call shape kept for backward compatibility. It assumes opponentPower =
+ * teamPower / 1.10 (always yielding the "shouldWork" tier). New callers
+ * should always pass the real opponent power.
  */
-function getConfidence(
-  assignedPower: number,
-  roomChars: Character[]
-): "strong" | "shouldWork" | "risky" {
-  const minCharPower = Math.min(...roomChars.map((c) => c.power));
-  const baselineEstimate = minCharPower * 5;
-
-  const margin = (assignedPower - baselineEstimate) / Math.max(baselineEstimate, 1);
-
-  if (margin >= 0.2) return "strong";
-  if (margin >= 0) return "shouldWork";
-  return "risky";
+export function getConfidence(teamPower: number): TeamConfidence;
+export function getConfidence(teamPower: number, opponentPower: number): TeamConfidence;
+export function getConfidence(teamPower: number, opponentPower?: number): TeamConfidence {
+  const opp =
+    typeof opponentPower === "number" && opponentPower > 0
+      ? opponentPower
+      : teamPower / SAFETY_MARGIN_DEFAULT;
+  if (opp <= 0) return "shouldWork";
+  const ratio = teamPower / opp;
+  if (ratio >= CONFIDENCE_THRESHOLDS.strong) return "strong";
+  if (ratio >= CONFIDENCE_THRESHOLDS.shouldWork) return "shouldWork";
+  if (ratio >= CONFIDENCE_THRESHOLDS.risky) return "risky";
+  return "likelyLoss";
 }
 
 /**
- * Confidence vs the real opponent power. US-004 will expand this into a
- * four-state scale (incl. likelyLoss) and expose marginPct on results.
+ * Build a one-line, margin-referencing reason string. Sign of `marginPct`
+ * determines wording (stronger vs weaker).
  */
-function getConfidenceVsOpponent(
-  teamTotal: number,
-  opponentPower: number
-): "strong" | "shouldWork" | "risky" {
-  if (opponentPower <= 0) return "shouldWork";
-  const ratio = teamTotal / opponentPower;
-  if (ratio >= 1.3) return "strong";
-  if (ratio >= 1.1) return "shouldWork";
-  return "risky";
+function buildMarginReason(
+  confidence: TeamConfidence,
+  marginPct: number,
+  marginFallback: boolean,
+  safetyMargin: number
+): string {
+  const pctAbs = Math.abs(marginPct);
+  const directionStronger = marginPct >= 0;
+  if (marginFallback) {
+    return `No team meets the ${safetyMargin.toFixed(2)}x safety margin — strongest available shown (team is ${directionStronger ? `~${pctAbs}% stronger than` : `~${pctAbs}% weaker than`} the opponent).`;
+  }
+  if (confidence === "strong") {
+    return `Your team is ~${pctAbs}% stronger than the opponent.`;
+  }
+  if (confidence === "shouldWork") {
+    return `Your team is ~${pctAbs}% stronger than the opponent — meets the ${safetyMargin.toFixed(2)}x safety margin.`;
+  }
+  if (confidence === "risky") {
+    return directionStronger
+      ? `Tight margin: your team is only ~${pctAbs}% stronger than the opponent.`
+      : `Risky: your team is ~${pctAbs}% weaker than the opponent.`;
+  }
+  // likelyLoss
+  return `Likely loss: your team is ~${pctAbs}% weaker than the opponent.`;
 }
 
 /**
@@ -242,18 +286,9 @@ export function solveTowerAllocation(
       }
 
       const power = chosenSum;
-      const confidence = getConfidenceVsOpponent(power, opponentPower);
+      const confidence = getConfidence(power, opponentPower);
       const marginPct = Math.round((power / opponentPower - 1) * 100);
-      let reason: string;
-      if (marginFallback) {
-        reason = `No team meets the ${safetyMargin.toFixed(2)}x safety margin — strongest available shown (~${marginPct}% vs opponent).`;
-      } else if (confidence === "strong") {
-        reason = `Comfortable margin: your team is ~${marginPct}% stronger than the opponent.`;
-      } else if (confidence === "shouldWork") {
-        reason = `Meets the ${safetyMargin.toFixed(2)}x safety margin (~${marginPct}% over opponent).`;
-      } else {
-        reason = `Tight margin (~${marginPct}% over opponent) — may struggle.`;
-      }
+      const reason = buildMarginReason(confidence, marginPct, marginFallback, safetyMargin);
 
       for (const char of assignedTeam) usedCharIds.add(char.id);
       assignments.set(room.id, {
@@ -261,6 +296,7 @@ export function solveTowerAllocation(
         power,
         confidence,
         reason,
+        marginPct,
         marginFallback,
       });
       continue;
@@ -287,7 +323,12 @@ export function solveTowerAllocation(
     }
 
     const power = teamPower(assignedTeam);
-    const confidence = getConfidence(power, assignedTeam);
+    // Legacy path (no real opponent power known) — use the deprecated single-arg
+    // overload of getConfidence, which assumes opponentPower = power / 1.10.
+    // This always returns "shouldWork" and yields marginPct ≈ 10.
+    const confidence = getConfidence(power);
+    const assumedOpponent = power / SAFETY_MARGIN_DEFAULT;
+    const marginPct = Math.round((power / assumedOpponent - 1) * 100);
 
     let reason: string;
     if (confidence === "strong") {
@@ -296,7 +337,7 @@ export function solveTowerAllocation(
         ? `Your strongest viable team — ${surplus}k above minimum`
         : `Strong team with good margin above requirements`;
     } else if (confidence === "shouldWork") {
-      reason = `Meets requirements with moderate margin — should clear comfortably`;
+      reason = `Meets requirements with moderate margin — should clear comfortably (opponent data unavailable).`;
     } else {
       reason = `Barely meets minimum requirements — may struggle`;
     }
@@ -307,6 +348,7 @@ export function solveTowerAllocation(
       power,
       confidence,
       reason,
+      marginPct,
     });
   }
 

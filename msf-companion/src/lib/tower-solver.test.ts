@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { solveTowerAllocation, RoomForSolver, SAFETY_MARGIN_DEFAULT } from "./tower-solver";
+import {
+  solveTowerAllocation,
+  RoomForSolver,
+  SAFETY_MARGIN_DEFAULT,
+  getConfidence,
+  CONFIDENCE_THRESHOLDS,
+} from "./tower-solver";
 import { Character } from "./tower-readiness";
 
 function makeChar(id: string, overrides: Partial<Character> = {}): Character {
@@ -222,5 +228,100 @@ describe("solveTowerAllocation - margin-aware (US-003)", () => {
     expect(easyChars).not.toContain("c9");
     expect(hardAssn.marginFallback).toBeFalsy();
     expect(hardAssn.power).toBeGreaterThanOrEqual(3960000);
+  });
+});
+
+describe("getConfidence — honest margin scale (US-004)", () => {
+  it("returns 'strong' when ratio >= 1.30", () => {
+    expect(getConfidence(1300, 1000)).toBe("strong");
+    expect(getConfidence(2000, 1000)).toBe("strong");
+  });
+
+  it("returns 'shouldWork' when 1.10 <= ratio < 1.30", () => {
+    expect(getConfidence(1100, 1000)).toBe("shouldWork");
+    expect(getConfidence(1200, 1000)).toBe("shouldWork");
+    // Just under the strong boundary stays in shouldWork.
+    expect(getConfidence(1299, 1000)).toBe("shouldWork");
+  });
+
+  it("returns 'risky' when 0.95 <= ratio < 1.10", () => {
+    expect(getConfidence(950, 1000)).toBe("risky");
+    expect(getConfidence(1000, 1000)).toBe("risky");
+    // Just under the shouldWork boundary stays in risky.
+    expect(getConfidence(1099, 1000)).toBe("risky");
+  });
+
+  it("returns 'likelyLoss' when ratio < 0.95", () => {
+    expect(getConfidence(949, 1000)).toBe("likelyLoss");
+    expect(getConfidence(500, 1000)).toBe("likelyLoss");
+    expect(getConfidence(1, 1000)).toBe("likelyLoss");
+  });
+
+  it("boundary 1.30 is 'strong' (inclusive)", () => {
+    expect(getConfidence(1300, 1000)).toBe("strong");
+  });
+
+  it("boundary 1.10 is 'shouldWork' (inclusive)", () => {
+    expect(getConfidence(1100, 1000)).toBe("shouldWork");
+  });
+
+  it("boundary 0.95 is 'risky' (inclusive)", () => {
+    expect(getConfidence(950, 1000)).toBe("risky");
+  });
+
+  it("deprecated single-arg overload assumes opponentPower = teamPower / 1.10 and returns 'shouldWork'", () => {
+    // Ratio is exactly SAFETY_MARGIN_DEFAULT (1.10) → shouldWork (inclusive).
+    expect(getConfidence(1100)).toBe("shouldWork");
+    expect(getConfidence(500000)).toBe("shouldWork");
+  });
+
+  it("exposes CONFIDENCE_THRESHOLDS constants matching the PRD spec", () => {
+    expect(CONFIDENCE_THRESHOLDS.strong).toBe(1.3);
+    expect(CONFIDENCE_THRESHOLDS.shouldWork).toBe(1.1);
+    expect(CONFIDENCE_THRESHOLDS.risky).toBe(0.95);
+  });
+});
+
+describe("solveTowerAllocation — marginPct and likelyLoss in result (US-004)", () => {
+  it("includes a rounded marginPct on every assignment (opponent-aware path)", () => {
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 200000 })
+    );
+    const rooms = [makeRoom("r1")];
+    // Team power = 1,000,000; opponent 800,000 → margin = 25%.
+    const opponentPowers = new Map<string, number>([["r1", 800000]]);
+
+    const result = solveTowerAllocation(rooms, roster, [], undefined, { opponentPowers });
+    const assn = result.assignments.get("r1")!;
+    expect(assn.marginPct).toBe(25);
+    expect(assn.reason).toMatch(/25%/);
+    expect(assn.reason).toMatch(/stronger than the opponent/i);
+  });
+
+  it("marginFallback assignments are tagged 'likelyLoss' when team is far below opponent", () => {
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 100000 })
+    );
+    const rooms = [makeRoom("r1")];
+    // Team power 500k vs opponent 1M → ratio 0.50 → likelyLoss.
+    const opponentPowers = new Map<string, number>([["r1", 1000000]]);
+
+    const result = solveTowerAllocation(rooms, roster, [], undefined, { opponentPowers });
+    const assn = result.assignments.get("r1")!;
+    expect(assn.marginFallback).toBe(true);
+    expect(assn.confidence).toBe("likelyLoss");
+    expect(assn.marginPct).toBe(-50);
+  });
+
+  it("legacy path (no opponent power) sets marginPct ≈ 10 via deprecated overload", () => {
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 200000 })
+    );
+    const rooms = [makeRoom("r1")];
+
+    const result = solveTowerAllocation(rooms, roster, []);
+    const assn = result.assignments.get("r1")!;
+    expect(assn.marginPct).toBe(10);
+    expect(assn.confidence).toBe("shouldWork");
   });
 });

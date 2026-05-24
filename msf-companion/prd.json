@@ -71,8 +71,8 @@
         "Tests pass"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Depends on US-003 wiring."
+      "passes": true,
+      "notes": "Implemented. Removed self-referential baselineEstimate logic from getConfidence. New exported `getConfidence(teamPower, opponentPower)` returns 4-state TeamConfidence ('strong' | 'shouldWork' | 'risky' | 'likelyLoss') with thresholds: >=1.30 strong, >=1.10 shouldWork, >=0.95 risky, <0.95 likelyLoss. Deprecated single-arg overload `getConfidence(teamPower)` delegates with opponentPower = teamPower / 1.10 (always returns 'shouldWork'), preserving the one legacy call site. TeamAssignment now exposes a required `marginPct: number` (rounded int, negative when team weaker). Reason strings rewritten to reference the actual margin (e.g. 'Your team is ~25% stronger than the opponent.'). Exported CONFIDENCE_THRESHOLDS constants. 12 new tests: all 4 confidence tiers, the three boundary values (1.30/1.10/0.95 inclusive), deprecated overload behavior, CONFIDENCE_THRESHOLDS values, marginPct present on opponent-aware path, likelyLoss on fallback, marginPct ≈ 10 on legacy path. All 30 targeted tests pass; typecheck + ESLint clean."
     },
     {
       "id": "US-005",
