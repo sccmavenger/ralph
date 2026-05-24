@@ -1,0 +1,66 @@
+# MSF Companion - Progress & Learnings
+
+## Codebase Patterns
+
+### MSF API Authentication
+- Client credentials flow: POST `https://hydra-public.prod.m3.scopelypv.com/oauth2/token`
+  - Body: `grant_type=client_credentials`
+  - Header: `Authorization: Basic base64(clientId:clientSecret)`
+  - Returns: `{ access_token, expires_in: 3599 }`
+- All game/v1 endpoints require BOTH `x-api-key` header AND `Bearer` token
+- Player endpoints (player/v1/*) require USER auth token (403 with client credentials)
+- Client credentials only access game/v1 (game data, analysis, teamOrder) — NOT player-specific
+
+### MSF API Endpoint Map (verified May 20, 2026)
+Analysis endpoints:
+- war/offense ✅ (1000 teams: squad, total, wins)
+- war/defense ✅ (squad, total, wins)
+- crucible/defense ✅ (697 teams: squad, defends, defeats)
+- crucible/offense ❌ 404
+- crucible/matchups ❌ 404
+- crucible/counters ❌ 404
+- arena/* ❌ all 404
+- tower/* ❌ all 404
+
+TeamOrder endpoints (usage stats only — squad, total):
+- teamOrder/war ✅
+- teamOrder/crucible ✅ (354 teams)
+- teamOrder/arena ✅
+- teamOrder/tower ✅ (200+ teams)
+- teamOrder/blitz ✅
+- teamOrder/roster ✅
+
+Tower endpoints:
+- game/v1/survivalTowers ✅ — lists 10 towers (id, name, combatNodesPerTeam)
+- game/v1/survivalTowers/{id} ✅ — layout only (rays, rooms, startingRoomId)
+- player/v1/survivalTowers/{id} — per-room requirements (NEEDS USER AUTH, 403 with client creds)
+- Tower events in events API are type "pickYourPoison" NOT "tower"
+
+### Key Code Locations
+- Auth: `src/app/api/cron/sync-gamedata/route.ts` — getMsfBearerToken() function
+- MSF API util: `src/lib/msf-api.ts` — msfApiFetch()
+- Planner events: `src/lib/planner-events.ts` — fetchNormalizedEvents()
+- KB sync: `functions/src/functions/kbMetaSync.ts` — daily meta sync
+- Explore route: `src/app/api/msf/explore/route.ts` — API investigation endpoint
+
+### Known Issues
+- planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
+- API key alone (without bearer token) returns 401 — always need OAuth token
+- survivalTowers game endpoint doesn't include per-room requirements (only layout)
+
+## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
+- Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
+- Calls `/game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId}` via existing `msfApiFetch` helper.
+- `EnemyTeam { combatId, units: EnemyUnit[], totalPower }` aggregates units from both `left` and `right` sides across all waves.
+- In-memory `Map` cache keyed by `combatId`, invalidated when `meta.hashes.nodes` changes (mirrors `checkHashInvalidation` in `src/lib/dd-service.ts`).
+- Exported `clearEnemyTeamCache` for tests and future meta-sync wiring.
+- 4 new unit tests in `src/lib/tower-enemy-fetcher.test.ts`: successful fetch, missing combatId, cache hit, cache invalidation on hash change. All passing.
+- Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - `msfApiFetch` requires `accessToken` - story signatures had to add it as a 3rd arg even though PRD AC listed only `(combatId, towerId)`.
+  - Raw `CharacterInstance.power` lives directly on the instance (not in `stats`); `info.name` is the display name.
+  - `NodeCombat` returns `left` and `right` sides each with `waves[].units[]` - normalize across both for tower cells (the player side is empty for opponent fetches but iterate both for safety).
+  - `encodeURIComponent` the `combatId` in the URL path; pass `towerId` via `difficultyGroup` query param.
+  - Vitest config in this repo: `poolOptions` is deprecated in Vitest 4 (warning only, tests still run).
+  - Run tests via `npx vitest run <file>` from the `msf-companion/` directory.
+---
