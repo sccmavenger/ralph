@@ -1,6 +1,5 @@
 ---
 description: "Orchestrator that runs @ralph continuously through all remaining user stories. Use when: run all stories, implement everything, ralph loop, ralph auto, batch implement, run ralph to completion."
-tools: [execute, read, edit, search, todo]
 argument-hint: "Optional: specify max stories to run (e.g. '5'), or leave blank for all remaining"
 ---
 

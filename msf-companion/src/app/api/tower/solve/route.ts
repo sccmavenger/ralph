@@ -109,12 +109,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // US-006: include the solver inputs in the response so the client can
+    // re-run `solveTowerAllocation` locally when the user adjusts the safety
+    // margin slider — no follow-up API call needed.
     return NextResponse.json({
       assignments,
       unassignableRooms: result.unassignableRooms,
       opponentPowers,
       opponentTeams,
       roomFetchErrors,
+      solverInputs: {
+        roster,
+        solverRooms,
+        metaTeams: metaTeams || [],
+        clearedRooms: clearedRooms || [],
+      },
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

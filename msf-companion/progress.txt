@@ -59,6 +59,8 @@ Tower endpoints:
 - When a solver-side union type widens (e.g. confidence 3→4 states), the inline UI-side mirror types in client components (e.g. `TowerPlannerClient.tsx`) won't error because API data is `any` at the boundary. Always grep for the old union string when widening any solver enum, and widen UI types in the same PR.
 - `TowerPlannerClient.tsx` per-tower data effect deps are `[activeTowerIndex, towerData?.towers?.length]`. If a Playwright mock for `/api/tower/events` returns only `{ tower: {...} }` (no `towers` array), the dep stays `undefined → undefined` after fetch and the rooms/readiness/upgrades loader effect NEVER FIRES — page renders the banner but no room cards, no Pick-My-Teams button. Always include `towers: [tower]` in tower-planner e2e mocks.
 
+- US-006 pattern: to re-run a server-side pure solver client-side without a new API call, have the route return `solverInputs: {...}` and have the client import the SAME solver function (`solveTowerAllocation` from `@/lib/tower-solver` — confirmed browser-safe). Avoids duplicating logic.
+
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
 - Calls `/game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId}` via existing `msfApiFetch` helper.
@@ -124,11 +126,14 @@ Tower endpoints:
 ## 2026-05-24 - US-005 - UI shows opponent power, team power, margin, confidence per cell
 - src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx:
   - Widened TeamAssignment.confidence to 4 states (added likelyLoss); added optional marginPct?: number and marginFallback?: boolean.
-  - Extended SolverResult with opponentPowers?, opponentTeams?, oomFetchErrors? (all optional for backward compat with legacy mocks).
-  - Added combatId?: string to client TowerRoom interface (mirrors src/lib/tower-fetcher.ts) so the UI can detect rooms whose enemy fetch failed by checking oom.combatId in roomFetchErrors.
+  - Extended SolverResult with opponentPowers?, opponentTeams?, 
+oomFetchErrors? (all optional for backward compat with legacy mocks).
+  - Added combatId?: string to client TowerRoom interface (mirrors src/lib/tower-fetcher.ts) so the UI can detect rooms whose enemy fetch failed by checking 
+oom.combatId in roomFetchErrors.
   - Added SAFETY_MARGIN_DEFAULT = 1.10 mirror constant (US-006 will wire this to a slider).
   - New marginColorClass(marginPct): green >=25, yellow 10-25, red <10, deep-red <0.
-  - New confidenceConfig.likelyLoss chip (g-red-700). Switched isky chip to g-orange-600 to distinguish from likelyLoss.
+  - New confidenceConfig.likelyLoss chip (g-red-700). Switched 
+isky chip to g-orange-600 to distinguish from likelyLoss.
   - RoomCard now renders Team / Opp / Margin% inline on the solver line, plus a destructive margin-fallback-warning banner and a muted opponent-data-unavailable line when applicable.
 - New e2e 2e/tower-planner-difficulty.spec.ts: 2 passing tests cover margin % rendering + fallback banner + likelyLoss chip.
 - Existing solver e2e and all 30 related vitests still pass; typecheck + ESLint clean.
@@ -136,4 +141,24 @@ Tower endpoints:
   - Effect-dep gotcha when mocking tower-planner: [activeTowerIndex, towerData?.towers?.length] — mocks must include a 	owers array or the rooms loader never fires after initial mount (added to Codebase Patterns).
   - UI mirror types for confidence/margin live in three places (interface, confidenceConfig, marginColorClass) — all three needed updates for the widened state.
   - PowerShell pipe with 2>&1 | Select-Object -Last N buffers ALL output until the producer exits — for long-running test commands, prefer redirecting to a file or running without the pipe and polling 	est-results/.last-run.json.
+---
+
+## 2026-05-24 - US-006 - User-tunable safety margin slider
+- New `src/lib/tower-margin-storage.ts`: exports `SAFETY_MARGIN_{MIN=1.0, MAX=1.5, STEP=0.05, DEFAULT=1.10}`, `clampSafetyMargin`, `loadSafetyMargin`, `saveSafetyMargin`, `clearOtherEventMargins`. Pure functions; all accept an optional `storage: MarginStorage` arg (default = `globalThis.localStorage`) so unit tests pass an in-memory shim — no jsdom needed. Storage key shape: `tower-planner-margin:${towerEventId}`. Values are clamped to [1.00, 1.50] and snapped to 0.05 step on both read and write (NaN → default; Infinity → MAX via Math.min).
+- `/api/tower/solve` response gained `solverInputs: { roster, solverRooms, metaTeams, clearedRooms }` so the client can re-run the solver locally on slider change. Backward-compat additive change; existing tests untouched.
+- `TowerPlannerClient.tsx`:
+  - Added `safetyMargin` state + `lastSolverResponseRef` cache of the raw solve response. On tower switch, calls `clearOtherEventMargins(evtId)` + `setSafetyMargin(loadSafetyMargin(evtId))`. Uses `tower.eventId ?? tower.id` as the storage key.
+  - New slider section ("Safety margin" label + value chip + Reset link + range input 1.00-1.50 step 0.05). Sits between event banner and How-It-Works.
+  - `recomputeWithMargin(base, margin)` imports `solveTowerAllocation` from `@/lib/tower-solver` and runs it client-side using the cached `solverInputs` + `opponentPowers`. Converts the result's `Map` assignments back to a `Record` to match the existing client `SolverResult` shape. Triggered by slider onChange and by reset.
+  - Fallback warning banner now uses `safetyMargin.toFixed(2)` instead of the hardcoded default — banner text updates live as the slider moves.
+- New `e2e/tower-planner-safety-margin.spec.ts` (2 tests): slider visible at default 1.10x with reset link; moving slider to 1.50x changes the room card's margin % from +40% to +60% AND makes zero additional `/api/tower/solve` calls (verified via Playwright route counter), then Reset link snaps back to 1.10x / +40%.
+- 16 unit tests in `src/lib/tower-margin-storage.test.ts` cover: clamp behavior (NaN, Infinity, below MIN, above MAX, 0.05 snap), load (missing key, empty event id, null storage, malformed value, persisted clamped value, out-of-range clamp on read), save (clamp-on-write, empty event id no-op, null storage no-op, round-trip), and `clearOtherEventMargins` (keeps current, removes others including all-when-current-empty, leaves non-prefixed keys alone). All pass.
+- Typecheck + ESLint clean on changed files; new e2e passes.
+- **Learnings for future iterations:**
+  - `tower-solver.ts` is browser-safe (no node deps; only imports `./tower-readiness` for types + one pure function). It can be imported directly from "use client" components — which is exactly what lets us run the same solver server-side AND client-side without duplicating logic.
+  - When you need to re-run a server computation client-side without refetching, the cleanest path is "echo the inputs": have the route return `solverInputs: {...}` alongside the result, and have the client call the same pure function with new options. Beats duplicating logic in two places.
+  - Pure storage helpers should accept an optional `storage` arg defaulting to `globalThis.localStorage` — keeps the SSR path safe (returns null when not in browser) AND makes unit tests trivially testable with an in-memory shim. No need for jsdom.
+  - When a function may be called from rendered JSX that only mounts after a `const` declaration earlier in the same component (e.g. `const tower = ...` after early returns), declaring helper functions BELOW the early returns / state isn't required — function declarations are hoisted, and they capture `tower` lexically; the function body only runs from event handlers attached to JSX rendered AFTER the const, so closure resolves correctly.
+  - `Number.isFinite(Infinity) === false`, so a clamp that uses `if (!isFinite(v)) return default;` will return the default for Infinity — usually NOT what you want. Prefer `if (Number.isNaN(v)) return default;` and let `Math.min(MAX, v)` clamp Infinity to MAX naturally.
+  - Playwright `page.route` handlers stack last-registered-wins, so you can re-register the same URL pattern AFTER the initial setup to swap in a counting handler for "no new calls expected" assertions.
 ---

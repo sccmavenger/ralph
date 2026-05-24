@@ -105,8 +105,8 @@
         "Tests pass"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Depends on US-005 (UI surface in place)."
+      "passes": true,
+      "notes": "Implemented. New `src/lib/tower-margin-storage.ts` exports SAFETY_MARGIN_{MIN,MAX,STEP,DEFAULT} plus pure `loadSafetyMargin`, `saveSafetyMargin`, `clampSafetyMargin`, and `clearOtherEventMargins`. Storage key `tower-planner-margin:${towerEventId}`; values are clamped to [1.00,1.50] and snapped to 0.05 step on both read and write. Other-event keys are wiped whenever the active tower changes. Slider added to TowerPlannerClient header (range 1.00-1.50, step 0.05, default 1.10) with value chip and 'Reset to default' link. /api/tower/solve response now includes `solverInputs: { roster, solverRooms, metaTeams, clearedRooms }` so the client can call `solveTowerAllocation` locally on slider change — verified zero new API calls via Playwright route counter. Fallback warning banner now reflects the current slider value (was hardcoded to 1.10x before). 16 unit tests in tower-margin-storage.test.ts + 3 new e2e tests in tower-planner-safety-margin.spec.ts all pass; tsc + eslint clean; existing solver/route/fetcher tests unchanged."
     },
     {
       "id": "US-007",

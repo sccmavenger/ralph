@@ -1,7 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { UpgradeRecommendation } from "@/lib/tower-upgrades";
+import {
+  solveTowerAllocation,
+  type MetaTeam,
+  type RoomForSolver,
+  type TeamAssignment as SolverTeamAssignment,
+} from "@/lib/tower-solver";
+import type { Character } from "@/lib/tower-readiness";
+import {
+  SAFETY_MARGIN_DEFAULT,
+  SAFETY_MARGIN_MAX,
+  SAFETY_MARGIN_MIN,
+  SAFETY_MARGIN_STEP,
+  loadSafetyMargin,
+  saveSafetyMargin,
+  clearOtherEventMargins,
+} from "@/lib/tower-margin-storage";
 
 interface TowerRay {
   id: string;
@@ -77,10 +93,18 @@ interface SolverResult {
   opponentPowers?: Record<string, number>;
   opponentTeams?: Record<string, { combatId: string; totalPower: number }>;
   roomFetchErrors?: string[];
+  // US-006: solver inputs echoed back so we can re-run the solver client-side
+  // when the user adjusts the safety-margin slider (no new API call).
+  solverInputs?: {
+    roster: Character[];
+    solverRooms: RoomForSolver[];
+    metaTeams: MetaTeam[];
+    clearedRooms: string[];
+  };
 }
 
-// Default safety margin (mirrors SAFETY_MARGIN_DEFAULT in src/lib/tower-solver.ts; US-006 will make this user-tunable).
-const SAFETY_MARGIN_DEFAULT = 1.10;
+// Default safety margin is imported from `tower-margin-storage` (US-006).
+// SAFETY_MARGIN_DEFAULT also mirrors the server-side constant in `tower-solver`.
 
 interface TowerHistoryEntry {
   id: string;
@@ -122,6 +146,11 @@ export default function TowerPlannerClient() {
   const [upgrades, setUpgrades] = useState<UpgradeRecommendation[]>([]);
   const [howItWorksExpanded, setHowItWorksExpanded] = useState(false);
   const [history, setHistory] = useState<TowerHistoryEntry[]>([]);
+  // US-006: user-tunable safety margin slider. Persisted per tower event.
+  const [safetyMargin, setSafetyMargin] = useState<number>(SAFETY_MARGIN_DEFAULT);
+  // Cache the raw solver response (with solverInputs) so we can re-run the
+  // solver locally on slider changes without refetching.
+  const lastSolverResponseRef = useRef<SolverResult | null>(null);
 
   useEffect(() => {
     // Check if first visit
@@ -224,9 +253,15 @@ export default function TowerPlannerClient() {
       // Clear stale state so the UI doesn't show the previous tower's cells while loading.
       setClearedRooms(new Set<string>());
       setSolverResult(null);
+      lastSolverResponseRef.current = null;
       setRooms([]);
       setRoomReadiness(new Map());
       setUpgrades([]);
+      // US-006: load this tower event's persisted safety margin and clear any
+      // stale margin entries from other events.
+      const evtId = activeTowerInitial.eventId ?? activeTowerInitial.id;
+      clearOtherEventMargins(evtId);
+      setSafetyMargin(loadSafetyMargin(evtId));
       try {
         // Re-fetch events to get the latest completedTier for the clicked tower.
         let activeTower = activeTowerInitial;
@@ -355,7 +390,11 @@ export default function TowerPlannerClient() {
       });
       if (res.ok) {
         const data: SolverResult = await res.json();
-        setSolverResult(data);
+        lastSolverResponseRef.current = data;
+        // Re-solve locally with the current slider value so the UI uses the
+        // user's chosen margin from the very first render (the server uses
+        // its own default — that's fine; we override here).
+        setSolverResult(recomputeWithMargin(data, safetyMargin) ?? data);
       } else {
         const errText = await res.text().catch(() => "");
         console.error(`[TowerPlanner] Solve API failed: ${res.status} ${errText}`);
@@ -365,6 +404,51 @@ export default function TowerPlannerClient() {
     } finally {
       setSolving(false);
     }
+  }
+
+  // US-006: re-run the solver in the browser using the cached solverInputs
+  // and the new margin. Returns null when no solver response is cached.
+  function recomputeWithMargin(
+    base: SolverResult | null,
+    margin: number,
+  ): SolverResult | null {
+    if (!base?.solverInputs) return null;
+    const { roster, solverRooms, metaTeams, clearedRooms: cleared } = base.solverInputs;
+    const opponentPowersMap = new Map<string, number>(
+      Object.entries(base.opponentPowers ?? {}),
+    );
+    const result = solveTowerAllocation(solverRooms, roster, metaTeams, cleared, {
+      opponentPowers: opponentPowersMap,
+      safetyMargin: margin,
+    });
+    const assignments: Record<string, TeamAssignment> = {};
+    result.assignments.forEach((value: SolverTeamAssignment, key: string) => {
+      assignments[key] = {
+        characters: value.characters.map((c) => ({ id: c.id, name: c.name })),
+        power: value.power,
+        confidence: value.confidence,
+        reason: value.reason,
+        marginPct: value.marginPct,
+        marginFallback: value.marginFallback,
+      };
+    });
+    return {
+      ...base,
+      assignments,
+      unassignableRooms: result.unassignableRooms,
+    };
+  }
+
+  function handleSafetyMarginChange(next: number) {
+    const evtId = tower?.eventId ?? tower?.id;
+    setSafetyMargin(next);
+    if (evtId) saveSafetyMargin(evtId, next);
+    const recomputed = recomputeWithMargin(lastSolverResponseRef.current, next);
+    if (recomputed) setSolverResult(recomputed);
+  }
+
+  function handleSafetyMarginReset() {
+    handleSafetyMarginChange(SAFETY_MARGIN_DEFAULT);
   }
 
   return (
@@ -433,6 +517,55 @@ export default function TowerPlannerClient() {
             )}
           </p>
         </div>
+      </div>
+
+      {/* US-006: Safety margin slider — applies client-side to the cached solver inputs. */}
+      <div
+        className="flex flex-col gap-1 rounded-lg border border-gray-700 bg-gray-800/50 p-3"
+        data-testid="safety-margin-section"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor="safety-margin-slider"
+            className="text-xs font-medium text-gray-300"
+          >
+            Safety margin
+          </label>
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs font-mono text-purple-300"
+              data-testid="safety-margin-value"
+            >
+              {safetyMargin.toFixed(2)}x
+            </span>
+            <button
+              type="button"
+              onClick={handleSafetyMarginReset}
+              className="text-[11px] text-purple-400 hover:text-purple-300 underline"
+              data-testid="safety-margin-reset"
+            >
+              Reset to default
+            </button>
+          </div>
+        </div>
+        <input
+          id="safety-margin-slider"
+          type="range"
+          min={SAFETY_MARGIN_MIN}
+          max={SAFETY_MARGIN_MAX}
+          step={SAFETY_MARGIN_STEP}
+          value={safetyMargin}
+          onChange={(e) => handleSafetyMarginChange(parseFloat(e.target.value))}
+          className="w-full accent-purple-500"
+          data-testid="safety-margin-slider"
+          aria-valuemin={SAFETY_MARGIN_MIN}
+          aria-valuemax={SAFETY_MARGIN_MAX}
+          aria-valuenow={safetyMargin}
+          aria-label="Safety margin"
+        />
+        <p className="text-[11px] text-gray-500">
+          Higher margin = pick stronger teams (less risk, fewer cells per week).
+        </p>
       </div>
 
       {/* How It Works */}
@@ -569,6 +702,7 @@ export default function TowerPlannerClient() {
               onMarkCleared={() => markRoomCleared(room.id)}
               opponentPower={opponentPower}
               enemyFetchFailed={enemyFetchFailed}
+              safetyMargin={safetyMargin}
             />
           );
         })}
@@ -634,7 +768,7 @@ function marginColorClass(marginPct: number): string {
   return "text-green-400";
 }
 
-function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean }) {
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean; safetyMargin?: number }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -724,7 +858,7 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
               data-testid="margin-fallback-warning"
               role="alert"
             >
-              No team meets the recommended {SAFETY_MARGIN_DEFAULT.toFixed(2)}x safety margin — best available shown.
+              No team meets the recommended {safetyMargin.toFixed(2)}x safety margin — best available shown.
             </div>
           )}
           {/* Muted notice when the opponent fetch failed; solver fell back to legacy entry-requirement-based selection. */}

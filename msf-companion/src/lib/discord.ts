@@ -52,6 +52,8 @@ export async function postToDiscord(
     headers: {
       Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
       "Content-Type": "application/json",
+      // Discord rejects bot requests without a User-Agent (returns 403/40333).
+      "User-Agent": "MSFCompanion (https://themsftoolkit.com, 1.0)",
     },
     body: JSON.stringify(body),
   });

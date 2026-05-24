@@ -1,0 +1,20 @@
+
+Deploying services (azd deploy)
+
+Deploying service functions
+Packaging service functions (npm dependencies already up-to-date)
+Packaging service functions (Running npm package script)
+Packaging service functions (Compressing deployment artifacts)
+Deploying service functions (Uploading deployment package)
+Deploying service functions (Fetching endpoints for function app)
+  (Γ£ô) Done: Deploying service functions
+  - Endpoint: https://func-47le33tuyu2mg.azurewebsites.net/ 
+
+
+SUCCESS: Your application was deployed to Azure in 47 seconds.
+You can view the resources created under the resource group rg-msf-companion-prod in Azure Portal:
+https://portal.azure.com/#@/resource/subscriptions/b2b3abbb-0921-496b-8a0f-7433a31290f8/resourceGroups/rg-msf-companion-prod/overview
+WARNING: your version of azd is out of date, you have 1.23.13 and the latest stable version is 1.25.1
+
+To update to the latest version, run:
+winget upgrade Microsoft.Azd
