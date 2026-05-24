@@ -14,6 +14,29 @@ import { msfApiFetch } from "@/lib/msf-api";
 
 // ── Public types ──────────────────────────────────────────────────────────
 
+/**
+ * Per-node stat boosts as exposed by the MSF API. The `boosts` field can
+ * arrive either as a CSV string (PRD-documented order: health,damage,armor,
+ * focus,resist[,critDamageBonus,critChance,speed,dodgeChance,blockChance,
+ * blockAmount,accuracy,damageReduction]) or as an object with the same
+ * named properties. Each value is in tenths of a percent (e.g. 350 = 35.0%).
+ */
+export type NodeEffectBoosts =
+  | string
+  | {
+      health?: number;
+      damage?: number;
+      armor?: number;
+      focus?: number;
+      resist?: number;
+      [k: string]: number | undefined;
+    };
+
+export interface NodeEffects {
+  boosts?: NodeEffectBoosts;
+  [k: string]: unknown;
+}
+
 export interface EnemyUnit {
   id: string;
   name?: string;
@@ -23,7 +46,7 @@ export interface EnemyUnit {
   activeRed?: number;
   power?: number;
   stats?: Record<string, number>;
-  nodeEffects?: unknown;
+  nodeEffects?: NodeEffects | unknown;
   iso8?: { active?: string; level?: number; pips?: number };
 }
 
@@ -107,6 +130,80 @@ export function clearEnemyTeamCache(): void {
 
 // ── Normalization ────────────────────────────────────────────────────────
 
+/**
+ * Field order of the CSV form of `NodeEffects.boosts` per the MSF API spec
+ * (StatBoost schema). The first five entries are the ones the PRD US-008
+ * heuristic actually multiplies into power; the rest are kept so future
+ * heuristics can read them without re-parsing.
+ */
+const BOOST_CSV_FIELDS = [
+  "health",
+  "damage",
+  "armor",
+  "focus",
+  "resist",
+  "critDamageBonus",
+  "critChance",
+  "speed",
+  "dodgeChance",
+  "blockChance",
+  "blockAmount",
+  "accuracy",
+  "damageReduction",
+] as const;
+
+/** Fields whose sum drives the power-adjustment heuristic. */
+const POWER_BOOST_FIELDS = ["health", "damage", "armor", "focus", "resist"] as const;
+
+function parseBoosts(boosts: NodeEffectBoosts | undefined): Record<string, number> {
+  if (!boosts) return {};
+  if (typeof boosts === "string") {
+    const parts = boosts.split(",");
+    const out: Record<string, number> = {};
+    for (let i = 0; i < parts.length && i < BOOST_CSV_FIELDS.length; i++) {
+      const n = Number(parts[i]);
+      if (Number.isFinite(n)) out[BOOST_CSV_FIELDS[i]] = n;
+    }
+    return out;
+  }
+  if (typeof boosts === "object") {
+    const out: Record<string, number> = {};
+    for (const k of Object.keys(boosts)) {
+      const v = (boosts as Record<string, unknown>)[k];
+      if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    }
+    return out;
+  }
+  return {};
+}
+
+/**
+ * Adjusts a unit's `power` to account for per-node stat boosts.
+ *
+ * Heuristic (per PRD US-008): multiplier = 1 + sum(boosts) / 1000, where
+ * boosts is the sum of the health, damage, armor, focus, and resist fields
+ * of `unit.nodeEffects.boosts` (values are in tenths of a percent — e.g.
+ * 350 = 35.0%). Units with no boosts (or no `nodeEffects`) are returned
+ * unchanged.
+ *
+ * NOTE: This is a heuristic pending dev clarification on Q1 (difficulty
+ * scaling). Real per-stat → power impact varies by character role and
+ * gear/ISO setup; for now an additive aggregate of the five core stats is
+ * the simplest signal that meaningfully reweights buffed cells against
+ * unbuffed ones in the planner.
+ */
+export function applyNodeEffects(unit: EnemyUnit): EnemyUnit {
+  const ne = (unit.nodeEffects ?? null) as NodeEffects | null;
+  const parsed = parseBoosts(ne?.boosts);
+  let sum = 0;
+  for (const f of POWER_BOOST_FIELDS) {
+    sum += parsed[f] ?? 0;
+  }
+  if (sum === 0 || typeof unit.power !== "number") return unit;
+  const multiplier = 1 + sum / 1000;
+  return { ...unit, power: Math.round(unit.power * multiplier) };
+}
+
 function normalizeUnit(raw: RawCharacterInstance): EnemyUnit | null {
   const id = raw.id ?? raw.info?.id;
   if (!id) return null;
@@ -134,7 +231,7 @@ function buildEnemyTeam(combatId: string, raw: RawNodeCombatResponse): EnemyTeam
     for (const wave of side.waves ?? []) {
       for (const rawUnit of wave.units ?? []) {
         const unit = normalizeUnit(rawUnit);
-        if (unit) units.push(unit);
+        if (unit) units.push(applyNodeEffects(unit));
       }
     }
   }

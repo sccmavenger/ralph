@@ -138,8 +138,8 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Depends on US-001."
+      "passes": true,
+      "notes": "Implemented. `src/lib/tower-enemy-fetcher.ts` now exports `applyNodeEffects(unit)` (and supporting `NodeEffects`/`NodeEffectBoosts` types). Handles BOTH boost shapes from the MSF StatBoost schema: CSV string (PRD order health,damage,armor,focus,resist[,...]) and object form. Power multiplier = 1 + sum(health+damage+armor+focus+resist)/1000 (values are tenths of a percent per PRD). Returns unit unchanged when sum is 0 or power is missing. `buildEnemyTeam` applies the adjustment so `EnemyTeam.totalPower` reflects buffed values automatically — downstream solver/UI need no changes since they consume totalPower via opponentPowers from US-002. JSDoc marks the formula as a heuristic pending dev clarification on Q1 (difficulty scaling). 4 new unit tests: unboosted unchanged, CSV '350,150,50,25,25' within ±2% of base*1.60, object form (200 sum → ×1.20 exact), totalPower aggregates adjusted values. All 8 enemy-fetcher tests + 68 related (solver/route/margin/outcome) pass; tsc + eslint clean."
     }
   ]
 }
