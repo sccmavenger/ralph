@@ -87,8 +87,8 @@
         "Tests pass"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Depends on US-002 (API response shape) and US-004 (confidence return shape)."
+      "passes": true,
+      "notes": "Implemented. TowerPlannerClient widened TeamAssignment.confidence to 4 states (added likelyLoss with bg-red-700) and added optional marginPct + marginFallback. SolverResult interface gained opponentPowers / opponentTeams / roomFetchErrors. RoomCard now renders per-cell: Team power (k), Opp power (k, when known), color-coded Margin % (green >=25, yellow 10-25, red <10, deep-red <0). marginFallback rooms render a red destructive banner: 'No team meets the recommended 1.10x safety margin \u2014 best available shown.' Rooms whose combatId is in roomFetchErrors render a muted 'Opponent data unavailable' line. New e2e/tower-planner-difficulty.spec.ts has 2 passing tests (margin % renders; fallback banner + likelyLoss chip). Typecheck + ESLint clean. All 30 existing solver/route/fetcher vitests still pass."
     },
     {
       "id": "US-006",

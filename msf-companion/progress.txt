@@ -57,6 +57,7 @@ Tower endpoints:
 - Confidence/margin model (US-004): `getConfidence(teamPower, opponentPower)` exported from `src/lib/tower-solver.ts` is the single source of truth. 4-state `TeamConfidence`: strong >=1.30, shouldWork >=1.10, risky >=0.95, likelyLoss <0.95 (constants in `CONFIDENCE_THRESHOLDS`). Every `TeamAssignment` carries `marginPct` (signed int). Deprecated single-arg overload `getConfidence(teamPower)` exists ONLY for the legacy no-opponent-power path; do not use it in new code.
 - TypeScript function overloads are the right tool for "deprecated single-arg + canonical multi-arg" public APIs — keeps the one legacy call site compiling without `// @ts-expect-error` while encoding the new required-second-arg contract.
 - When a solver-side union type widens (e.g. confidence 3→4 states), the inline UI-side mirror types in client components (e.g. `TowerPlannerClient.tsx`) won't error because API data is `any` at the boundary. Always grep for the old union string when widening any solver enum, and widen UI types in the same PR.
+- `TowerPlannerClient.tsx` per-tower data effect deps are `[activeTowerIndex, towerData?.towers?.length]`. If a Playwright mock for `/api/tower/events` returns only `{ tower: {...} }` (no `towers` array), the dep stays `undefined → undefined` after fetch and the rooms/readiness/upgrades loader effect NEVER FIRES — page renders the banner but no room cards, no Pick-My-Teams button. Always include `towers: [tower]` in tower-planner e2e mocks.
 
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
@@ -118,4 +119,21 @@ Tower endpoints:
   - When a confidence enum widens (3-state → 4-state), the consuming UI types declared inline in client components (e.g. `TowerPlannerClient.tsx` line 67 `confidence: "strong" | "shouldWork" | "risky"`) do NOT cause compile errors because the data crosses the API as `any`. US-005 must widen those UI-side union types — TS won't flag it for you. Search for the old 3-state union string when widening any solver-typed enum.
   - For numeric boundary tests (e.g. ratio >= 1.30 inclusive), pick test values where floating point won't bite: use integer pairs like `getConfidence(1300, 1000)` — ratio is exactly 1.3 — rather than `getConfidence(1.3, 1)` which has float-rep imprecision.
   - Always centralize per-tier `reason` text into a single builder function (`buildMarginReason`) — avoids drift when you add a new tier (likelyLoss) and stops the per-branch if/else from sprawling.
+---
+
+## 2026-05-24 - US-005 - UI shows opponent power, team power, margin, confidence per cell
+- src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx:
+  - Widened TeamAssignment.confidence to 4 states (added likelyLoss); added optional marginPct?: number and marginFallback?: boolean.
+  - Extended SolverResult with opponentPowers?, opponentTeams?, oomFetchErrors? (all optional for backward compat with legacy mocks).
+  - Added combatId?: string to client TowerRoom interface (mirrors src/lib/tower-fetcher.ts) so the UI can detect rooms whose enemy fetch failed by checking oom.combatId in roomFetchErrors.
+  - Added SAFETY_MARGIN_DEFAULT = 1.10 mirror constant (US-006 will wire this to a slider).
+  - New marginColorClass(marginPct): green >=25, yellow 10-25, red <10, deep-red <0.
+  - New confidenceConfig.likelyLoss chip (g-red-700). Switched isky chip to g-orange-600 to distinguish from likelyLoss.
+  - RoomCard now renders Team / Opp / Margin% inline on the solver line, plus a destructive margin-fallback-warning banner and a muted opponent-data-unavailable line when applicable.
+- New e2e 2e/tower-planner-difficulty.spec.ts: 2 passing tests cover margin % rendering + fallback banner + likelyLoss chip.
+- Existing solver e2e and all 30 related vitests still pass; typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - Effect-dep gotcha when mocking tower-planner: [activeTowerIndex, towerData?.towers?.length] — mocks must include a 	owers array or the rooms loader never fires after initial mount (added to Codebase Patterns).
+  - UI mirror types for confidence/margin live in three places (interface, confidenceConfig, marginColorClass) — all three needed updates for the widened state.
+  - PowerShell pipe with 2>&1 | Select-Object -Last N buffers ALL output until the producer exits — for long-running test commands, prefer redirecting to a file or running without the pipe and polling 	est-results/.last-run.json.
 ---

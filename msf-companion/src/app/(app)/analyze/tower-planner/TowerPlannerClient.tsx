@@ -54,6 +54,7 @@ interface TowerRoom {
   name: string;
   requirements: RoomRequirements;
   week: 1 | 2;
+  combatId?: string;
 }
 
 interface RoomReadiness {
@@ -64,14 +65,22 @@ interface RoomReadiness {
 interface TeamAssignment {
   characters: Array<{ id: string; name: string }>;
   power: number;
-  confidence: "strong" | "shouldWork" | "risky";
+  confidence: "strong" | "shouldWork" | "risky" | "likelyLoss";
   reason: string;
+  marginPct?: number;
+  marginFallback?: boolean;
 }
 
 interface SolverResult {
   assignments: Record<string, TeamAssignment>;
   unassignableRooms: string[];
+  opponentPowers?: Record<string, number>;
+  opponentTeams?: Record<string, { combatId: string; totalPower: number }>;
+  roomFetchErrors?: string[];
 }
+
+// Default safety margin (mirrors SAFETY_MARGIN_DEFAULT in src/lib/tower-solver.ts; US-006 will make this user-tunable).
+const SAFETY_MARGIN_DEFAULT = 1.10;
 
 interface TowerHistoryEntry {
   id: string;
@@ -541,17 +550,28 @@ export default function TowerPlannerClient() {
 
       {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view. */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
-        {roomsByCellDesc.map((room) => (
-          <RoomCard
-            key={room.id}
-            room={room}
-            readiness={roomReadiness.get(room.id)}
-            assignment={solverResult?.assignments[room.id]}
-            cleared={clearedRooms.has(room.id)}
-            availableNow={isAvailableNow(room)}
-            onMarkCleared={() => markRoomCleared(room.id)}
-          />
-        ))}
+        {roomsByCellDesc.map((room) => {
+          const opponentPower = solverResult?.opponentPowers?.[room.id];
+          // A room is "data unavailable" when it had a combatId we tried to fetch but failed.
+          // Rooms with no combatId at all silently use the legacy path with no message.
+          const enemyFetchFailed = !!(
+            room.combatId &&
+            solverResult?.roomFetchErrors?.includes(room.combatId)
+          );
+          return (
+            <RoomCard
+              key={room.id}
+              room={room}
+              readiness={roomReadiness.get(room.id)}
+              assignment={solverResult?.assignments[room.id]}
+              cleared={clearedRooms.has(room.id)}
+              availableNow={isAvailableNow(room)}
+              onMarkCleared={() => markRoomCleared(room.id)}
+              opponentPower={opponentPower}
+              enemyFetchFailed={enemyFetchFailed}
+            />
+          );
+        })}
       </div>
 
       {/* History Section */}
@@ -606,7 +626,15 @@ function formatFilters(filters: CharacterFilter[]): string {
   return parts.join(" OR ");
 }
 
-function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void }) {
+function marginColorClass(marginPct: number): string {
+  // Green >=25%, yellow 10-25%, red <10% (but >=0), deep-red <0%.
+  if (marginPct < 0) return "text-red-700";
+  if (marginPct < 10) return "text-red-400";
+  if (marginPct < 25) return "text-yellow-400";
+  return "text-green-400";
+}
+
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -621,7 +649,8 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
   const confidenceConfig = {
     strong: { text: "Strong pick", className: "bg-green-600 text-white" },
     shouldWork: { text: "Should work", className: "bg-yellow-600 text-white" },
-    risky: { text: "Risky", className: "bg-red-600 text-white" },
+    risky: { text: "Risky", className: "bg-orange-600 text-white" },
+    likelyLoss: { text: "Likely loss", className: "bg-red-700 text-white" },
   };
 
   const badge = badgeConfig[status];
@@ -688,6 +717,25 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
       {/* Solver assignment */}
       {assignment && !cleared && (
         <div className="mt-3 border-t border-gray-700 pt-3" data-testid="team-assignment">
+          {/* Fallback warning when no eligible team meets the safety margin. */}
+          {assignment.marginFallback && (
+            <div
+              className="mb-2 rounded border border-red-600 bg-red-900/30 p-2 text-xs text-red-300"
+              data-testid="margin-fallback-warning"
+              role="alert"
+            >
+              No team meets the recommended {SAFETY_MARGIN_DEFAULT.toFixed(2)}x safety margin — best available shown.
+            </div>
+          )}
+          {/* Muted notice when the opponent fetch failed; solver fell back to legacy entry-requirement-based selection. */}
+          {enemyFetchFailed && (
+            <div
+              className="mb-2 text-xs text-gray-500"
+              data-testid="opponent-data-unavailable"
+            >
+              Opponent data unavailable
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-300">
               {assignment.characters.map((c) => c.name).join(", ")}
@@ -696,8 +744,21 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
               {confidenceConfig[assignment.confidence].text}
             </span>
           </div>
-          <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-            <span>Total power: {(assignment.power / 1000).toFixed(0)}k</span>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center gap-x-3">
+              <span data-testid="team-power">Team: {(assignment.power / 1000).toFixed(0)}k</span>
+              {typeof opponentPower === "number" && opponentPower > 0 && (
+                <span data-testid="opponent-power">Opp: {(opponentPower / 1000).toFixed(0)}k</span>
+              )}
+              {typeof assignment.marginPct === "number" && (
+                <span
+                  className={`font-medium ${marginColorClass(assignment.marginPct)}`}
+                  data-testid="margin-pct"
+                >
+                  Margin: {assignment.marginPct >= 0 ? "+" : ""}{assignment.marginPct}%
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setShowPicker(!showPicker)}
               className="text-purple-400 hover:text-purple-300"
