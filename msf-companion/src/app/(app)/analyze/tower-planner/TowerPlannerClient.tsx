@@ -18,6 +18,13 @@ import {
   saveSafetyMargin,
   clearOtherEventMargins,
 } from "@/lib/tower-margin-storage";
+import {
+  type FightOutcome,
+  type OutcomeEntry,
+  loadOutcomes,
+  recordOutcome,
+  generateMarginSuggestion,
+} from "@/lib/tower-outcome-storage";
 
 interface TowerRay {
   id: string;
@@ -148,6 +155,8 @@ export default function TowerPlannerClient() {
   const [history, setHistory] = useState<TowerHistoryEntry[]>([]);
   // US-006: user-tunable safety margin slider. Persisted per tower event.
   const [safetyMargin, setSafetyMargin] = useState<number>(SAFETY_MARGIN_DEFAULT);
+  // US-007: rolling list of post-fight outcomes (cross-event, last 100 stored).
+  const [outcomes, setOutcomes] = useState<OutcomeEntry[]>([]);
   // Cache the raw solver response (with solverInputs) so we can re-run the
   // solver locally on slider changes without refetching.
   const lastSolverResponseRef = useRef<SolverResult | null>(null);
@@ -170,6 +179,8 @@ export default function TowerPlannerClient() {
     } catch {
       /* ignore */
     }
+    // US-007: hydrate stored fight outcomes once on mount.
+    setOutcomes(loadOutcomes());
   }, []);
 
   // Active tower derived from towerData + activeTowerIndex. Returns null until towerData loads.
@@ -451,6 +462,27 @@ export default function TowerPlannerClient() {
     handleSafetyMarginChange(SAFETY_MARGIN_DEFAULT);
   }
 
+  // US-007: persist a post-fight outcome for the given room and refresh the
+  // in-memory list so the suggestion updates immediately.
+  function handleRecordOutcome(roomId: string, outcome: FightOutcome) {
+    const evtId = tower?.eventId ?? tower?.id;
+    if (!evtId) return;
+    const assignment = solverResult?.assignments[roomId];
+    const opponentPower = solverResult?.opponentPowers?.[roomId] ?? 0;
+    const entry: OutcomeEntry = {
+      towerEventId: evtId,
+      roomId,
+      outcome,
+      recommendedTeam: assignment?.characters.map((c) => c.id) ?? [],
+      opponentPower,
+      timestamp: Date.now(),
+    };
+    const next = recordOutcome(entry);
+    setOutcomes(next);
+  }
+
+  const marginSuggestion = generateMarginSuggestion(outcomes, safetyMargin);
+
   return (
     <div className="flex flex-col gap-4 p-4" data-testid="tower-planner-active">
       {/* Tower selector tabs (shown when multiple towers are active simultaneously, e.g. STORM + STORM OMEGA). */}
@@ -566,6 +598,14 @@ export default function TowerPlannerClient() {
         <p className="text-[11px] text-gray-500">
           Higher margin = pick stronger teams (less risk, fewer cells per week).
         </p>
+        {marginSuggestion && (
+          <p
+            className="text-[11px] text-purple-300"
+            data-testid="margin-suggestion"
+          >
+            {marginSuggestion.text}
+          </p>
+        )}
       </div>
 
       {/* How It Works */}
@@ -703,6 +743,7 @@ export default function TowerPlannerClient() {
               opponentPower={opponentPower}
               enemyFetchFailed={enemyFetchFailed}
               safetyMargin={safetyMargin}
+              onRecordOutcome={(outcome) => handleRecordOutcome(room.id, outcome)}
             />
           );
         })}
@@ -768,7 +809,7 @@ function marginColorClass(marginPct: number): string {
   return "text-green-400";
 }
 
-function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean; safetyMargin?: number }) {
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT, onRecordOutcome }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean; safetyMargin?: number; onRecordOutcome?: (outcome: FightOutcome) => void }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -910,6 +951,32 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
           </button>
           {showReason && (
             <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
+          )}
+          {/* US-007: post-fight outcome buttons — informational, no slider change. */}
+          {onRecordOutcome && (
+            <div className="mt-2 flex gap-1.5" data-testid="outcome-buttons">
+              <button
+                onClick={() => onRecordOutcome("wonEasily")}
+                className="flex-1 rounded border border-green-700 bg-green-900/30 px-2 py-1 text-[11px] text-green-300 hover:bg-green-900/60"
+                data-testid="outcome-won-easily"
+              >
+                Won easily
+              </button>
+              <button
+                onClick={() => onRecordOutcome("wonBarely")}
+                className="flex-1 rounded border border-yellow-700 bg-yellow-900/30 px-2 py-1 text-[11px] text-yellow-300 hover:bg-yellow-900/60"
+                data-testid="outcome-won-barely"
+              >
+                Won barely
+              </button>
+              <button
+                onClick={() => onRecordOutcome("lost")}
+                className="flex-1 rounded border border-red-700 bg-red-900/30 px-2 py-1 text-[11px] text-red-300 hover:bg-red-900/60"
+                data-testid="outcome-lost"
+              >
+                Lost
+              </button>
+            </div>
           )}
           {showPicker && (
             <div className="mt-2 rounded border border-gray-600 bg-gray-900 p-2" data-testid="character-picker">

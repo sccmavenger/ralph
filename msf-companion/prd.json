@@ -122,8 +122,8 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "Depends on US-005 and US-006."
+      "passes": true,
+      "notes": "Implemented. New `src/lib/tower-outcome-storage.ts` exports OutcomeEntry/FightOutcome types plus pure `loadOutcomes`, `recordOutcome`, `clearOutcomes`, `tallyOutcomes`, `generateMarginSuggestion` (all accept optional storage arg). Rolling list capped at 100; suggestion window = last 20 (min 5 to show). Suggestion rules: lostPct>=20 -> +0.10, or (total>=10 && lost==0 && wonEasilyPct>=70) -> -0.05; suppressed at MIN/MAX bounds. TowerPlannerClient: 3 buttons per RoomCard (Won easily / Won barely / Lost) stored with { towerEventId, roomId, outcome, recommendedTeam, opponentPower, timestamp }; suggestion text shown next to safety-margin slider, informational only (never auto-changes slider). 18 unit tests pass; tsc + eslint clean."
     },
     {
       "id": "US-008",

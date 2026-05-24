@@ -162,3 +162,16 @@ isky chip to g-orange-600 to distinguish from likelyLoss.
   - `Number.isFinite(Infinity) === false`, so a clamp that uses `if (!isFinite(v)) return default;` will return the default for Infinity — usually NOT what you want. Prefer `if (Number.isNaN(v)) return default;` and let `Math.min(MAX, v)` clamp Infinity to MAX naturally.
   - Playwright `page.route` handlers stack last-registered-wins, so you can re-register the same URL pattern AFTER the initial setup to swap in a counting handler for "no new calls expected" assertions.
 ---
+
+## 2026-05-24 - US-007 - Post-fight outcome feedback and suggested personal margin
+- New src/lib/tower-outcome-storage.ts (pure module, mirrors tower-margin-storage pattern): loadOutcomes, ecordOutcome, clearOutcomes, 	allyOutcomes, generateMarginSuggestion, plus constants OUTCOMES_STORAGE_KEY ('tower-planner-outcomes'), OUTCOMES_MAX_STORED=100, OUTCOMES_WINDOW=20, OUTCOMES_MIN_FOR_SUGGESTION=5.
+- Entry shape: { towerEventId, roomId, outcome: 'wonEasily'|'wonBarely'|'lost', recommendedTeam: string[], opponentPower, timestamp }. Cross-event single key (not per-event) — keeps the rolling history meaningful when the active tower switches.
+- Suggestion rules (informational, never auto-changes the slider): lostPct>=20 -> suggest current+0.10; total>=10 && lost==0 && wonEasilyPct>=70 -> suggest current-0.05; suppressed at MIN/MAX. Reuses clampSafetyMargin from tower-margin-storage so suggestions snap to the 0.05 step.
+- TowerPlannerClient: three buttons per RoomCard rendered when an assignment exists (data-testid: outcome-won-easily / outcome-won-barely / outcome-lost). Suggestion text rendered inside the existing safety-margin section (data-testid: margin-suggestion). Outcomes hydrated once in the mount effect; updated in-memory on each click so the suggestion refreshes immediately.
+- 18 new unit tests in 	ower-outcome-storage.test.ts; full related suite (margin storage + solver + enemy fetcher + solve route + outcomes) = 64/64 passing. tsc + eslint clean.
+- **Learnings for future iterations:**
+  - The tower-margin-storage pattern (pure module + optional injected storage arg + tiny in-memory shim in tests) generalizes well to any per-feature localStorage need — reuse it instead of mocking globalThis.localStorage.
+  - When suggestion logic needs to clamp to the safety-margin window, import clampSafetyMargin from 	ower-margin-storage rather than duplicating MIN/MAX/STEP constants; ensures snapping stays consistent if those bounds ever change.
+  - RoomCard already takes ~8 props; adding onRecordOutcome? as an optional callback keeps the change additive (no e2e test or storybook needs a value).
+  - ecordOutcome returns the updated list even when storage is null so callers can keep state in sync in SSR/test environments without branching on storage availability.
+---
