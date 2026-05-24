@@ -54,8 +54,8 @@
         "Tests pass"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "This is the core behavior fix. Depends on US-001 type for opponentPowers shape."
+      "passes": true,
+      "notes": "Implemented. Added SAFETY_MARGIN_DEFAULT=1.10 export and optional 5th `options?: { opponentPowers?: Map<string, number>; safetyMargin?: number }` arg to solveTowerAllocation (backward-compatible). Rooms with known opponentPower are processed first, sorted descending by that power; per room the smallest ascending-power subset whose sum >= opponentPower * safetyMargin is selected via a swap-up window; when no subset qualifies, the strongest top-N is picked and tagged marginFallback: true. Rooms without opponentPower keep legacy weakest-viable + meta-team behavior. TeamAssignment gained optional marginFallback. 3 new tests added (SAFETY_MARGIN_DEFAULT constant, comfortable-margin mid-power selection, fallback when unmeetable, ordering reserves c9 for hardest cell). All 11 tower-solver tests + 3 solve-route tests + 4 enemy-fetcher tests pass. Typecheck + ESLint clean."
     },
     {
       "id": "US-004",

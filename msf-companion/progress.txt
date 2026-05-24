@@ -52,6 +52,8 @@ Tower endpoints:
 - Tower routes that use `await import("@/lib/<module>")` (dynamic imports) MUST be `vi.mock`ed in tests — otherwise the alias fails to resolve at runtime and the route returns 500.
 - `/api/tower/solve` uses `getValidAccessTokenWithRefresh` from `@/lib/auth`; `/api/tower/rooms` uses `getSession` from `@/lib/session`. Mock the right one per route.
 - Use `Promise.allSettled` at route boundaries when calling external APIs per-item so a single failure doesn't break the whole response; expose failures as a structured field (e.g. `roomFetchErrors: string[]`).
+- Pre-existing failing tests on this branch (NOT caused by ralph work — verified via `git stash` baseline): `src/app/api/tower/events/route.test.ts` and `src/app/api/tower/rooms/route.test.ts` fail at module-load with `Cannot find package '@/lib/auth'` / `'@/lib/tower-fetcher'`, and `src/app/api/tower/history/route.test.ts > returns 401 when not authenticated` expects 401 but gets 200. Safe to ignore for unrelated stories; should be fixed in a dedicated cleanup story.
+- Solver extension pattern: when growing a public API (e.g. `solveTowerAllocation`), prefer adding an optional trailing `options?: { ... }` object rather than reordering positional args — keeps all existing call sites (`route.ts`, 7+ tests) compiling unchanged.
 
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
@@ -84,3 +86,18 @@ Tower endpoints:
   - Tower routes use `getValidAccessTokenWithRefresh` from `@/lib/auth` (NOT `getSession`) — different from `/api/tower/rooms` which uses `getSession`. Mock the right one.
   - `npm run cleanup` exits 1 silently in this repo — proceed regardless; it's a pre-test housekeeping step, not a gate.
 ---
+
+## 2026-05-24 - US-003 - Margin-aware team selection in tower-solver
+- Added `SAFETY_MARGIN_DEFAULT = 1.10` export and a new optional 5th arg `options?: { opponentPowers?: Map<string, number>; safetyMargin?: number }` to `solveTowerAllocation` (`src/lib/tower-solver.ts`). Backward-compatible: existing 4-arg call sites (route.ts + 7 unit tests) compile unchanged.
+- `TeamAssignment` gained optional `marginFallback?: boolean`.
+- New ordering: rooms with a known opponent power are processed first, sorted descending by that power; rooms without opponent power retain the legacy requirement-difficulty heuristic and are processed after.
+- Per-room selection when opponent power is known: ascending-power window of size `teamSize` starting at the weakest; if the sum doesn't meet `opponentPower * safetyMargin`, repeatedly drop the weakest and add the next stronger character until target met or roster exhausted. If unmeetable, fall back to the strongest top-N team and set `marginFallback: true`.
+- Confidence + reason when opponent power is known: `getConfidenceVsOpponent(power, opp)` returns strong (>=1.30x), shouldWork (>=1.10x), risky (<1.10x). Reason text references the actual margin %. (US-004 will refine into a 4-state scale incl. likelyLoss.)
+- 3 new tests in `src/lib/tower-solver.test.ts`: (1) `SAFETY_MARGIN_DEFAULT` constant, (2) comfortable-margin selects a mid-power subset (not weakest, not strongest), (3) unmeetable opponent triggers marginFallback with strongest team, (4) descending opp-power ordering reserves the strongest character (c9) for the hardest room. All 11 tower-solver tests pass; all 3 solve-route tests still pass; 4 enemy-fetcher tests still pass.
+- Typecheck + ESLint clean on changed files. Full `npx vitest run`: 306/307 pass; the 1 failure + 2 pre-existing suite-load failures are unrelated to this story (verified via git stash baseline).
+- **Learnings for future iterations:**
+  - Adding optional positional args to a widely-called function is risky; prefer trailing `options?: { ... }` object so callers don't need to thread `undefined` for the new arg(s).
+  - For "smallest subset whose sum >= target", a swap-up window over the ascending-power list is correct and O(n): start with the weakest N, then iteratively drop the weakest and add the next stronger. Don't try a full subset-sum solver — gear/trait filtering already constrains the eligible pool enough that this greedy is right.
+  - When choosing test thresholds for the ordering invariant, make the easy room's smallest-viable subset (e.g. c1..c5) overlap with the hard room's only-viable subset (c5..c9) — that way the test actually fails if rooms are processed in the wrong order. Without overlap, both orderings happen to produce the same assignment.
+  - The existing 1.30/1.10 ratio breakpoints for "strong"/"shouldWork" are reused from PRD US-004 spec for consistency — US-004 will add the 4th state (`likelyLoss`) and the boundary tests. Don't redefine these constants in US-004; reuse what's already here.
+
