@@ -146,8 +146,8 @@
         "Tests pass"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented e2e/tower-planner-ability-aware.spec.ts. Mocks /api/tower/events (with `towers: [tower]` per gotcha), /api/tower/rooms, readiness, upgrades, history, meta-teams, and /api/tower/solve. Solve response returns the bleed-immune Symbiote team as the chosen assignment, the equivalent-power non-immune team is NOT picked, opponent units carry bleed tags, and `compositeScore: { power, synergy, counter: 80, roleBalance, total }` is on the assignment. Test clicks Pick My Teams, expands Why this team?, parses 'N/100' from `[data-testid=composite-counter]`, and asserts counter > 0. Critical gotcha: do NOT include `solverInputs` in the mock response — TowerPlannerClient calls `recomputeWithMargin` on initial render (line 428) which re-runs the solver locally WITHOUT characterTags/opponentTags (only opponentPowers + safetyMargin), which would drop compositeScore from the recomputed assignment. Omitting solverInputs makes recomputeWithMargin return null and falls back to the mocked `data`. Passes locally."
     }
   ]
 }
