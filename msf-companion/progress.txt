@@ -63,6 +63,8 @@ Tower endpoints:
 
 - US-008 pattern: MSF `StatBoost` is a `oneOf` — it can be either a CSV string OR an object (see `msf-api.yaml` schema). Any parser that reads it MUST handle both shapes. CSV field order is fixed: health, damage, armor, focus, resist, critDamageBonus, critChance, speed, dodgeChance, blockChance, blockAmount, accuracy, damageReduction. Values are in tenths of a percent per PRD US-008.
 
+- Tower scoring tag vocabulary lives in `src/lib/tower-ability-tags.ts` (`ABILITY_TAG_VOCABULARY`). `COUNTER_MAP` keys in `src/lib/tower-scoring-data.ts` and `counteredBy[]` values both draw from the SAME vocabulary. Add new tags in both places (tagger + counter map) or `counterScore` will silently ignore them.
+
 ## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
 - Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
 - Calls `/game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId}` via existing `msfApiFetch` helper.
@@ -224,4 +226,13 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - Cache-invalidation semantics matter: my cache only checks the upstream hash on fetches, so a pure cache-hit call never re-validates. This is consistent with `tower-enemy-fetcher` and `dd-service`. Tests for invalidation must trigger a fetch (e.g. by requesting a NEW character) to surface the hash change — otherwise the cache hit short-circuits the check.
   - The MSF `/game/v1/characters/{id}` endpoint returns `data.abilityKit.{basic,special,ultimate,passive}.levels[level].description`. Levels are keyed by numeric strings (e.g. `"1"`, `"7"`); take the highest-numbered level for max-rank kit text.
   - `meta.hashes.chars` (not `meta.hashes.nodes`) is the right invalidation signal for character-keyed caches; nodes is for combat-cell data.
+---
+## 2026-05-25 - US-004 - counterScore + COUNTER_MAP
+- Extended src/lib/tower-scoring-data.ts with CounterEntry, CounterMap, and COUNTER_MAP (13 opponent tags → counter tags + weight). Weights: revive=12, heal=10, stun=9, bleed/ability_block=8, disrupted/defense_down=7, blind/offense_down/taunt/counter_attack=6, slow/dispel=5.
+- Added counterScore(teamTags, opponentTags, counterMap = COUNTER_MAP) to src/lib/tower-scoring.ts. Returns earned/max weight ratio * 100 (rounded). De-dupes opponent tags, ignores unknown opp tags, returns 0 when oppTags empty or maxWeight=0.
+- Added 9 new tests to src/lib/tower-scoring.test.ts (17 total). All pass; typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - Counter scoring normalizes against the **opponent's** max-possible weight (not a global constant). This means a low score against a light opp kit still means "you're missing key counters" and lets US-006 blend weights consistently.
+  - Tag vocabulary is shared between src/lib/tower-ability-tags.ts (ABILITY_TAG_VOCABULARY) and COUNTER_MAP keys. When adding a new tag, add it in BOTH places or counterScore will silently ignore it.
+  - Counter map values use the same tag strings on both sides (opp tag key + counteredBy tags) drawn from ABILITY_TAG_VOCABULARY — no string normalization needed at the boundary in US-006 as long as US-003's tagger emits canonical tags.
 ---

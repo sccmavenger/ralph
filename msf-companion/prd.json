@@ -65,8 +65,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added COUNTER_MAP (13 entries: revive, heal, bleed, disrupted, slow, blind, offense_down, defense_down, stun, ability_block, taunt, dispel, counter_attack) with weights 5–12 to src/lib/tower-scoring-data.ts. Added counterScore(teamTags, opponentTags, counterMap=COUNTER_MAP) to src/lib/tower-scoring.ts — earned/maxWeight ratio scaled to 0–100, de-dupes opponent tags, ignores unknown opp tags. 9 new tests in src/lib/tower-scoring.test.ts (now 17 total) — all pass. Typecheck + ESLint clean for the 3 touched files (pre-existing lint errors elsewhere are unrelated)."
     },
     {
       "id": "US-005",

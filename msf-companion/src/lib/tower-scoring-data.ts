@@ -92,3 +92,51 @@ export const FACTION_PASSIVES: FactionPassiveMap = {
     description: "Mercs for Money gain ability-energy and damage synergy when 3+ Mercs ally.",
   },
 };
+
+// ── Counter map ───────────────────────────────────────────────────────────
+
+/**
+ * Entry in the {@link COUNTER_MAP}.
+ *
+ * - `counteredBy`: ability tags (from {@link file://./tower-ability-tags.ts}'s
+ *   `ABILITY_TAG_VOCABULARY`) that, when present on a team member, neutralize
+ *   the opponent tag.
+ * - `weight`: how heavily this opponent threat contributes to
+ *   {@link file://./tower-scoring.ts}'s `counterScore` when at least one
+ *   team member counters it. Higher = more dangerous if uncountered.
+ */
+export interface CounterEntry {
+  /** Tag(s) on our team that neutralize this opponent threat. */
+  counteredBy: string[];
+  /** Relative weight of countering this opponent tag (positive number). */
+  weight: number;
+}
+
+export type CounterMap = Record<string, CounterEntry>;
+
+/**
+ * Maps an opponent ability tag → the team tags that counter it and the
+ * relative weight of that match-up. Higher weights mean the threat hurts
+ * more if left uncountered (e.g. enemy revive is devastating without
+ * `revive_block`, so it carries a heavier weight than enemy `slow`).
+ *
+ * Tag strings use the same vocabulary as
+ * {@link file://./tower-ability-tags.ts}'s `ABILITY_TAG_VOCABULARY`.
+ *
+ * Curated list — extend as more opponent threats prove relevant for tower play.
+ */
+export const COUNTER_MAP: CounterMap = {
+  revive: { counteredBy: ["revive_block"], weight: 12 },
+  heal: { counteredBy: ["heal_block", "bleed"], weight: 10 },
+  bleed: { counteredBy: ["immune_to_bleed", "dispel", "heal"], weight: 8 },
+  disrupted: { counteredBy: ["dispel", "ability_block"], weight: 7 },
+  slow: { counteredBy: ["dispel"], weight: 5 },
+  blind: { counteredBy: ["dispel"], weight: 6 },
+  offense_down: { counteredBy: ["dispel"], weight: 6 },
+  defense_down: { counteredBy: ["dispel"], weight: 7 },
+  stun: { counteredBy: ["ability_block", "dispel"], weight: 9 },
+  ability_block: { counteredBy: ["dispel"], weight: 8 },
+  taunt: { counteredBy: ["dispel", "ability_block", "stun"], weight: 6 },
+  dispel: { counteredBy: ["ability_block", "stun"], weight: 5 },
+  counter_attack: { counteredBy: ["dispel", "ability_block"], weight: 6 },
+};

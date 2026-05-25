@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { factionSynergyScore } from "./tower-scoring";
-import { FACTION_PASSIVES, type FactionPassiveMap } from "./tower-scoring-data";
+import { counterScore, factionSynergyScore } from "./tower-scoring";
+import { COUNTER_MAP, FACTION_PASSIVES, type CounterMap, type FactionPassiveMap } from "./tower-scoring-data";
 import type { Character } from "./tower-readiness";
 
 function mkChar(id: string, traits: string[]): Character {
@@ -103,5 +103,91 @@ describe("factionSynergyScore", () => {
       mkChar("e", ["Custom"]),
     ];
     expect(factionSynergyScore(team, custom)).toBe(100);
+  });
+});
+
+describe("COUNTER_MAP", () => {
+  it("includes at least 12 entries covering the required opponent tags", () => {
+    const required = [
+      "revive",
+      "heal",
+      "bleed",
+      "disrupted",
+      "slow",
+      "blind",
+      "offense_down",
+      "defense_down",
+      "stun",
+      "ability_block",
+      "taunt",
+      "dispel",
+    ];
+    for (const tag of required) {
+      expect(COUNTER_MAP[tag]).toBeDefined();
+      expect(COUNTER_MAP[tag].counteredBy.length).toBeGreaterThan(0);
+      expect(COUNTER_MAP[tag].weight).toBeGreaterThan(0);
+    }
+    expect(Object.keys(COUNTER_MAP).length).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe("counterScore", () => {
+  it("returns 0 when the opponent has no ability tags", () => {
+    expect(counterScore({ a: ["dispel", "heal"] }, [])).toBe(0);
+  });
+
+  it("returns 0 when no team character counters any opponent tag", () => {
+    const teamTags = { a: ["heal"], b: ["taunt"] };
+    const oppTags = ["revive", "stun"];
+    expect(counterScore(teamTags, oppTags)).toBe(0);
+  });
+
+  it("returns 100 when the team fully counters every opponent tag", () => {
+    const teamTags = {
+      a: ["revive_block", "heal_block"],
+      b: ["ability_block", "dispel"],
+    };
+    const oppTags = ["revive", "heal", "stun", "slow"];
+    expect(counterScore(teamTags, oppTags)).toBe(100);
+  });
+
+  it("scales between 0 and 100 with partial coverage", () => {
+    // Opponent has revive (12) + slow (5) = 17 max weight.
+    // Team only counters revive → 12/17 ≈ 71.
+    const teamTags = { a: ["revive_block"] };
+    const oppTags = ["revive", "slow"];
+    const score = counterScore(teamTags, oppTags);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(100);
+    expect(score).toBe(Math.round((12 / 17) * 100));
+  });
+
+  it("scores low when the team only covers light threats of a strong opponent kit", () => {
+    // Opponent has revive (12) + heal (10) + stun (9) = 31. Team only counters slow-class — none here.
+    const teamTags = { a: ["taunt"], b: ["counter_attack"] };
+    const oppTags = ["revive", "heal", "stun"];
+    expect(counterScore(teamTags, oppTags)).toBe(0);
+  });
+
+  it("de-duplicates repeated opponent tags so they aren't double-weighted", () => {
+    const teamTags = { a: ["revive_block"] };
+    const oppTagsOnce = ["revive"];
+    const oppTagsThrice = ["revive", "revive", "revive"];
+    expect(counterScore(teamTags, oppTagsThrice)).toBe(
+      counterScore(teamTags, oppTagsOnce),
+    );
+  });
+
+  it("ignores opponent tags that aren't in the counter map", () => {
+    const teamTags = { a: ["dispel"] };
+    expect(counterScore(teamTags, ["unknown_tag"])).toBe(0);
+  });
+
+  it("respects a custom counter map override", () => {
+    const custom: CounterMap = {
+      foo: { counteredBy: ["bar"], weight: 1 },
+    };
+    expect(counterScore({ a: ["bar"] }, ["foo"], custom)).toBe(100);
+    expect(counterScore({ a: ["baz"] }, ["foo"], custom)).toBe(0);
   });
 });

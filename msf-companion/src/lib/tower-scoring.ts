@@ -7,7 +7,7 @@
  */
 
 import type { Character } from "./tower-readiness";
-import type { FactionPassiveMap } from "./tower-scoring-data";
+import { COUNTER_MAP, type CounterMap, type FactionPassiveMap } from "./tower-scoring-data";
 
 /**
  * Score a team 0–100 on faction-passive synergy.
@@ -47,4 +47,52 @@ export function factionSynergyScore(
   }
 
   return Math.min(100, total);
+}
+
+/**
+ * Score a team 0–100 on how well its ability kit counters the opponent's.
+ *
+ * For each opponent tag present in {@link counterMap}, if at least one team
+ * member has a tag listed in `counteredBy`, the entry's `weight` is awarded.
+ * The earned weight is normalized against the maximum possible weight for
+ * this opponent's tag set (so a team with full coverage scores 100, and a
+ * team with no coverage of a strong opponent kit scores low).
+ *
+ * Pure: no IO, no side effects.
+ *
+ * @param teamTags Map of character id → ability tags for the team.
+ * @param opponentTags Flat list of ability tags present on the opponent.
+ * @param counterMap Override the default {@link COUNTER_MAP} (mainly for tests).
+ */
+export function counterScore(
+  teamTags: Readonly<Record<string, readonly string[]>>,
+  opponentTags: readonly string[],
+  counterMap: CounterMap = COUNTER_MAP,
+): number {
+  if (opponentTags.length === 0) return 0;
+
+  // De-dupe so an opponent kit that mentions "stun" three times doesn't
+  // get triple-weighted.
+  const uniqueOpp = Array.from(new Set(opponentTags));
+
+  // Build a flat set of all tags our team brings to the fight.
+  const teamTagSet = new Set<string>();
+  for (const tags of Object.values(teamTags)) {
+    for (const t of tags) teamTagSet.add(t);
+  }
+
+  let maxWeight = 0;
+  let earnedWeight = 0;
+
+  for (const oppTag of uniqueOpp) {
+    const entry = counterMap[oppTag];
+    if (!entry) continue;
+    maxWeight += entry.weight;
+    if (entry.counteredBy.some((t) => teamTagSet.has(t))) {
+      earnedWeight += entry.weight;
+    }
+  }
+
+  if (maxWeight === 0) return 0;
+  return Math.round((earnedWeight / maxWeight) * 100);
 }
