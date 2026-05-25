@@ -1,7 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { UpgradeRecommendation } from "@/lib/tower-upgrades";
+import {
+  solveTowerAllocation,
+  type MetaTeam,
+  type RoomForSolver,
+  type TeamAssignment as SolverTeamAssignment,
+} from "@/lib/tower-solver";
+import type { Character } from "@/lib/tower-readiness";
+import {
+  SAFETY_MARGIN_DEFAULT,
+  SAFETY_MARGIN_MAX,
+  SAFETY_MARGIN_MIN,
+  SAFETY_MARGIN_STEP,
+  loadSafetyMargin,
+  saveSafetyMargin,
+  clearOtherEventMargins,
+} from "@/lib/tower-margin-storage";
+import {
+  type FightOutcome,
+  type OutcomeEntry,
+  loadOutcomes,
+  recordOutcome,
+  generateMarginSuggestion,
+} from "@/lib/tower-outcome-storage";
 
 interface TowerRay {
   id: string;
@@ -54,6 +77,7 @@ interface TowerRoom {
   name: string;
   requirements: RoomRequirements;
   week: 1 | 2;
+  combatId?: string;
 }
 
 interface RoomReadiness {
@@ -64,14 +88,30 @@ interface RoomReadiness {
 interface TeamAssignment {
   characters: Array<{ id: string; name: string }>;
   power: number;
-  confidence: "strong" | "shouldWork" | "risky";
+  confidence: "strong" | "shouldWork" | "risky" | "likelyLoss";
   reason: string;
+  marginPct?: number;
+  marginFallback?: boolean;
 }
 
 interface SolverResult {
   assignments: Record<string, TeamAssignment>;
   unassignableRooms: string[];
+  opponentPowers?: Record<string, number>;
+  opponentTeams?: Record<string, { combatId: string; totalPower: number }>;
+  roomFetchErrors?: string[];
+  // US-006: solver inputs echoed back so we can re-run the solver client-side
+  // when the user adjusts the safety-margin slider (no new API call).
+  solverInputs?: {
+    roster: Character[];
+    solverRooms: RoomForSolver[];
+    metaTeams: MetaTeam[];
+    clearedRooms: string[];
+  };
 }
+
+// Default safety margin is imported from `tower-margin-storage` (US-006).
+// SAFETY_MARGIN_DEFAULT also mirrors the server-side constant in `tower-solver`.
 
 interface TowerHistoryEntry {
   id: string;
@@ -113,6 +153,13 @@ export default function TowerPlannerClient() {
   const [upgrades, setUpgrades] = useState<UpgradeRecommendation[]>([]);
   const [howItWorksExpanded, setHowItWorksExpanded] = useState(false);
   const [history, setHistory] = useState<TowerHistoryEntry[]>([]);
+  // US-006: user-tunable safety margin slider. Persisted per tower event.
+  const [safetyMargin, setSafetyMargin] = useState<number>(SAFETY_MARGIN_DEFAULT);
+  // US-007: rolling list of post-fight outcomes (cross-event, last 100 stored).
+  const [outcomes, setOutcomes] = useState<OutcomeEntry[]>([]);
+  // Cache the raw solver response (with solverInputs) so we can re-run the
+  // solver locally on slider changes without refetching.
+  const lastSolverResponseRef = useRef<SolverResult | null>(null);
 
   useEffect(() => {
     // Check if first visit
@@ -132,6 +179,8 @@ export default function TowerPlannerClient() {
     } catch {
       /* ignore */
     }
+    // US-007: hydrate stored fight outcomes once on mount.
+    setOutcomes(loadOutcomes());
   }, []);
 
   // Active tower derived from towerData + activeTowerIndex. Returns null until towerData loads.
@@ -215,9 +264,15 @@ export default function TowerPlannerClient() {
       // Clear stale state so the UI doesn't show the previous tower's cells while loading.
       setClearedRooms(new Set<string>());
       setSolverResult(null);
+      lastSolverResponseRef.current = null;
       setRooms([]);
       setRoomReadiness(new Map());
       setUpgrades([]);
+      // US-006: load this tower event's persisted safety margin and clear any
+      // stale margin entries from other events.
+      const evtId = activeTowerInitial.eventId ?? activeTowerInitial.id;
+      clearOtherEventMargins(evtId);
+      setSafetyMargin(loadSafetyMargin(evtId));
       try {
         // Re-fetch events to get the latest completedTier for the clicked tower.
         let activeTower = activeTowerInitial;
@@ -346,7 +401,11 @@ export default function TowerPlannerClient() {
       });
       if (res.ok) {
         const data: SolverResult = await res.json();
-        setSolverResult(data);
+        lastSolverResponseRef.current = data;
+        // Re-solve locally with the current slider value so the UI uses the
+        // user's chosen margin from the very first render (the server uses
+        // its own default — that's fine; we override here).
+        setSolverResult(recomputeWithMargin(data, safetyMargin) ?? data);
       } else {
         const errText = await res.text().catch(() => "");
         console.error(`[TowerPlanner] Solve API failed: ${res.status} ${errText}`);
@@ -357,6 +416,72 @@ export default function TowerPlannerClient() {
       setSolving(false);
     }
   }
+
+  // US-006: re-run the solver in the browser using the cached solverInputs
+  // and the new margin. Returns null when no solver response is cached.
+  function recomputeWithMargin(
+    base: SolverResult | null,
+    margin: number,
+  ): SolverResult | null {
+    if (!base?.solverInputs) return null;
+    const { roster, solverRooms, metaTeams, clearedRooms: cleared } = base.solverInputs;
+    const opponentPowersMap = new Map<string, number>(
+      Object.entries(base.opponentPowers ?? {}),
+    );
+    const result = solveTowerAllocation(solverRooms, roster, metaTeams, cleared, {
+      opponentPowers: opponentPowersMap,
+      safetyMargin: margin,
+    });
+    const assignments: Record<string, TeamAssignment> = {};
+    result.assignments.forEach((value: SolverTeamAssignment, key: string) => {
+      assignments[key] = {
+        characters: value.characters.map((c) => ({ id: c.id, name: c.name })),
+        power: value.power,
+        confidence: value.confidence,
+        reason: value.reason,
+        marginPct: value.marginPct,
+        marginFallback: value.marginFallback,
+      };
+    });
+    return {
+      ...base,
+      assignments,
+      unassignableRooms: result.unassignableRooms,
+    };
+  }
+
+  function handleSafetyMarginChange(next: number) {
+    const evtId = tower?.eventId ?? tower?.id;
+    setSafetyMargin(next);
+    if (evtId) saveSafetyMargin(evtId, next);
+    const recomputed = recomputeWithMargin(lastSolverResponseRef.current, next);
+    if (recomputed) setSolverResult(recomputed);
+  }
+
+  function handleSafetyMarginReset() {
+    handleSafetyMarginChange(SAFETY_MARGIN_DEFAULT);
+  }
+
+  // US-007: persist a post-fight outcome for the given room and refresh the
+  // in-memory list so the suggestion updates immediately.
+  function handleRecordOutcome(roomId: string, outcome: FightOutcome) {
+    const evtId = tower?.eventId ?? tower?.id;
+    if (!evtId) return;
+    const assignment = solverResult?.assignments[roomId];
+    const opponentPower = solverResult?.opponentPowers?.[roomId] ?? 0;
+    const entry: OutcomeEntry = {
+      towerEventId: evtId,
+      roomId,
+      outcome,
+      recommendedTeam: assignment?.characters.map((c) => c.id) ?? [],
+      opponentPower,
+      timestamp: Date.now(),
+    };
+    const next = recordOutcome(entry);
+    setOutcomes(next);
+  }
+
+  const marginSuggestion = generateMarginSuggestion(outcomes, safetyMargin);
 
   return (
     <div className="flex flex-col gap-4 p-4" data-testid="tower-planner-active">
@@ -424,6 +549,63 @@ export default function TowerPlannerClient() {
             )}
           </p>
         </div>
+      </div>
+
+      {/* US-006: Safety margin slider — applies client-side to the cached solver inputs. */}
+      <div
+        className="flex flex-col gap-1 rounded-lg border border-gray-700 bg-gray-800/50 p-3"
+        data-testid="safety-margin-section"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor="safety-margin-slider"
+            className="text-xs font-medium text-gray-300"
+          >
+            Safety margin
+          </label>
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs font-mono text-purple-300"
+              data-testid="safety-margin-value"
+            >
+              {safetyMargin.toFixed(2)}x
+            </span>
+            <button
+              type="button"
+              onClick={handleSafetyMarginReset}
+              className="text-[11px] text-purple-400 hover:text-purple-300 underline"
+              data-testid="safety-margin-reset"
+            >
+              Reset to default
+            </button>
+          </div>
+        </div>
+        <input
+          id="safety-margin-slider"
+          type="range"
+          min={SAFETY_MARGIN_MIN}
+          max={SAFETY_MARGIN_MAX}
+          step={SAFETY_MARGIN_STEP}
+          value={safetyMargin}
+          onChange={(e) => handleSafetyMarginChange(parseFloat(e.target.value))}
+          className="w-full accent-purple-500"
+          data-testid="safety-margin-slider"
+          aria-valuemin={SAFETY_MARGIN_MIN}
+          aria-valuemax={SAFETY_MARGIN_MAX}
+          aria-valuenow={safetyMargin}
+          aria-label="Safety margin"
+        />
+        <p className="text-[11px] text-gray-500">
+          Higher margin = pick stronger teams (less risk, fewer cells per week).
+        </p>
+        {marginSuggestion && (
+          <p
+            className="text-[11px] text-purple-300"
+            data-testid="margin-suggestion"
+          >
+            {marginSuggestion.text}
+          </p>
+        )}
       </div>
 
       {/* How It Works */}
@@ -541,17 +723,30 @@ export default function TowerPlannerClient() {
 
       {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view. */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
-        {roomsByCellDesc.map((room) => (
-          <RoomCard
-            key={room.id}
-            room={room}
-            readiness={roomReadiness.get(room.id)}
-            assignment={solverResult?.assignments[room.id]}
-            cleared={clearedRooms.has(room.id)}
-            availableNow={isAvailableNow(room)}
-            onMarkCleared={() => markRoomCleared(room.id)}
-          />
-        ))}
+        {roomsByCellDesc.map((room) => {
+          const opponentPower = solverResult?.opponentPowers?.[room.id];
+          // A room is "data unavailable" when it had a combatId we tried to fetch but failed.
+          // Rooms with no combatId at all silently use the legacy path with no message.
+          const enemyFetchFailed = !!(
+            room.combatId &&
+            solverResult?.roomFetchErrors?.includes(room.combatId)
+          );
+          return (
+            <RoomCard
+              key={room.id}
+              room={room}
+              readiness={roomReadiness.get(room.id)}
+              assignment={solverResult?.assignments[room.id]}
+              cleared={clearedRooms.has(room.id)}
+              availableNow={isAvailableNow(room)}
+              onMarkCleared={() => markRoomCleared(room.id)}
+              opponentPower={opponentPower}
+              enemyFetchFailed={enemyFetchFailed}
+              safetyMargin={safetyMargin}
+              onRecordOutcome={(outcome) => handleRecordOutcome(room.id, outcome)}
+            />
+          );
+        })}
       </div>
 
       {/* History Section */}
@@ -606,7 +801,15 @@ function formatFilters(filters: CharacterFilter[]): string {
   return parts.join(" OR ");
 }
 
-function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void }) {
+function marginColorClass(marginPct: number): string {
+  // Green >=25%, yellow 10-25%, red <10% (but >=0), deep-red <0%.
+  if (marginPct < 0) return "text-red-700";
+  if (marginPct < 10) return "text-red-400";
+  if (marginPct < 25) return "text-yellow-400";
+  return "text-green-400";
+}
+
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT, onRecordOutcome }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean; safetyMargin?: number; onRecordOutcome?: (outcome: FightOutcome) => void }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const status = readiness?.status || "blocked";
@@ -621,7 +824,8 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
   const confidenceConfig = {
     strong: { text: "Strong pick", className: "bg-green-600 text-white" },
     shouldWork: { text: "Should work", className: "bg-yellow-600 text-white" },
-    risky: { text: "Risky", className: "bg-red-600 text-white" },
+    risky: { text: "Risky", className: "bg-orange-600 text-white" },
+    likelyLoss: { text: "Likely loss", className: "bg-red-700 text-white" },
   };
 
   const badge = badgeConfig[status];
@@ -688,6 +892,25 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
       {/* Solver assignment */}
       {assignment && !cleared && (
         <div className="mt-3 border-t border-gray-700 pt-3" data-testid="team-assignment">
+          {/* Fallback warning when no eligible team meets the safety margin. */}
+          {assignment.marginFallback && (
+            <div
+              className="mb-2 rounded border border-red-600 bg-red-900/30 p-2 text-xs text-red-300"
+              data-testid="margin-fallback-warning"
+              role="alert"
+            >
+              No team meets the recommended {safetyMargin.toFixed(2)}x safety margin — best available shown.
+            </div>
+          )}
+          {/* Muted notice when the opponent fetch failed; solver fell back to legacy entry-requirement-based selection. */}
+          {enemyFetchFailed && (
+            <div
+              className="mb-2 text-xs text-gray-500"
+              data-testid="opponent-data-unavailable"
+            >
+              Opponent data unavailable
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-300">
               {assignment.characters.map((c) => c.name).join(", ")}
@@ -696,8 +919,21 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
               {confidenceConfig[assignment.confidence].text}
             </span>
           </div>
-          <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-            <span>Total power: {(assignment.power / 1000).toFixed(0)}k</span>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center gap-x-3">
+              <span data-testid="team-power">Team: {(assignment.power / 1000).toFixed(0)}k</span>
+              {typeof opponentPower === "number" && opponentPower > 0 && (
+                <span data-testid="opponent-power">Opp: {(opponentPower / 1000).toFixed(0)}k</span>
+              )}
+              {typeof assignment.marginPct === "number" && (
+                <span
+                  className={`font-medium ${marginColorClass(assignment.marginPct)}`}
+                  data-testid="margin-pct"
+                >
+                  Margin: {assignment.marginPct >= 0 ? "+" : ""}{assignment.marginPct}%
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setShowPicker(!showPicker)}
               className="text-purple-400 hover:text-purple-300"
@@ -715,6 +951,32 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
           </button>
           {showReason && (
             <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
+          )}
+          {/* US-007: post-fight outcome buttons — informational, no slider change. */}
+          {onRecordOutcome && (
+            <div className="mt-2 flex gap-1.5" data-testid="outcome-buttons">
+              <button
+                onClick={() => onRecordOutcome("wonEasily")}
+                className="flex-1 rounded border border-green-700 bg-green-900/30 px-2 py-1 text-[11px] text-green-300 hover:bg-green-900/60"
+                data-testid="outcome-won-easily"
+              >
+                Won easily
+              </button>
+              <button
+                onClick={() => onRecordOutcome("wonBarely")}
+                className="flex-1 rounded border border-yellow-700 bg-yellow-900/30 px-2 py-1 text-[11px] text-yellow-300 hover:bg-yellow-900/60"
+                data-testid="outcome-won-barely"
+              >
+                Won barely
+              </button>
+              <button
+                onClick={() => onRecordOutcome("lost")}
+                className="flex-1 rounded border border-red-700 bg-red-900/30 px-2 py-1 text-[11px] text-red-300 hover:bg-red-900/60"
+                data-testid="outcome-lost"
+              >
+                Lost
+              </button>
+            </div>
           )}
           {showPicker && (
             <div className="mt-2 rounded border border-gray-600 bg-gray-900 p-2" data-testid="character-picker">

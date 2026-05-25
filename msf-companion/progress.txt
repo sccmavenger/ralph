@@ -1,0 +1,192 @@
+# MSF Companion - Progress & Learnings
+
+## Codebase Patterns
+
+### MSF API Authentication
+- Client credentials flow: POST `https://hydra-public.prod.m3.scopelypv.com/oauth2/token`
+  - Body: `grant_type=client_credentials`
+  - Header: `Authorization: Basic base64(clientId:clientSecret)`
+  - Returns: `{ access_token, expires_in: 3599 }`
+- All game/v1 endpoints require BOTH `x-api-key` header AND `Bearer` token
+- Player endpoints (player/v1/*) require USER auth token (403 with client credentials)
+- Client credentials only access game/v1 (game data, analysis, teamOrder) — NOT player-specific
+
+### MSF API Endpoint Map (verified May 20, 2026)
+Analysis endpoints:
+- war/offense ✅ (1000 teams: squad, total, wins)
+- war/defense ✅ (squad, total, wins)
+- crucible/defense ✅ (697 teams: squad, defends, defeats)
+- crucible/offense ❌ 404
+- crucible/matchups ❌ 404
+- crucible/counters ❌ 404
+- arena/* ❌ all 404
+- tower/* ❌ all 404
+
+TeamOrder endpoints (usage stats only — squad, total):
+- teamOrder/war ✅
+- teamOrder/crucible ✅ (354 teams)
+- teamOrder/arena ✅
+- teamOrder/tower ✅ (200+ teams)
+- teamOrder/blitz ✅
+- teamOrder/roster ✅
+
+Tower endpoints:
+- game/v1/survivalTowers ✅ — lists 10 towers (id, name, combatNodesPerTeam)
+- game/v1/survivalTowers/{id} ✅ — layout only (rays, rooms, startingRoomId)
+- player/v1/survivalTowers/{id} — per-room requirements (NEEDS USER AUTH, 403 with client creds)
+- Tower events in events API are type "pickYourPoison" NOT "tower"
+
+### Key Code Locations
+- Auth: `src/app/api/cron/sync-gamedata/route.ts` — getMsfBearerToken() function
+- MSF API util: `src/lib/msf-api.ts` — msfApiFetch()
+- Planner events: `src/lib/planner-events.ts` — fetchNormalizedEvents()
+- KB sync: `functions/src/functions/kbMetaSync.ts` — daily meta sync
+- Explore route: `src/app/api/msf/explore/route.ts` — API investigation endpoint
+
+### Known Issues
+- planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
+- API key alone (without bearer token) returns 401 — always need OAuth token
+- survivalTowers game endpoint doesn't include per-room requirements (only layout)
+
+### Testing Patterns
+- Tower routes that use `await import("@/lib/<module>")` (dynamic imports) MUST be `vi.mock`ed in tests — otherwise the alias fails to resolve at runtime and the route returns 500.
+- `/api/tower/solve` uses `getValidAccessTokenWithRefresh` from `@/lib/auth`; `/api/tower/rooms` uses `getSession` from `@/lib/session`. Mock the right one per route.
+- Use `Promise.allSettled` at route boundaries when calling external APIs per-item so a single failure doesn't break the whole response; expose failures as a structured field (e.g. `roomFetchErrors: string[]`).
+- Pre-existing failing tests on this branch (NOT caused by ralph work — verified via `git stash` baseline): `src/app/api/tower/events/route.test.ts` and `src/app/api/tower/rooms/route.test.ts` fail at module-load with `Cannot find package '@/lib/auth'` / `'@/lib/tower-fetcher'`, and `src/app/api/tower/history/route.test.ts > returns 401 when not authenticated` expects 401 but gets 200. Safe to ignore for unrelated stories; should be fixed in a dedicated cleanup story.
+- Solver extension pattern: when growing a public API (e.g. `solveTowerAllocation`), prefer adding an optional trailing `options?: { ... }` object rather than reordering positional args — keeps all existing call sites (`route.ts`, 7+ tests) compiling unchanged.
+- Confidence/margin model (US-004): `getConfidence(teamPower, opponentPower)` exported from `src/lib/tower-solver.ts` is the single source of truth. 4-state `TeamConfidence`: strong >=1.30, shouldWork >=1.10, risky >=0.95, likelyLoss <0.95 (constants in `CONFIDENCE_THRESHOLDS`). Every `TeamAssignment` carries `marginPct` (signed int). Deprecated single-arg overload `getConfidence(teamPower)` exists ONLY for the legacy no-opponent-power path; do not use it in new code.
+- TypeScript function overloads are the right tool for "deprecated single-arg + canonical multi-arg" public APIs — keeps the one legacy call site compiling without `// @ts-expect-error` while encoding the new required-second-arg contract.
+- When a solver-side union type widens (e.g. confidence 3→4 states), the inline UI-side mirror types in client components (e.g. `TowerPlannerClient.tsx`) won't error because API data is `any` at the boundary. Always grep for the old union string when widening any solver enum, and widen UI types in the same PR.
+- `TowerPlannerClient.tsx` per-tower data effect deps are `[activeTowerIndex, towerData?.towers?.length]`. If a Playwright mock for `/api/tower/events` returns only `{ tower: {...} }` (no `towers` array), the dep stays `undefined → undefined` after fetch and the rooms/readiness/upgrades loader effect NEVER FIRES — page renders the banner but no room cards, no Pick-My-Teams button. Always include `towers: [tower]` in tower-planner e2e mocks.
+
+- US-006 pattern: to re-run a server-side pure solver client-side without a new API call, have the route return `solverInputs: {...}` and have the client import the SAME solver function (`solveTowerAllocation` from `@/lib/tower-solver` — confirmed browser-safe). Avoids duplicating logic.
+
+- US-008 pattern: MSF `StatBoost` is a `oneOf` — it can be either a CSV string OR an object (see `msf-api.yaml` schema). Any parser that reads it MUST handle both shapes. CSV field order is fixed: health, damage, armor, focus, resist, critDamageBonus, critChance, speed, dodgeChance, blockChance, blockAmount, accuracy, damageReduction. Values are in tenths of a percent per PRD US-008.
+
+## 2026-05-24 12:55 - US-001 - Enemy team fetcher for tower cells
+- Implemented `src/lib/tower-enemy-fetcher.ts` exporting `getEnemyTeam(combatId, towerId, accessToken)` and `getEnemyTeamsForRooms(rooms, towerId, accessToken)`.
+- Calls `/game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId}` via existing `msfApiFetch` helper.
+- `EnemyTeam { combatId, units: EnemyUnit[], totalPower }` aggregates units from both `left` and `right` sides across all waves.
+- In-memory `Map` cache keyed by `combatId`, invalidated when `meta.hashes.nodes` changes (mirrors `checkHashInvalidation` in `src/lib/dd-service.ts`).
+- Exported `clearEnemyTeamCache` for tests and future meta-sync wiring.
+- 4 new unit tests in `src/lib/tower-enemy-fetcher.test.ts`: successful fetch, missing combatId, cache hit, cache invalidation on hash change. All passing.
+- Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - `msfApiFetch` requires `accessToken` - story signatures had to add it as a 3rd arg even though PRD AC listed only `(combatId, towerId)`.
+  - Raw `CharacterInstance.power` lives directly on the instance (not in `stats`); `info.name` is the display name.
+  - `NodeCombat` returns `left` and `right` sides each with `waves[].units[]` - normalize across both for tower cells (the player side is empty for opponent fetches but iterate both for safety).
+  - `encodeURIComponent` the `combatId` in the URL path; pass `towerId` via `difficultyGroup` query param.
+  - Vitest config in this repo: `poolOptions` is deprecated in Vitest 4 (warning only, tests still run).
+  - Run tests via `npx vitest run <file>` from the `msf-companion/` directory.
+---
+
+## 2026-05-24 - US-002 - Solve API exposes opponent power per room
+- Added optional `combatId?: string` to `TowerRoom` in `src/lib/tower-fetcher.ts` and propagated it from `detail.data?.combatId` (the MSF room detail response already carries it).
+- Updated `src/app/api/tower/solve/route.ts`:
+  - Calls `getEnemyTeam(combatId, towerId, userToken)` per fetchable room inside `Promise.allSettled`, so a single upstream failure doesn't break the response (the fetcher's own `getEnemyTeamsForRooms` uses `Promise.all` and rejects on first failure — the JSDoc explicitly directs route callers to use `allSettled`, which we do here).
+  - Response now includes `opponentPowers: Record<roomId, number>`, `opponentTeams: Record<roomId, EnemyTeam>`, and `roomFetchErrors: string[]` (failed combatIds).
+  - Rooms with no `combatId` are silently skipped (no fetch, no error entry).
+  - Existing `assignments` and `unassignableRooms` fields preserved.
+- New test file `src/app/api/tower/solve/route.test.ts` mocks `@/lib/auth`, `@/lib/msf-api` (roster), `@/lib/tower-fetcher`, `@/lib/tower-enemy-fetcher`, AND `@/lib/tower-solver`. All 3 tests pass.
+- **Learnings for future iterations:**
+  - The solve route uses `await import("@/lib/tower-solver")` (dynamic import). Vitest only intercepts this if you `vi.mock("@/lib/tower-solver", ...)` — otherwise the dynamic import fails with `ERR_MODULE_NOT_FOUND` at runtime (path alias isn't resolved for dynamic imports the same way as static ones). Always mock dynamically-imported modules in route tests.
+  - For graceful per-room degradation against an external API, prefer wrapping individual calls in `Promise.allSettled` at the route layer rather than modifying the shared fetcher helper — keeps the fetcher's contract simple (all-or-nothing) and the policy local to the consumer.
+  - Tower routes use `getValidAccessTokenWithRefresh` from `@/lib/auth` (NOT `getSession`) — different from `/api/tower/rooms` which uses `getSession`. Mock the right one.
+  - `npm run cleanup` exits 1 silently in this repo — proceed regardless; it's a pre-test housekeeping step, not a gate.
+---
+
+## 2026-05-24 - US-003 - Margin-aware team selection in tower-solver
+- Added `SAFETY_MARGIN_DEFAULT = 1.10` export and a new optional 5th arg `options?: { opponentPowers?: Map<string, number>; safetyMargin?: number }` to `solveTowerAllocation` (`src/lib/tower-solver.ts`). Backward-compatible: existing 4-arg call sites (route.ts + 7 unit tests) compile unchanged.
+- `TeamAssignment` gained optional `marginFallback?: boolean`.
+- New ordering: rooms with a known opponent power are processed first, sorted descending by that power; rooms without opponent power retain the legacy requirement-difficulty heuristic and are processed after.
+- Per-room selection when opponent power is known: ascending-power window of size `teamSize` starting at the weakest; if the sum doesn't meet `opponentPower * safetyMargin`, repeatedly drop the weakest and add the next stronger character until target met or roster exhausted. If unmeetable, fall back to the strongest top-N team and set `marginFallback: true`.
+- Confidence + reason when opponent power is known: `getConfidenceVsOpponent(power, opp)` returns strong (>=1.30x), shouldWork (>=1.10x), risky (<1.10x). Reason text references the actual margin %. (US-004 will refine into a 4-state scale incl. likelyLoss.)
+- 3 new tests in `src/lib/tower-solver.test.ts`: (1) `SAFETY_MARGIN_DEFAULT` constant, (2) comfortable-margin selects a mid-power subset (not weakest, not strongest), (3) unmeetable opponent triggers marginFallback with strongest team, (4) descending opp-power ordering reserves the strongest character (c9) for the hardest room. All 11 tower-solver tests pass; all 3 solve-route tests still pass; 4 enemy-fetcher tests still pass.
+- Typecheck + ESLint clean on changed files. Full `npx vitest run`: 306/307 pass; the 1 failure + 2 pre-existing suite-load failures are unrelated to this story (verified via git stash baseline).
+- **Learnings for future iterations:**
+  - Adding optional positional args to a widely-called function is risky; prefer trailing `options?: { ... }` object so callers don't need to thread `undefined` for the new arg(s).
+  - For "smallest subset whose sum >= target", a swap-up window over the ascending-power list is correct and O(n): start with the weakest N, then iteratively drop the weakest and add the next stronger. Don't try a full subset-sum solver — gear/trait filtering already constrains the eligible pool enough that this greedy is right.
+  - When choosing test thresholds for the ordering invariant, make the easy room's smallest-viable subset (e.g. c1..c5) overlap with the hard room's only-viable subset (c5..c9) — that way the test actually fails if rooms are processed in the wrong order. Without overlap, both orderings happen to produce the same assignment.
+  - The existing 1.30/1.10 ratio breakpoints for "strong"/"shouldWork" are reused from PRD US-004 spec for consistency — US-004 will add the 4th state (`likelyLoss`) and the boundary tests. Don't redefine these constants in US-004; reuse what's already here.
+
+
+## 2026-05-24 - US-004 - Honest confidence score from real margin
+- Removed self-referential `baselineEstimate = minCharPower * 5` logic and the temporary `getConfidenceVsOpponent` shim added in US-003.
+- New exported `getConfidence` in `src/lib/tower-solver.ts` is a 4-state classifier with TypeScript overloads: `(teamPower)` (deprecated, opponentPower = teamPower / SAFETY_MARGIN_DEFAULT) and `(teamPower, opponentPower)` (canonical). Returns new `TeamConfidence = "strong" | "shouldWork" | "risky" | "likelyLoss"`.
+- Thresholds (exported as `CONFIDENCE_THRESHOLDS`): strong >=1.30, shouldWork >=1.10, risky >=0.95, likelyLoss <0.95 (higher tier inclusive at the boundary).
+- `TeamAssignment` gained required `marginPct: number` (rounded integer, signed — negative means team is weaker). Both opponent-aware and legacy code paths set it.
+- All reason strings now reference the actual margin %, e.g. "Your team is ~25% stronger than the opponent." Centralized in `buildMarginReason` helper.
+- Legacy (no opponent power) path uses the deprecated overload, which yields confidence=shouldWork + marginPct≈10. Reason for that case explicitly notes "opponent data unavailable" so the UI can later distinguish.
+- 12 new tests in `tower-solver.test.ts`: all 4 tiers, all 3 boundary values (1.30/1.10/0.95 inclusive at higher tier), the deprecated overload returning shouldWork, CONFIDENCE_THRESHOLDS constants, marginPct presence on opponent path, likelyLoss + marginPct=-50 on fallback, marginPct=10 on legacy path. 30/30 tests across tower-solver + tower-enemy-fetcher + solve route pass. Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - TypeScript function overloads are the right primitive for "deprecated single-arg + canonical multi-arg" call shapes — keeps the legacy call site (`getConfidence(power)`) compiling untouched while encoding the new required-second-arg contract for everyone else.
+  - When a confidence enum widens (3-state → 4-state), the consuming UI types declared inline in client components (e.g. `TowerPlannerClient.tsx` line 67 `confidence: "strong" | "shouldWork" | "risky"`) do NOT cause compile errors because the data crosses the API as `any`. US-005 must widen those UI-side union types — TS won't flag it for you. Search for the old 3-state union string when widening any solver-typed enum.
+  - For numeric boundary tests (e.g. ratio >= 1.30 inclusive), pick test values where floating point won't bite: use integer pairs like `getConfidence(1300, 1000)` — ratio is exactly 1.3 — rather than `getConfidence(1.3, 1)` which has float-rep imprecision.
+  - Always centralize per-tier `reason` text into a single builder function (`buildMarginReason`) — avoids drift when you add a new tier (likelyLoss) and stops the per-branch if/else from sprawling.
+---
+
+## 2026-05-24 - US-005 - UI shows opponent power, team power, margin, confidence per cell
+- src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx:
+  - Widened TeamAssignment.confidence to 4 states (added likelyLoss); added optional marginPct?: number and marginFallback?: boolean.
+  - Extended SolverResult with opponentPowers?, opponentTeams?, 
+oomFetchErrors? (all optional for backward compat with legacy mocks).
+  - Added combatId?: string to client TowerRoom interface (mirrors src/lib/tower-fetcher.ts) so the UI can detect rooms whose enemy fetch failed by checking 
+oom.combatId in roomFetchErrors.
+  - Added SAFETY_MARGIN_DEFAULT = 1.10 mirror constant (US-006 will wire this to a slider).
+  - New marginColorClass(marginPct): green >=25, yellow 10-25, red <10, deep-red <0.
+  - New confidenceConfig.likelyLoss chip (g-red-700). Switched 
+isky chip to g-orange-600 to distinguish from likelyLoss.
+  - RoomCard now renders Team / Opp / Margin% inline on the solver line, plus a destructive margin-fallback-warning banner and a muted opponent-data-unavailable line when applicable.
+- New e2e 2e/tower-planner-difficulty.spec.ts: 2 passing tests cover margin % rendering + fallback banner + likelyLoss chip.
+- Existing solver e2e and all 30 related vitests still pass; typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - Effect-dep gotcha when mocking tower-planner: [activeTowerIndex, towerData?.towers?.length] — mocks must include a 	owers array or the rooms loader never fires after initial mount (added to Codebase Patterns).
+  - UI mirror types for confidence/margin live in three places (interface, confidenceConfig, marginColorClass) — all three needed updates for the widened state.
+  - PowerShell pipe with 2>&1 | Select-Object -Last N buffers ALL output until the producer exits — for long-running test commands, prefer redirecting to a file or running without the pipe and polling 	est-results/.last-run.json.
+---
+
+## 2026-05-24 - US-006 - User-tunable safety margin slider
+- New `src/lib/tower-margin-storage.ts`: exports `SAFETY_MARGIN_{MIN=1.0, MAX=1.5, STEP=0.05, DEFAULT=1.10}`, `clampSafetyMargin`, `loadSafetyMargin`, `saveSafetyMargin`, `clearOtherEventMargins`. Pure functions; all accept an optional `storage: MarginStorage` arg (default = `globalThis.localStorage`) so unit tests pass an in-memory shim — no jsdom needed. Storage key shape: `tower-planner-margin:${towerEventId}`. Values are clamped to [1.00, 1.50] and snapped to 0.05 step on both read and write (NaN → default; Infinity → MAX via Math.min).
+- `/api/tower/solve` response gained `solverInputs: { roster, solverRooms, metaTeams, clearedRooms }` so the client can re-run the solver locally on slider change. Backward-compat additive change; existing tests untouched.
+- `TowerPlannerClient.tsx`:
+  - Added `safetyMargin` state + `lastSolverResponseRef` cache of the raw solve response. On tower switch, calls `clearOtherEventMargins(evtId)` + `setSafetyMargin(loadSafetyMargin(evtId))`. Uses `tower.eventId ?? tower.id` as the storage key.
+  - New slider section ("Safety margin" label + value chip + Reset link + range input 1.00-1.50 step 0.05). Sits between event banner and How-It-Works.
+  - `recomputeWithMargin(base, margin)` imports `solveTowerAllocation` from `@/lib/tower-solver` and runs it client-side using the cached `solverInputs` + `opponentPowers`. Converts the result's `Map` assignments back to a `Record` to match the existing client `SolverResult` shape. Triggered by slider onChange and by reset.
+  - Fallback warning banner now uses `safetyMargin.toFixed(2)` instead of the hardcoded default — banner text updates live as the slider moves.
+- New `e2e/tower-planner-safety-margin.spec.ts` (2 tests): slider visible at default 1.10x with reset link; moving slider to 1.50x changes the room card's margin % from +40% to +60% AND makes zero additional `/api/tower/solve` calls (verified via Playwright route counter), then Reset link snaps back to 1.10x / +40%.
+- 16 unit tests in `src/lib/tower-margin-storage.test.ts` cover: clamp behavior (NaN, Infinity, below MIN, above MAX, 0.05 snap), load (missing key, empty event id, null storage, malformed value, persisted clamped value, out-of-range clamp on read), save (clamp-on-write, empty event id no-op, null storage no-op, round-trip), and `clearOtherEventMargins` (keeps current, removes others including all-when-current-empty, leaves non-prefixed keys alone). All pass.
+- Typecheck + ESLint clean on changed files; new e2e passes.
+- **Learnings for future iterations:**
+  - `tower-solver.ts` is browser-safe (no node deps; only imports `./tower-readiness` for types + one pure function). It can be imported directly from "use client" components — which is exactly what lets us run the same solver server-side AND client-side without duplicating logic.
+  - When you need to re-run a server computation client-side without refetching, the cleanest path is "echo the inputs": have the route return `solverInputs: {...}` alongside the result, and have the client call the same pure function with new options. Beats duplicating logic in two places.
+  - Pure storage helpers should accept an optional `storage` arg defaulting to `globalThis.localStorage` — keeps the SSR path safe (returns null when not in browser) AND makes unit tests trivially testable with an in-memory shim. No need for jsdom.
+  - When a function may be called from rendered JSX that only mounts after a `const` declaration earlier in the same component (e.g. `const tower = ...` after early returns), declaring helper functions BELOW the early returns / state isn't required — function declarations are hoisted, and they capture `tower` lexically; the function body only runs from event handlers attached to JSX rendered AFTER the const, so closure resolves correctly.
+  - `Number.isFinite(Infinity) === false`, so a clamp that uses `if (!isFinite(v)) return default;` will return the default for Infinity — usually NOT what you want. Prefer `if (Number.isNaN(v)) return default;` and let `Math.min(MAX, v)` clamp Infinity to MAX naturally.
+  - Playwright `page.route` handlers stack last-registered-wins, so you can re-register the same URL pattern AFTER the initial setup to swap in a counting handler for "no new calls expected" assertions.
+---
+
+## 2026-05-24 - US-007 - Post-fight outcome feedback and suggested personal margin
+- New src/lib/tower-outcome-storage.ts (pure module, mirrors tower-margin-storage pattern): loadOutcomes, 
+ecordOutcome, clearOutcomes, 	allyOutcomes, generateMarginSuggestion, plus constants OUTCOMES_STORAGE_KEY ('tower-planner-outcomes'), OUTCOMES_MAX_STORED=100, OUTCOMES_WINDOW=20, OUTCOMES_MIN_FOR_SUGGESTION=5.
+- Entry shape: { towerEventId, roomId, outcome: 'wonEasily'|'wonBarely'|'lost', recommendedTeam: string[], opponentPower, timestamp }. Cross-event single key (not per-event) — keeps the rolling history meaningful when the active tower switches.
+- Suggestion rules (informational, never auto-changes the slider): lostPct>=20 -> suggest current+0.10; total>=10 && lost==0 && wonEasilyPct>=70 -> suggest current-0.05; suppressed at MIN/MAX. Reuses clampSafetyMargin from tower-margin-storage so suggestions snap to the 0.05 step.
+- TowerPlannerClient: three buttons per RoomCard rendered when an assignment exists (data-testid: outcome-won-easily / outcome-won-barely / outcome-lost). Suggestion text rendered inside the existing safety-margin section (data-testid: margin-suggestion). Outcomes hydrated once in the mount effect; updated in-memory on each click so the suggestion refreshes immediately.
+- 18 new unit tests in 	ower-outcome-storage.test.ts; full related suite (margin storage + solver + enemy fetcher + solve route + outcomes) = 64/64 passing. tsc + eslint clean.
+- **Learnings for future iterations:**
+  - The tower-margin-storage pattern (pure module + optional injected storage arg + tiny in-memory shim in tests) generalizes well to any per-feature localStorage need — reuse it instead of mocking globalThis.localStorage.
+  - When suggestion logic needs to clamp to the safety-margin window, import clampSafetyMargin from 	ower-margin-storage rather than duplicating MIN/MAX/STEP constants; ensures snapping stays consistent if those bounds ever change.
+  - RoomCard already takes ~8 props; adding onRecordOutcome? as an optional callback keeps the change additive (no e2e test or storybook needs a value).
+  - 
+ecordOutcome returns the updated list even when storage is null so callers can keep state in sync in SSR/test environments without branching on storage availability.
+---
+
+## 2026-05-24 - US-008 - Node-effect-aware opponent power adjustment
+- src/lib/tower-enemy-fetcher.ts: new exported applyNodeEffects(unit) plus NodeEffects + NodeEffectBoosts public types. Parses both StatBoost shapes (CSV string and object) from raw API; sums the 5 power-relevant fields (health, damage, armor, focus, resist) and multiplies unit.power by 1 + sum/1000. Returns unit unchanged when sum is 0 or power is undefined. JSDoc explicitly marks the formula as a heuristic pending dev clarification on Q1 (difficulty scaling).
+- buildEnemyTeam now applies applyNodeEffects to every normalized unit, so EnemyTeam.totalPower already reflects buffed values — no downstream changes needed in solver (US-003) or UI (US-005) since both consume totalPower via opponentPowers from the solve route (US-002).
+- 4 new tests in src/lib/tower-enemy-fetcher.test.ts: (a) unboosted unit unchanged + missing nodeEffects unchanged, (b) CSV '350,150,50,25,25' produces +60% within +-2%, (c) object form { health:100, damage:100 } gives exact base*1.20, (d) totalPower aggregates adjusted values across mixed boosted/unboosted units. 8/8 fetcher tests pass; 68/68 related (solver + solve route + margin storage + outcome storage) pass; tsc + eslint clean.
+- **Learnings for future iterations:**
+  - MSF StatBoost is a 'oneOf' (CSV string OR object) — parsers MUST handle both. CSV field order per spec: health, damage, armor, focus, resist, critDamageBonus, critChance, speed, dodgeChance, blockChance, blockAmount, accuracy, damageReduction.
+  - When applying a power adjustment inside the data-normalization layer (buildEnemyTeam), downstream consumers (solver, UI) inherit the change for free via the existing totalPower field — no widening of the public solver/UI contracts needed. Prefer adjusting at the source over threading new fields through every layer.
+  - PRD wording 'tenths of a percent' + multiplier formula '1 + sum/1000' can read inconsistent at first glance; reconcile by computing on a known sample: 350 = 35.0% (per spec) -> sum 600 tenths -> +60% -> *1.60. Document the worked example next to the formula to prevent unit confusion in future maintenance.
+  - Number.isFinite() correctly rejects NaN AND +-Infinity in one check; use it (not Number.isNaN alone) when parsing untrusted CSV numerics.
+---

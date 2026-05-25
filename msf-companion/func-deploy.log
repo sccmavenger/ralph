@@ -1,0 +1,53 @@
+Getting site publishing info...
+[2026-05-22T15:58:31.189Z] Starting the function app deployment...
+Uploading package...
+
+Upload completed successfully.
+Deployment completed successfully.
+[2026-05-22T16:00:01.152Z] Syncing triggers...
+Functions in func-47le33tuyu2mg:
+    aiProcessor - [cosmosDBTrigger]
+
+    blogScraper - [timerTrigger]
+
+    churnPrevention - [timerTrigger]
+
+    eventAlerts - [timerTrigger]
+
+    gapAnalysis - [timerTrigger]
+
+    gapAutoResolve - [timerTrigger]
+
+    gapNotification - [timerTrigger]
+
+    health - [httpTrigger]
+        Invoke url: https://func-47le33tuyu2mg.azurewebsites.net/api/health
+
+    inactiveUserWinBack - [timerTrigger]
+
+    kbBlogSync - [timerTrigger]
+
+    kbCharacterSync - [timerTrigger]
+
+    kbDDSync - [timerTrigger]
+
+    kbGameDataOrchestrator - [timerTrigger]
+
+    kbGearSync - [timerTrigger]
+
+    kbISO8Sync - [timerTrigger]
+
+    kbMetaSync - [timerTrigger]
+
+    kbRedditSync - [timerTrigger]
+
+    kbStaleSweep - [timerTrigger]
+
+    staticFallback - [timerTrigger]
+
+    transcriptExtraction - [cosmosDBTrigger]
+
+    videoDiscovery - [timerTrigger]
+
+    weeklyEmailDigest - [timerTrigger]
+

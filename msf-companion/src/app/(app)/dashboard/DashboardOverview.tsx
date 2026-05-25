@@ -283,6 +283,9 @@ export default function DashboardOverview({
       {/* Origin Breakdown */}
       <OriginBreakdown characters={rosterChars} />
 
+      {/* Tower Event Widget */}
+      <TowerEventWidget />
+
       {/* Daily Briefing Widget */}
       <DailyBriefingWidget />
 
@@ -297,9 +300,6 @@ export default function DashboardOverview({
 
       {/* Offers Widget — behind feature flag */}
       {offersEnabled && <OffersWidget />}
-
-      {/* Tower Event Widget */}
-      <TowerEventWidget />
 
       {/* Planner Summary Widget */}
       <PlannerSummary />

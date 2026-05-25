@@ -14,16 +14,53 @@ export interface MetaTeam {
   winRate?: number;
 }
 
+export type TeamConfidence = "strong" | "shouldWork" | "risky" | "likelyLoss";
+
 export interface TeamAssignment {
   characters: Character[];
   power: number;
-  confidence: "strong" | "shouldWork" | "risky";
+  confidence: TeamConfidence;
   reason: string;
+  /**
+   * Team power as a percentage margin over the opponent (rounded to nearest
+   * integer). e.g. 18 means "team is ~18% stronger than the opponent".
+   * Negative values indicate the team is weaker than the opponent.
+   */
+  marginPct: number;
+  /**
+   * True when no eligible subset met the configured safety margin and the
+   * solver fell back to the strongest available team. UI should surface a
+   * warning when this is set.
+   */
+  marginFallback?: boolean;
 }
+
+/**
+ * Confidence thresholds for getConfidence (ratio = teamPower / opponentPower).
+ * Boundary values are inclusive of the higher tier (e.g. 1.30 → "strong").
+ */
+export const CONFIDENCE_THRESHOLDS = {
+  strong: 1.3,
+  shouldWork: 1.1,
+  risky: 0.95,
+} as const;
 
 export interface SolverResult {
   assignments: Map<string, TeamAssignment>;
   unassignableRooms: string[];
+}
+
+/**
+ * Default safety margin: a team is considered safe when its total power is
+ * at least 1.10x the real opponent power.
+ */
+export const SAFETY_MARGIN_DEFAULT = 1.1;
+
+export interface SolverOptions {
+  /** Real opponent power per room id (from /api/tower/solve opponentPowers). */
+  opponentPowers?: Map<string, number>;
+  /** Multiplier applied to opponent power when picking a team. Defaults to SAFETY_MARGIN_DEFAULT. */
+  safetyMargin?: number;
 }
 
 /**
@@ -72,23 +109,62 @@ function teamPower(characters: Character[]): number {
 }
 
 /**
- * Determine confidence level based on team power vs estimated room need.
- * Estimated need = 5 characters at minimum threshold power.
+ * Honest confidence vs the real opponent power (US-004).
+ *
+ * Ratio = teamPower / opponentPower:
+ *   >= 1.30  → strong
+ *   >= 1.10  → shouldWork
+ *   >= 0.95  → risky
+ *   <  0.95  → likelyLoss
+ *
+ * @deprecated Calling with only `teamPower` (no opponent power) is a legacy
+ * call shape kept for backward compatibility. It assumes opponentPower =
+ * teamPower / 1.10 (always yielding the "shouldWork" tier). New callers
+ * should always pass the real opponent power.
  */
-function getConfidence(
-  assignedPower: number,
-  roomChars: Character[]
-): "strong" | "shouldWork" | "risky" {
-  // Estimate baseline power from the weakest eligible (min thresholds)
-  const avgPower = assignedPower / Math.max(roomChars.length, 1);
-  const minCharPower = Math.min(...roomChars.map((c) => c.power));
-  const baselineEstimate = minCharPower * 5;
+export function getConfidence(teamPower: number): TeamConfidence;
+export function getConfidence(teamPower: number, opponentPower: number): TeamConfidence;
+export function getConfidence(teamPower: number, opponentPower?: number): TeamConfidence {
+  const opp =
+    typeof opponentPower === "number" && opponentPower > 0
+      ? opponentPower
+      : teamPower / SAFETY_MARGIN_DEFAULT;
+  if (opp <= 0) return "shouldWork";
+  const ratio = teamPower / opp;
+  if (ratio >= CONFIDENCE_THRESHOLDS.strong) return "strong";
+  if (ratio >= CONFIDENCE_THRESHOLDS.shouldWork) return "shouldWork";
+  if (ratio >= CONFIDENCE_THRESHOLDS.risky) return "risky";
+  return "likelyLoss";
+}
 
-  const margin = (assignedPower - baselineEstimate) / Math.max(baselineEstimate, 1);
-
-  if (margin >= 0.2) return "strong";
-  if (margin >= 0) return "shouldWork";
-  return "risky";
+/**
+ * Build a one-line, margin-referencing reason string. Sign of `marginPct`
+ * determines wording (stronger vs weaker).
+ */
+function buildMarginReason(
+  confidence: TeamConfidence,
+  marginPct: number,
+  marginFallback: boolean,
+  safetyMargin: number
+): string {
+  const pctAbs = Math.abs(marginPct);
+  const directionStronger = marginPct >= 0;
+  if (marginFallback) {
+    return `No team meets the ${safetyMargin.toFixed(2)}x safety margin — strongest available shown (team is ${directionStronger ? `~${pctAbs}% stronger than` : `~${pctAbs}% weaker than`} the opponent).`;
+  }
+  if (confidence === "strong") {
+    return `Your team is ~${pctAbs}% stronger than the opponent.`;
+  }
+  if (confidence === "shouldWork") {
+    return `Your team is ~${pctAbs}% stronger than the opponent — meets the ${safetyMargin.toFixed(2)}x safety margin.`;
+  }
+  if (confidence === "risky") {
+    return directionStronger
+      ? `Tight margin: your team is only ~${pctAbs}% stronger than the opponent.`
+      : `Risky: your team is ~${pctAbs}% weaker than the opponent.`;
+  }
+  // likelyLoss
+  return `Likely loss: your team is ~${pctAbs}% weaker than the opponent.`;
 }
 
 /**
@@ -104,36 +180,56 @@ function matchesMetaTeam(charIds: string[], metaTeams: MetaTeam[]): MetaTeam | u
 
 /**
  * Globally optimal solver that allocates teams across all rooms.
- * Strategy: assign weakest viable teams to easiest rooms, preserving strong characters for harder rooms.
+ *
+ * When `opponentPowers` is provided (US-003), rooms are processed in
+ * descending opponent-power order so scarce strong characters are reserved
+ * for the hardest cells. Per room, the smallest ascending-power subset whose
+ * summed power meets `opponentPower * safetyMargin` is selected; if none
+ * qualifies, the strongest available team is picked and tagged with
+ * `marginFallback: true`.
+ *
+ * When no opponent power is known for a room, the solver falls back to the
+ * legacy "weakest viable team" heuristic for that room only.
  */
 export function solveTowerAllocation(
   rooms: RoomForSolver[],
   roster: Character[],
   metaTeams: MetaTeam[],
-  clearedRooms?: string[]
+  clearedRooms?: string[],
+  options?: SolverOptions
 ): SolverResult {
   const assignments = new Map<string, TeamAssignment>();
   const unassignableRooms: string[] = [];
   const usedCharIds = new Set<string>();
   const clearedSet = new Set(clearedRooms || []);
+  const opponentPowers = options?.opponentPowers;
+  const safetyMargin = options?.safetyMargin ?? SAFETY_MARGIN_DEFAULT;
 
   // Filter out cleared rooms
   const activeRooms = rooms.filter((r) => !clearedSet.has(r.id));
 
-  // Sort rooms by difficulty (harder rooms first based on requirements)
-  // Difficulty heuristic: higher gear + stars + level = harder
-  const sortedRooms = [...activeRooms].sort((a, b) => {
-    const diffA =
-      a.requirements.minGearTier * 10 + a.requirements.minStars * 5 + a.requirements.minLevel;
-    const diffB =
-      b.requirements.minGearTier * 10 + b.requirements.minStars * 5 + b.requirements.minLevel;
-    return diffB - diffA; // Hardest first
-  });
+  // Ordering: rooms with a known opponent power come first, sorted descending
+  // by that power (hardest cell handled first so it gets first pick of the
+  // roster). Rooms without an opponent power fall back to the legacy
+  // requirement-difficulty heuristic and are processed afterward.
+  const requirementDifficulty = (r: RoomForSolver) =>
+    r.requirements.minGearTier * 10 + r.requirements.minStars * 5 + r.requirements.minLevel;
 
-  // For each room (hardest first), find the best viable team
+  const withOpp: RoomForSolver[] = [];
+  const withoutOpp: RoomForSolver[] = [];
+  for (const r of activeRooms) {
+    const op = opponentPowers?.get(r.id);
+    if (typeof op === "number" && op > 0) withOpp.push(r);
+    else withoutOpp.push(r);
+  }
+  withOpp.sort(
+    (a, b) => (opponentPowers!.get(b.id) ?? 0) - (opponentPowers!.get(a.id) ?? 0)
+  );
+  withoutOpp.sort((a, b) => requirementDifficulty(b) - requirementDifficulty(a));
+  const sortedRooms = [...withOpp, ...withoutOpp];
+
   for (const room of sortedRooms) {
     const teamSize = room.minCharacters ?? 5;
-    // Get eligible characters that haven't been used
     const eligible = roster.filter(
       (char) => !usedCharIds.has(char.id) && meetsRequirements(char, room.requirements)
     );
@@ -143,13 +239,73 @@ export function solveTowerAllocation(
       continue;
     }
 
-    // Sort eligible by power ascending — we want the weakest viable team
-    const sortedEligible = [...eligible].sort((a, b) => a.power - b.power);
+    const opponentPower = opponentPowers?.get(room.id);
+    const hasOpponentPower = typeof opponentPower === "number" && opponentPower > 0;
 
-    // Take the weakest N as default assignment
+    if (hasOpponentPower) {
+      // Margin-aware selection. Start with the weakest teamSize chars
+      // (ascending) and, if the sum doesn't meet target, swap out the weakest
+      // for the next stronger character until we hit target or exhaust the
+      // pool. This realizes "smallest contiguous prefix that meets margin".
+      const ascending = [...eligible].sort((a, b) => a.power - b.power);
+      const target = opponentPower * safetyMargin;
+
+      let chosen: Character[] | null = null;
+      let chosenSum = 0;
+      const window = ascending.slice(0, teamSize);
+      let windowSum = teamPower(window);
+      if (windowSum >= target) {
+        chosen = window;
+        chosenSum = windowSum;
+      } else {
+        let nextIdx = teamSize;
+        while (nextIdx < ascending.length) {
+          const dropped = window.shift()!;
+          windowSum -= dropped.power;
+          const added = ascending[nextIdx++];
+          window.push(added);
+          windowSum += added.power;
+          if (windowSum >= target) {
+            chosen = [...window];
+            chosenSum = windowSum;
+            break;
+          }
+        }
+      }
+
+      let assignedTeam: Character[];
+      let marginFallback = false;
+      if (chosen) {
+        assignedTeam = chosen;
+      } else {
+        // No subset meets the margin — fall back to strongest available.
+        const descending = [...eligible].sort((a, b) => b.power - a.power);
+        assignedTeam = descending.slice(0, teamSize);
+        chosenSum = teamPower(assignedTeam);
+        marginFallback = true;
+      }
+
+      const power = chosenSum;
+      const confidence = getConfidence(power, opponentPower);
+      const marginPct = Math.round((power / opponentPower - 1) * 100);
+      const reason = buildMarginReason(confidence, marginPct, marginFallback, safetyMargin);
+
+      for (const char of assignedTeam) usedCharIds.add(char.id);
+      assignments.set(room.id, {
+        characters: assignedTeam,
+        power,
+        confidence,
+        reason,
+        marginPct,
+        marginFallback,
+      });
+      continue;
+    }
+
+    // Legacy path: no opponent power known. Weakest viable + meta-team check.
+    const sortedEligible = [...eligible].sort((a, b) => a.power - b.power);
     let assignedTeam = sortedEligible.slice(0, teamSize);
 
-    // Check if a meta team is available within 10% power of the weakest assignment
     const weakestPower = teamPower(assignedTeam);
     const metaMatch = matchesMetaTeam(
       eligible.map((c) => c.id),
@@ -167,9 +323,13 @@ export function solveTowerAllocation(
     }
 
     const power = teamPower(assignedTeam);
-    const confidence = getConfidence(power, assignedTeam);
+    // Legacy path (no real opponent power known) — use the deprecated single-arg
+    // overload of getConfidence, which assumes opponentPower = power / 1.10.
+    // This always returns "shouldWork" and yields marginPct ≈ 10.
+    const confidence = getConfidence(power);
+    const assumedOpponent = power / SAFETY_MARGIN_DEFAULT;
+    const marginPct = Math.round((power / assumedOpponent - 1) * 100);
 
-    // Generate reason text
     let reason: string;
     if (confidence === "strong") {
       const surplus = Math.round((power - teamPower(sortedEligible.slice(0, teamSize))) / 1000);
@@ -177,21 +337,18 @@ export function solveTowerAllocation(
         ? `Your strongest viable team — ${surplus}k above minimum`
         : `Strong team with good margin above requirements`;
     } else if (confidence === "shouldWork") {
-      reason = `Meets requirements with moderate margin — should clear comfortably`;
+      reason = `Meets requirements with moderate margin — should clear comfortably (opponent data unavailable).`;
     } else {
       reason = `Barely meets minimum requirements — may struggle`;
     }
 
-    // Mark characters as used
-    for (const char of assignedTeam) {
-      usedCharIds.add(char.id);
-    }
-
+    for (const char of assignedTeam) usedCharIds.add(char.id);
     assignments.set(room.id, {
       characters: assignedTeam,
       power,
       confidence,
       reason,
+      marginPct,
     });
   }
 

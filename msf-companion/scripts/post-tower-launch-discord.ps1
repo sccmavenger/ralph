@@ -8,7 +8,11 @@ $token = ($envLines | Where-Object { $_ -match '^DISCORD_BOT_TOKEN=' }) -replace
 if (-not $token) { throw 'DISCORD_BOT_TOKEN not found in .env' }
 
 $channelId = '1424206599525892301'  # MSFT Toolkit #general
-$headers = @{ Authorization = "Bot $token" }
+# Discord REQUIRES a User-Agent header on bot requests — omitting it returns 403/40333.
+$headers = @{
+  Authorization = "Bot $token"
+  'User-Agent'  = 'MSFCompanion (https://themsftoolkit.com, 1.0)'
+}
 
 # Verify channel access
 Write-Host "Verifying channel access..." -ForegroundColor Cyan

@@ -1,378 +1,145 @@
 {
-  "project": "MSF Companion — Tower Event Planner",
-  "branchName": "ralph/tower-planner",
-  "description": "A premium tower event planning tool at /analyze/tower-planner that auto-detects active tower events, shows per-room requirements, calculates roster readiness, runs a constraint solver to auto-assign optimal teams, auto-detects progress from the API, recommends upgrades, tracks historical performance, and sends push notifications. Full E2E and unit test coverage required.",
+  "project": "MSF Companion — Difficulty-Aware Tower Planner",
+  "branchName": "ralph/tower-planner-difficulty-aware",
+  "description": "Replace the tower planner's 'weakest viable team' logic with real-opponent-power, margin-aware selection. Fetches actual enemy teams from /game/v1/nodeCombats/{combatId}, allocates scarce strong characters to the hardest cells first, surfaces honest confidence and margin signals, and captures post-fight outcomes for personal-margin tuning.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Tower API route — fetch active tower events and layout",
-      "description": "As the tower planner, I need a backend API route that detects the active tower event and returns its layout so that the frontend can display tower structure.",
+      "title": "Enemy team fetcher for tower cells",
+      "description": "As the tower planner, I need a module that fetches and caches the real enemy team for any tower cell so downstream solver and UI code has accurate opponent data.",
       "acceptanceCriteria": [
-        "New API route at src/app/api/tower/events/route.ts",
-        "GET handler fetches /game/v1/events?eventInfo=full&perPage=100 via msfApiFetch and filters for type 'pickYourPoison' with tower-related naming",
-        "Cross-references with /game/v1/survivalTowers to get tower layout (rays, rooms)",
-        "Returns JSON: { active: boolean, tower: { id, name, endDate, currentWeek, rays: [{ id, rooms: [{ id, name }] }] } | null }",
-        "currentWeek calculated from event startTime (week 1 = first 7 days, week 2 = after)",
-        "Returns { active: false, tower: null } when no tower event found",
-        "Unit test in src/app/api/tower/events/route.test.ts verifies: correct tower detection from mock events, correct week calculation, empty response when no tower active",
+        "New module src/lib/tower-enemy-fetcher.ts exports getEnemyTeam(combatId, towerId) and getEnemyTeamsForRooms(rooms, towerId)",
+        "Calls /game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId} via existing msfApiFetch helper in src/lib/msf-api.ts",
+        "Returns typed EnemyTeam { combatId, units: EnemyUnit[], totalPower: number } where EnemyUnit includes id, name, level, gearTier, activeYellow, activeRed, power, stats, nodeEffects, iso8",
+        "Skips rooms with no combatId; returns null for those entries in the array form",
+        "In-memory cache keyed by combatId, invalidated when meta.hashes.nodes changes (mirrors checkHashInvalidation pattern in src/lib/dd-service.ts)",
+        "Unit tests in src/lib/tower-enemy-fetcher.test.ts cover: successful fetch, missing combatId, cache hit, cache invalidation on hash change",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Foundation route. All other stories depend on tower detection working. Uses existing msfApiFetch from src/lib/msf-api.ts."
+      "notes": "Implemented src/lib/tower-enemy-fetcher.ts with getEnemyTeam / getEnemyTeamsForRooms, in-memory cache keyed by combatId, node-hash invalidation mirroring dd-service.ts. 4 unit tests passing; typecheck + lint clean."
     },
     {
       "id": "US-002",
-      "title": "Tower API route — per-room requirements with player auth",
-      "description": "As the tower planner, I need to fetch per-room trait/gear/star requirements using the player's auth token so that readiness can be calculated.",
+      "title": "Solve API exposes opponent power per room",
+      "description": "As the tower planner client, I need the /api/tower/solve route to include real opponent power per room in its response so the UI and solver work from the same numbers.",
       "acceptanceCriteria": [
-        "New API route at src/app/api/tower/rooms/route.ts",
-        "GET handler accepts query param towerId, fetches /player/v1/survivalTowers/{towerId} using user's session token",
-        "Returns JSON array of rooms: [{ id, rayId, name, requirements: { traits: string[], minGearTier: number, minStars: number, minLevel: number }, week: 1|2 }]",
-        "Rooms ordered by ray (A first, then B, then C) and room number within each ray",
-        "Returns 401 if user is not authenticated",
-        "Returns 404 if towerId not found or API returns error",
-        "Unit test in src/app/api/tower/rooms/route.test.ts verifies: correct auth passing, room ordering, 401 for unauthed, 404 for bad tower ID",
+        "src/app/api/tower/solve/route.ts handler calls getEnemyTeamsForRooms for the active tower's room list",
+        "Response JSON adds opponentPowers: Record<string, number> (roomId -> total opponent power) and opponentTeams: Record<string, EnemyTeam>",
+        "Existing response fields are preserved; no breaking changes to fields already consumed by TowerPlannerClient",
+        "Per-room fetch failures degrade gracefully: response includes successful rooms plus a roomFetchErrors: string[] listing failed combatIds",
+        "Unit test in src/app/api/tower/solve/route.test.ts mocks the fetcher and asserts opponentPowers, opponentTeams, and roomFetchErrors appear with correct values",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Depends on US-001 for tower ID. The player endpoint requires user auth — use getServerSession to get token."
+      "notes": "Implemented. Added optional combatId to TowerRoom (propagated from MSF room detail). Solve route now uses Promise.allSettled over getEnemyTeam per fetchable room; response gains opponentPowers, opponentTeams (keyed by roomId), and roomFetchErrors (failed combatIds). Rooms without combatId silently skipped. 3 new tests in route.test.ts all pass (mocks tower-solver dynamic import); typecheck + eslint clean."
     },
     {
       "id": "US-003",
-      "title": "Tower readiness calculation library",
-      "description": "As the tower planner, I need a library that compares player roster against room requirements to determine readiness status per room.",
+      "title": "Margin-aware team selection in tower-solver",
+      "description": "As a commander, I want the solver to pick the lowest-power eligible team that still beats the opponent by a safety margin so I save my best characters for the hardest cells without recommending death squads.",
       "acceptanceCriteria": [
-        "New file src/lib/tower-readiness.ts exports calculateRoomReadiness(roster, roomRequirements) and calculateOverallReadiness(roomStatuses)",
-        "calculateRoomReadiness returns: { status: 'ready'|'almost'|'blocked', eligibleCount: number, eligibleCharacters: Character[] }",
-        "Status logic: 'ready' = 5+ chars meeting ALL thresholds (traits + gear + stars + level), 'almost' = 3-4 eligible or 5 with some below one threshold, 'blocked' = fewer than 3 eligible",
-        "calculateOverallReadiness returns: { readyCount, almostCount, blockedCount, totalRooms, summary: string }",
-        "summary is plain English like 'You can likely clear 10 of 12 battles this tower'",
-        "Unit test in src/lib/tower-readiness.test.ts with test fixtures covering: all-ready roster, mixed roster, severely-blocked roster, edge case of exactly 5 with one below gear",
+        "src/lib/tower-solver.ts solveTowerAllocation accepts new opponentPowers: Map<string, number> and safetyMargin: number (default 1.10) options",
+        "For each room, after meetsRequirements filtering, eligible characters are sorted ascending by power and the smallest contiguous prefix whose summed power >= opponentPower * safetyMargin is selected",
+        "When no eligible subset meets the margin, solver picks the strongest eligible team (descending sort, take top N) and tags that room's result with marginFallback: true",
+        "Rooms processed in descending opponentPower order so scarce strong characters are reserved for the hardest cells",
+        "Exports a named constant SAFETY_MARGIN_DEFAULT = 1.10",
+        "Three new tests in src/lib/tower-solver.test.ts: (a) comfortable margin selects mid-power team not weakest, (b) no-viable-margin falls back to strongest with marginFallback: true, (c) ordering reserves top characters for the highest-opponentPower room",
+        "All previously-passing tests in tower-solver.test.ts still pass (update expected outputs only where the new logic legitimately changes them)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Pure logic library — no API calls, no UI. Roster comes from existing RosterSnapshot model. Room requirements come from US-002 API."
+      "notes": "Implemented. Added SAFETY_MARGIN_DEFAULT=1.10 export and optional 5th `options?: { opponentPowers?: Map<string, number>; safetyMargin?: number }` arg to solveTowerAllocation (backward-compatible). Rooms with known opponentPower are processed first, sorted descending by that power; per room the smallest ascending-power subset whose sum >= opponentPower * safetyMargin is selected via a swap-up window; when no subset qualifies, the strongest top-N is picked and tagged marginFallback: true. Rooms without opponentPower keep legacy weakest-viable + meta-team behavior. TeamAssignment gained optional marginFallback. 3 new tests added (SAFETY_MARGIN_DEFAULT constant, comfortable-margin mid-power selection, fallback when unmeetable, ordering reserves c9 for hardest cell). All 11 tower-solver tests + 3 solve-route tests + 4 enemy-fetcher tests pass. Typecheck + ESLint clean."
     },
     {
       "id": "US-004",
-      "title": "Tower constraint solver — team allocation algorithm",
-      "description": "As the tower planner, I need a constraint solver that optimally distributes teams across all rooms to maximize clearable rooms without wasting strong characters on easy battles.",
+      "title": "Honest confidence score from real margin",
+      "description": "As a commander reading a recommendation, I want the confidence label and reason to reflect the team's margin over the actual opponent, not a self-referential calculation.",
       "acceptanceCriteria": [
-        "New file src/lib/tower-solver.ts exports solveTowerAllocation(rooms, roster, metaTeams, clearedRooms?)",
-        "Returns: { assignments: Map<roomId, { characters: Character[], power: number, confidence: 'strong'|'shouldWork'|'risky', reason: string }>, unassignableRooms: string[] }",
-        "Solver allocates globally (not greedy room-by-room) — assigns weakest viable team to each room, preserving strong characters for harder rooms",
-        "Respects cooldown: each character assigned to at most one room per week",
-        "Respects all room requirements: traits, gear tier, stars, level",
-        "When power levels are within 10%, prefers meta team compositions from teamOrder/tower data",
-        "confidence: 'strong' when team power exceeds estimated need by 20%+, 'shouldWork' for 0-20% margin, 'risky' when barely meeting minimums",
-        "reason: 1-2 sentence explanation (e.g., 'Your strongest Mutant team — 150k above minimum')",
-        "Handles edge cases: rooms with no valid team get added to unassignableRooms, already-cleared rooms are skipped",
-        "Unit test in src/lib/tower-solver.test.ts: solver doesn't double-assign characters, respects trait requirements, assigns weaker teams to easy rooms, handles no-solution gracefully, excludes cleared rooms",
+        "src/lib/tower-solver.ts getConfidence(teamPower, opponentPower) returns one of 'strong' | 'shouldWork' | 'risky' | 'likelyLoss' using thresholds: >=1.30 strong, 1.10-1.30 shouldWork, 0.95-1.10 risky, <0.95 likelyLoss",
+        "Each result object includes marginPct (rounded to nearest integer) and a one-line reason string referencing the margin (e.g. 'Your team is ~18% stronger than the opponent.')",
+        "The previous self-referential baselineEstimate = minCharPower * 5 logic is removed",
+        "Old call sites that pass only teamPower keep compiling via a deprecated overload that delegates with opponentPower = teamPower / 1.10",
+        "Unit tests cover all four thresholds and the boundary values (1.30, 1.10, 0.95)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "This is the core algorithm. No UI, no API calls — pure function. Takes pre-fetched data. Meta teams come from /game/v1/analysis/teamOrder/tower (fetched elsewhere)."
+      "notes": "Implemented. Removed self-referential baselineEstimate logic from getConfidence. New exported `getConfidence(teamPower, opponentPower)` returns 4-state TeamConfidence ('strong' | 'shouldWork' | 'risky' | 'likelyLoss') with thresholds: >=1.30 strong, >=1.10 shouldWork, >=0.95 risky, <0.95 likelyLoss. Deprecated single-arg overload `getConfidence(teamPower)` delegates with opponentPower = teamPower / 1.10 (always returns 'shouldWork'), preserving the one legacy call site. TeamAssignment now exposes a required `marginPct: number` (rounded int, negative when team weaker). Reason strings rewritten to reference the actual margin (e.g. 'Your team is ~25% stronger than the opponent.'). Exported CONFIDENCE_THRESHOLDS constants. 12 new tests: all 4 confidence tiers, the three boundary values (1.30/1.10/0.95 inclusive), deprecated overload behavior, CONFIDENCE_THRESHOLDS values, marginPct present on opponent-aware path, likelyLoss on fallback, marginPct ≈ 10 on legacy path. All 30 targeted tests pass; typecheck + ESLint clean."
     },
     {
       "id": "US-005",
-      "title": "Tower upgrade recommendations library",
-      "description": "As the tower planner, I need logic that identifies which character upgrades would unlock the most additional rooms so players know what to farm.",
+      "title": "UI shows opponent power, team power, margin, confidence per cell",
+      "description": "As a commander using the planner, I want each room card to show the real opponent power, my team's power, the margin percentage, and the new confidence chip so I can see why a recommendation is or isn't safe.",
       "acceptanceCriteria": [
-        "New file src/lib/tower-upgrades.ts exports getUpgradeRecommendations(rooms, roster, readinessResults)",
-        "Returns: Array<{ characterName, currentValue, targetValue, upgradeType: 'gear'|'stars'|'level', roomsUnlocked: string[], impact: number }> sorted by impact descending",
-        "For 'almost' rooms: identifies the specific gap (e.g., character at G16 needs G17)",
-        "For 'blocked' rooms: explains why (e.g., 'Requires Storm (Mighty) — unlocked from this tower')",
-        "Maximum 5 recommendations returned (highest impact first)",
-        "impact = number of additional rooms that upgrade would unlock",
-        "Unit test in src/lib/tower-upgrades.test.ts: correct gap identification, sorted by impact, max 5 cap, blocked rooms get explanation",
+        "src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx renders for each room: opponent power, team total power, margin % (color-coded: green >=25%, yellow 10-25%, red <10%, deep-red <0%), and confidence chip including the new likelyLoss state",
+        "Cards with marginFallback: true show a visible warning banner using the existing destructive alert style: 'No team meets the recommended {margin}x safety margin - best available shown.'",
+        "Rooms whose enemy fetch failed (present in roomFetchErrors) show a muted 'Opponent data unavailable' line and silently use legacy entry-requirement-based selection",
+        "New e2e spec e2e/tower-planner-difficulty.spec.ts asserts the margin % renders on at least one room card and the warning banner renders when forced into fallback mode (via test fixture / mock)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Pure logic. Depends on readiness results from US-003. No UI."
+      "notes": "Implemented. TowerPlannerClient widened TeamAssignment.confidence to 4 states (added likelyLoss with bg-red-700) and added optional marginPct + marginFallback. SolverResult interface gained opponentPowers / opponentTeams / roomFetchErrors. RoomCard now renders per-cell: Team power (k), Opp power (k, when known), color-coded Margin % (green >=25, yellow 10-25, red <10, deep-red <0). marginFallback rooms render a red destructive banner: 'No team meets the recommended 1.10x safety margin \u2014 best available shown.' Rooms whose combatId is in roomFetchErrors render a muted 'Opponent data unavailable' line. New e2e/tower-planner-difficulty.spec.ts has 2 passing tests (margin % renders; fallback banner + likelyLoss chip). Typecheck + ESLint clean. All 30 existing solver/route/fetcher vitests still pass."
     },
     {
       "id": "US-006",
-      "title": "Tower meta teams API route",
-      "description": "As the tower planner, I need to fetch tower meta team data so the solver can prefer proven compositions.",
+      "title": "User-tunable safety margin slider",
+      "description": "As a commander, I want a header slider to dial my safety margin up or down across the whole tower without re-fetching data.",
       "acceptanceCriteria": [
-        "New API route at src/app/api/tower/meta-teams/route.ts",
-        "GET handler fetches /game/v1/analysis/teamOrder/tower?perPage=200 via msfApiFetch",
-        "Returns JSON: { teams: [{ squad: string[], usageTotal: number, winRate?: number }] }",
-        "squad contains character IDs that map to existing character data",
-        "Unit test in src/app/api/tower/meta-teams/route.test.ts verifies correct response shape and pass-through",
+        "Slider in the TowerPlannerClient header, range 1.00-1.50, step 0.05, default 1.10, labeled 'Safety margin'",
+        "Changing the slider re-runs the client-side solve against already-fetched opponentPowers/opponentTeams - no new API calls",
+        "Value persists in localStorage keyed by `tower-planner-margin:${towerEventId}`; clears when towerEventId changes",
+        "A 'Reset to default' link next to the slider snaps the value back to 1.10",
+        "Unit test covers the persistence read/write helper (pure function)",
+        "E2E test covers slider interaction triggering a margin recompute on at least one room card",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Simple pass-through API route. Uses client credentials (no user auth needed)."
+      "notes": "Implemented. New `src/lib/tower-margin-storage.ts` exports SAFETY_MARGIN_{MIN,MAX,STEP,DEFAULT} plus pure `loadSafetyMargin`, `saveSafetyMargin`, `clampSafetyMargin`, and `clearOtherEventMargins`. Storage key `tower-planner-margin:${towerEventId}`; values are clamped to [1.00,1.50] and snapped to 0.05 step on both read and write. Other-event keys are wiped whenever the active tower changes. Slider added to TowerPlannerClient header (range 1.00-1.50, step 0.05, default 1.10) with value chip and 'Reset to default' link. /api/tower/solve response now includes `solverInputs: { roster, solverRooms, metaTeams, clearedRooms }` so the client can call `solveTowerAllocation` locally on slider change — verified zero new API calls via Playwright route counter. Fallback warning banner now reflects the current slider value (was hardcoded to 1.10x before). 16 unit tests in tower-margin-storage.test.ts + 3 new e2e tests in tower-planner-safety-margin.spec.ts all pass; tsc + eslint clean; existing solver/route/fetcher tests unchanged."
     },
     {
       "id": "US-007",
-      "title": "TowerResult database model for history tracking",
-      "description": "As the system, I need a database table to store tower event results so players can see their performance history.",
+      "title": "Post-fight outcome feedback and suggested personal margin",
+      "description": "As a commander, after I run a fight I want to mark Won easily / Won barely / Lost so future runs suggest a personal safety margin based on my actual outcomes.",
       "acceptanceCriteria": [
-        "New Prisma model TowerResult with fields: id (cuid), userId (relation to User), towerEventId (string), towerName (string), roomsCleared (int), totalRooms (int), week1Cleared (int), week2Cleared (int), completedAt (DateTime)",
-        "Compound unique constraint on [userId, towerEventId] (one result per user per tower event)",
-        "prisma migrate dev creates the migration successfully",
-        "New API route at src/app/api/tower/history/route.ts — GET returns user's past results sorted by completedAt desc",
-        "POST to same route creates/updates a TowerResult record",
-        "Unit tests verify: GET returns empty array for new user, POST creates record, duplicate towerEventId upserts",
+        "Each room card renders three small buttons: 'Won easily', 'Won barely', 'Lost'",
+        "Clicking a button stores { towerEventId, roomId, outcome, recommendedTeam, opponentPower, timestamp } in localStorage under key 'tower-planner-outcomes' (rolling list)",
+        "A rolling tally of the last 20 outcomes computes a suggested personal margin displayed next to the safety-margin slider, e.g. 'Suggested: 1.20x - your last 10 fights at 1.10x lost 30% of the time.'",
+        "Suggestion is informational only - it never auto-changes the slider value",
+        "Unit tests cover outcome storage, rolling-window math, and the suggestion-text generator (pure functions)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "Schema-first story. Must complete before UI can display history."
+      "notes": "Implemented. New `src/lib/tower-outcome-storage.ts` exports OutcomeEntry/FightOutcome types plus pure `loadOutcomes`, `recordOutcome`, `clearOutcomes`, `tallyOutcomes`, `generateMarginSuggestion` (all accept optional storage arg). Rolling list capped at 100; suggestion window = last 20 (min 5 to show). Suggestion rules: lostPct>=20 -> +0.10, or (total>=10 && lost==0 && wonEasilyPct>=70) -> -0.05; suppressed at MIN/MAX bounds. TowerPlannerClient: 3 buttons per RoomCard (Won easily / Won barely / Lost) stored with { towerEventId, roomId, outcome, recommendedTeam, opponentPower, timestamp }; suggestion text shown next to safety-margin slider, informational only (never auto-changes slider). 18 unit tests pass; tsc + eslint clean."
     },
     {
       "id": "US-008",
-      "title": "Tower planner page — route, layout, and empty state",
-      "description": "As a player, I want to navigate to /analyze/tower-planner and see the tower planner page with correct layout and empty state when no tower is active.",
+      "title": "Node-effect-aware opponent power adjustment",
+      "description": "As a commander, I want per-character node buffs (extra hp/dmg/armor on specific tower nodes) to be reflected in the displayed opponent power so buffed cells aren't underweighted.",
       "acceptanceCriteria": [
-        "New page at src/app/(app)/analyze/tower-planner/page.tsx",
-        "Page uses same layout pattern as existing /analyze/dd-planner (app shell, bottom tab bar visible)",
-        "On load, calls /api/tower/events to check for active tower",
-        "When no tower active: shows empty state with message 'No tower event running right now. Check back when one starts.' and a tower icon",
-        "When tower active: shows tower name, 'Week X' badge, and end date in header area (content placeholder for now)",
-        "Page is mobile-responsive (no horizontal overflow at 390px width)",
-        "Loading state shows skeleton/spinner while fetching",
-        "E2E test in e2e/tower-planner-page.spec.ts: page loads at /analyze/tower-planner, empty state renders with mocked no-tower response, tower header renders with mocked active tower, no horizontal overflow at 390x844 viewport",
+        "src/lib/tower-enemy-fetcher.ts exports applyNodeEffects(unit) that multiplies unit.power by 1 + sum(boosts) / 1000 (boosts CSV is health,damage,armor,focus,resist in tenths of a percent)",
+        "EnemyTeam.totalPower reflects the adjusted values for every unit",
+        "Unit test verifies (a) an unboosted unit's adjusted power equals its base power and (b) a unit with boosts '350,150,50,25,25' has adjusted power higher than base by the expected ratio within +-2%",
+        "Code comment documents this as a heuristic pending dev clarification on Q1 (difficulty scaling)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "First UI story. Depends on US-001 API route. Keep it simple — just the shell and empty/active states."
-    },
-    {
-      "id": "US-009",
-      "title": "Tower planner page — room list with readiness badges",
-      "description": "As a player, I want to see all tower rooms listed vertically with their requirements and readiness status so I know where I stand.",
-      "acceptanceCriteria": [
-        "When tower is active, page fetches /api/tower/rooms and displays rooms in a vertical card list",
-        "Each room card shows: room name, required traits, gear/star/level minimums, eligible character count, and readiness badge",
-        "Readiness badge: green 'Ready to go', yellow 'Almost there', red 'Not possible yet'",
-        "Week 2 rooms separated by a divider showing 'Week 2 — unlocks [date]'",
-        "Summary bar at top shows: X ready / Y almost / Z blocked with plain English sentence",
-        "Uses calculateRoomReadiness and calculateOverallReadiness from tower-readiness.ts",
-        "E2E test in e2e/tower-planner-page.spec.ts: room cards render with correct status badges, summary bar shows counts, week 2 divider visible, status text matches exact labels",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Depends on US-002 (rooms API), US-003 (readiness lib), US-008 (page shell). The heavy UI story."
-    },
-    {
-      "id": "US-010",
-      "title": "Tower planner page — Pick My Teams button and solver UI",
-      "description": "As a player, I want to tap 'Pick My Teams' and see optimal team assignments appear on all room cards so I don't have to plan manually.",
-      "acceptanceCriteria": [
-        "A prominent 'Pick My Teams' button in the page header/summary area",
-        "Clicking runs solveTowerAllocation from tower-solver.ts with fetched rooms, roster, and meta teams",
-        "After solving, each room card shows: assigned team (character names), total power, confidence badge ('Strong pick'/'Should work'/'Risky')",
-        "Confidence badges styled: green for strong, yellow for shouldWork, red for risky",
-        "A 'Why this team?' expandable section per room showing the solver's reason text",
-        "Unassignable rooms show 'No valid team available' message",
-        "E2E test in e2e/tower-planner-solver.spec.ts: Pick My Teams button visible and clickable, assignments populate after click, confidence badges render with correct colors, Why this team expander works",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Depends on US-004 (solver), US-006 (meta teams), US-009 (room list UI). Wires the solver to the UI."
-    },
-    {
-      "id": "US-011",
-      "title": "Tower planner — manual override and re-solve",
-      "description": "As a player, I want to override an individual team assignment and have the solver re-run for remaining rooms.",
-      "acceptanceCriteria": [
-        "Each assigned room card has an 'Edit' or 'Change' button",
-        "Tapping opens a character picker for that room (showing eligible characters only)",
-        "After manual selection, that room's assignment updates and solver re-runs for all other unassigned rooms",
-        "Manual override characters are locked out of other rooms (cooldown enforced)",
-        "E2E test in e2e/tower-planner-solver.spec.ts: edit button visible on assigned rooms, manual override persists, re-solve updates other rooms",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Extension of US-010. Character picker can be a simple list/modal of eligible characters."
-    },
-    {
-      "id": "US-012",
-      "title": "Tower planner — auto-detect progress and manual fallback",
-      "description": "As a player, I want cleared rooms to update automatically from the API, with manual fallback when API data is unavailable.",
-      "acceptanceCriteria": [
-        "On page load, poll /api/tower/rooms for clear status (if API provides it)",
-        "Cleared rooms are dimmed with '✓ Cleared' text and no action buttons",
-        "If API doesn't provide clear status, show 'Mark as Cleared' button on each room",
-        "Tapping 'Mark as Cleared' dims room and saves to localStorage keyed by tower event ID",
-        "A 'Refresh Progress' button re-fetches from API",
-        "A 'Reset All' button with confirmation dialog clears all manual overrides",
-        "Cleared characters excluded from solver (same week only)",
-        "Week 2 progress independent of Week 1",
-        "E2E test in e2e/tower-planner-progress.spec.ts: cleared rooms dimmed, Mark as Cleared works and persists on reload, Reset All shows confirm then clears, Refresh button triggers loading state",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Depends on US-009 (room list). localStorage state keyed by tower event ID so different towers don't conflict."
-    },
-    {
-      "id": "US-013",
-      "title": "Tower planner — upgrade recommendations section",
-      "description": "As a player, I want to see a 'Things That Would Help You' section showing which upgrades unlock more rooms.",
-      "acceptanceCriteria": [
-        "A 'Things That Would Help You' section renders below the summary bar (above room list)",
-        "Shows up to 5 upgrade recommendations from getUpgradeRecommendations",
-        "Each shows: character name, current → target (e.g., 'Jean Grey: Gear 16 → 17'), and how many rooms it unlocks",
-        "Section hidden when all rooms are 'Ready to go'",
-        "For blocked rooms, shows explanation text (e.g., 'Storm (Mighty) unlocked from this tower')",
-        "E2E test in e2e/tower-planner-page.spec.ts: section renders with recommendations, each shows character and upgrade needed, section hidden when all ready",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Depends on US-005 (upgrades lib), US-009 (room list for context)."
-    },
-    {
-      "id": "US-014",
-      "title": "Tower planner — How It Works first-time experience",
-      "description": "As a first-time user, I want a 'How Tower Events Work' explainer so I understand the tool without prior knowledge.",
-      "acceptanceCriteria": [
-        "On first visit (no localStorage flag 'tower-planner-seen'), show expanded 'How Tower Events Work' section at top of page",
-        "Contains 3 numbered steps: (1) Each battle has trait rules, (2) Used teams get locked for the week, (3) We plan your teams so you clear the most rooms",
-        "After first visit, set localStorage flag and collapse section by default on future visits",
-        "Section has a collapse/expand toggle that works on tap",
-        "E2E test in e2e/tower-planner-page.spec.ts: section expanded on first visit (clean state), collapsed on second visit, expander toggle works, all 3 steps visible when expanded",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Simple UX polish story. No API dependencies."
-    },
-    {
-      "id": "US-015",
-      "title": "Analyze page — Tower Planner entry card",
-      "description": "As a player on the Analyze page, I want to see a Tower Planner card so I can navigate to the feature.",
-      "acceptanceCriteria": [
-        "A 'Tower Planner' card appears on /analyze page alongside existing tools (DD Planner, Farming Guide, etc.)",
-        "Card shows active tower event name and 'Week X' if one is running, or 'No active tower' if none",
-        "Clicking card navigates to /analyze/tower-planner",
-        "Card uses same component pattern as existing analyze page cards",
-        "E2E test in e2e/tower-planner-page.spec.ts: card visible on /analyze, shows tower name when active, shows 'No active tower' when inactive, click navigates correctly",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Simple navigation card. Depends on US-001 (events API) for active tower detection."
-    },
-    {
-      "id": "US-016",
-      "title": "Dashboard — active tower event card",
-      "description": "As a player visiting my dashboard, I want to see a tower event card when one is active so I don't miss it.",
-      "acceptanceCriteria": [
-        "When a tower event is active, a card appears on /dashboard",
-        "Card shows: tower name, time remaining (countdown or 'X days left'), readiness summary (e.g., 'You can clear 10/12 battles')",
-        "Clicking card navigates to /analyze/tower-planner",
-        "Card does NOT appear when no tower event is active",
-        "E2E test: card renders on dashboard with tower name and countdown when active (mocked), card absent when no tower (mocked), click navigates to tower planner",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Depends on US-001 (events API), US-003 (readiness lib for summary count)."
-    },
-    {
-      "id": "US-017",
-      "title": "Premium gate — paywall for free users",
-      "description": "As a product, Tower Planner is premium-only, so free users see a paywall instead of the full feature.",
-      "acceptanceCriteria": [
-        "On /analyze/tower-planner, check user subscription status (existing pattern from other premium features)",
-        "Non-subscribed users see a paywall screen: feature description, 2-3 key benefits (bullet points), and a 'Subscribe' CTA button",
-        "Subscribed users see the full tower planner (no paywall)",
-        "The Analyze page card and Dashboard card are visible to all users but link to paywall for free users",
-        "Uses existing Stripe subscription check (same as other premium features in the app)",
-        "E2E test in e2e/tower-planner-premium.spec.ts: free user sees paywall with subscribe button, premium user sees full planner, subscribe button is clickable",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Uses existing subscription infrastructure. Check how other premium features gate access and follow that pattern."
-    },
-    {
-      "id": "US-018",
-      "title": "Tower history — UI section on planner page",
-      "description": "As a player, I want to see my past tower results on the planner page so I can track improvement over time.",
-      "acceptanceCriteria": [
-        "A 'History' section at the bottom of the tower planner page (or a tab/toggle)",
-        "Fetches /api/tower/history and displays past results in reverse chronological order",
-        "Each entry shows: tower name, date, rooms cleared (e.g., '10/12'), comparison to previous ('↑2' or '↓1' or 'First time')",
-        "Comparison uses green for improvement, red for decline, gray for first entry",
-        "Shows friendly empty state for users with no history: 'Complete your first tower to see history here'",
-        "History visible even when no tower is currently active",
-        "E2E test: history section renders past results, comparison arrows show correct direction and color, empty state for new users",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Depends on US-007 (TowerResult model and API)."
-    },
-    {
-      "id": "US-019",
-      "title": "Push notifications — tower event start and Week 2 unlock",
-      "description": "As a player, I want push notifications when tower events start and when Week 2 unlocks so I don't miss the window.",
-      "acceptanceCriteria": [
-        "When a new tower event becomes active, trigger notification: '[Tower Name] is live — see your plan'",
-        "When Week 2 rooms unlock (based on event timing), trigger notification: 'Week 2 unlocked — your teams are refreshed'",
-        "Notifications deep-link to /analyze/tower-planner",
-        "Notifications respect user's existing notification preferences (tower notifications can be disabled)",
-        "Uses existing notification infrastructure (same pattern as daily briefing notifications)",
-        "Add tower notification toggle in notification preferences UI",
-        "Unit test: notification trigger fires on new tower detection, Week 2 timing correct, disabled when user preference is off",
-        "E2E test: notification preference toggle visible and functional in settings",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Depends on US-001 (tower detection). Follow existing notification patterns exactly."
-    },
-    {
-      "id": "US-020",
-      "title": "Tower history — auto-save result when tower event ends",
-      "description": "As the system, I need to automatically save a TowerResult when a tower event ends so history builds up without user action.",
-      "acceptanceCriteria": [
-        "When the tower planner detects a previously-active tower event is now ended (based on endDate), save the current progress as a TowerResult via POST /api/tower/history",
-        "Only saves if user had any progress (at least 1 room cleared)",
-        "Counts cleared rooms from both API auto-detect and manual marks",
-        "Does not duplicate — checks if TowerResult already exists for this event ID before saving",
-        "Unit test: auto-save triggers on event end, skips if no progress, skips if already saved",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Depends on US-007 (history API), US-012 (progress tracking). Runs client-side on page load comparison."
+      "notes": "Implemented. `src/lib/tower-enemy-fetcher.ts` now exports `applyNodeEffects(unit)` (and supporting `NodeEffects`/`NodeEffectBoosts` types). Handles BOTH boost shapes from the MSF StatBoost schema: CSV string (PRD order health,damage,armor,focus,resist[,...]) and object form. Power multiplier = 1 + sum(health+damage+armor+focus+resist)/1000 (values are tenths of a percent per PRD). Returns unit unchanged when sum is 0 or power is missing. `buildEnemyTeam` applies the adjustment so `EnemyTeam.totalPower` reflects buffed values automatically — downstream solver/UI need no changes since they consume totalPower via opponentPowers from US-002. JSDoc marks the formula as a heuristic pending dev clarification on Q1 (difficulty scaling). 4 new unit tests: unboosted unchanged, CSV '350,150,50,25,25' within ±2% of base*1.60, object form (200 sum → ×1.20 exact), totalPower aggregates adjusted values. All 8 enemy-fetcher tests + 68 related (solver/route/margin/outcome) pass; tsc + eslint clean."
     }
   ]
 }
