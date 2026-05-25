@@ -113,6 +113,23 @@ export function clearOutcomes(
   }
 }
 
+/**
+ * Return the most recent logged outcome for a given tower event + room id,
+ * or `null` if none. Used by the UI to highlight the previously chosen
+ * outcome button on a cell.
+ */
+export function getRoomOutcome(
+  outcomes: OutcomeEntry[],
+  towerEventId: string,
+  roomId: string,
+): OutcomeEntry | null {
+  for (let i = outcomes.length - 1; i >= 0; i--) {
+    const o = outcomes[i];
+    if (o.towerEventId === towerEventId && o.roomId === roomId) return o;
+  }
+  return null;
+}
+
 export interface OutcomeTally {
   total: number;
   wonEasily: number;

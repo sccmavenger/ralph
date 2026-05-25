@@ -24,6 +24,7 @@ import {
   loadOutcomes,
   recordOutcome,
   generateMarginSuggestion,
+  getRoomOutcome,
 } from "@/lib/tower-outcome-storage";
 
 interface TowerRay {
@@ -94,11 +95,25 @@ interface TeamAssignment {
   marginFallback?: boolean;
 }
 
+interface OpponentUnit {
+  id: string;
+  name?: string;
+  level?: number;
+  gearTier?: number;
+  power?: number;
+}
+
+interface OpponentTeam {
+  combatId: string;
+  totalPower: number;
+  units?: OpponentUnit[];
+}
+
 interface SolverResult {
   assignments: Record<string, TeamAssignment>;
   unassignableRooms: string[];
   opponentPowers?: Record<string, number>;
-  opponentTeams?: Record<string, { combatId: string; totalPower: number }>;
+  opponentTeams?: Record<string, OpponentTeam>;
   roomFetchErrors?: string[];
   // US-006: solver inputs echoed back so we can re-run the solver client-side
   // when the user adjusts the safety-margin slider (no new API call).
@@ -725,12 +740,15 @@ export default function TowerPlannerClient() {
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
         {roomsByCellDesc.map((room) => {
           const opponentPower = solverResult?.opponentPowers?.[room.id];
+          const opponentTeam = solverResult?.opponentTeams?.[room.id];
           // A room is "data unavailable" when it had a combatId we tried to fetch but failed.
           // Rooms with no combatId at all silently use the legacy path with no message.
           const enemyFetchFailed = !!(
             room.combatId &&
             solverResult?.roomFetchErrors?.includes(room.combatId)
           );
+          const evtId = tower?.eventId ?? tower?.id ?? "";
+          const loggedOutcome = evtId ? getRoomOutcome(outcomes, evtId, room.id) : null;
           return (
             <RoomCard
               key={room.id}
@@ -741,9 +759,11 @@ export default function TowerPlannerClient() {
               availableNow={isAvailableNow(room)}
               onMarkCleared={() => markRoomCleared(room.id)}
               opponentPower={opponentPower}
+              opponentTeam={opponentTeam}
               enemyFetchFailed={enemyFetchFailed}
               safetyMargin={safetyMargin}
               onRecordOutcome={(outcome) => handleRecordOutcome(room.id, outcome)}
+              loggedOutcome={loggedOutcome?.outcome ?? null}
             />
           );
         })}
@@ -809,9 +829,10 @@ function marginColorClass(marginPct: number): string {
   return "text-green-400";
 }
 
-function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT, onRecordOutcome }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; enemyFetchFailed?: boolean; safetyMargin?: number; onRecordOutcome?: (outcome: FightOutcome) => void }) {
+function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, opponentTeam, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT, onRecordOutcome, loggedOutcome }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; opponentTeam?: OpponentTeam; enemyFetchFailed?: boolean; safetyMargin?: number; onRecordOutcome?: (outcome: FightOutcome) => void; loggedOutcome?: FightOutcome | null }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [showOpponent, setShowOpponent] = useState(false);
   const status = readiness?.status || "blocked";
   const eligibleCount = readiness?.eligibleCount || 0;
 
@@ -952,31 +973,92 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
           {showReason && (
             <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
           )}
+          {/* Opponent details expander — shows the actual enemy team behind the opp power number. */}
+          {opponentTeam?.units && opponentTeam.units.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowOpponent(!showOpponent)}
+                className="mt-1 ml-3 text-xs text-purple-400 hover:text-purple-300"
+                data-testid="show-opponent-btn"
+              >
+                {showOpponent ? "Hide opponent" : "Show opponent"}
+              </button>
+              {showOpponent && (
+                <div className="mt-1 rounded border border-gray-700 bg-gray-900/60 p-2" data-testid="opponent-details">
+                  <div className="mb-1 text-[11px] font-semibold text-gray-300">
+                    Opponent team
+                    {typeof opponentTeam.totalPower === "number" && opponentTeam.totalPower > 0 && (
+                      <span className="ml-1 text-gray-500">· {(opponentTeam.totalPower / 1000).toFixed(0)}k total</span>
+                    )}
+                  </div>
+                  <ul className="space-y-0.5 text-[11px] text-gray-300">
+                    {opponentTeam.units.map((u) => (
+                      <li key={u.id} className="flex justify-between gap-2" data-testid="opponent-unit">
+                        <span className="truncate">
+                          {u.name ?? u.id}
+                          {(u.gearTier || u.level) && (
+                            <span className="ml-1 text-gray-500">
+                              {u.gearTier ? `G${u.gearTier}` : ""}{u.gearTier && u.level ? " · " : ""}{u.level ? `Lv${u.level}` : ""}
+                            </span>
+                          )}
+                        </span>
+                        {typeof u.power === "number" && u.power > 0 && (
+                          <span className="text-gray-400 whitespace-nowrap">{(u.power / 1000).toFixed(0)}k</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
           {/* US-007: post-fight outcome buttons — informational, no slider change. */}
           {onRecordOutcome && (
-            <div className="mt-2 flex gap-1.5" data-testid="outcome-buttons">
-              <button
-                onClick={() => onRecordOutcome("wonEasily")}
-                className="flex-1 rounded border border-green-700 bg-green-900/30 px-2 py-1 text-[11px] text-green-300 hover:bg-green-900/60"
-                data-testid="outcome-won-easily"
-              >
-                Won easily
-              </button>
-              <button
-                onClick={() => onRecordOutcome("wonBarely")}
-                className="flex-1 rounded border border-yellow-700 bg-yellow-900/30 px-2 py-1 text-[11px] text-yellow-300 hover:bg-yellow-900/60"
-                data-testid="outcome-won-barely"
-              >
-                Won barely
-              </button>
-              <button
-                onClick={() => onRecordOutcome("lost")}
-                className="flex-1 rounded border border-red-700 bg-red-900/30 px-2 py-1 text-[11px] text-red-300 hover:bg-red-900/60"
-                data-testid="outcome-lost"
-              >
-                Lost
-              </button>
-            </div>
+            <>
+              <div className="mt-2 flex gap-1.5" data-testid="outcome-buttons">
+                <button
+                  onClick={() => onRecordOutcome("wonEasily")}
+                  className={`flex-1 rounded border px-2 py-1 text-[11px] transition-colors ${
+                    loggedOutcome === "wonEasily"
+                      ? "border-green-400 bg-green-700 text-white font-semibold"
+                      : "border-green-700 bg-green-900/30 text-green-300 hover:bg-green-900/60"
+                  }`}
+                  data-testid="outcome-won-easily"
+                  aria-pressed={loggedOutcome === "wonEasily"}
+                >
+                  {loggedOutcome === "wonEasily" ? "✓ Won easily" : "Won easily"}
+                </button>
+                <button
+                  onClick={() => onRecordOutcome("wonBarely")}
+                  className={`flex-1 rounded border px-2 py-1 text-[11px] transition-colors ${
+                    loggedOutcome === "wonBarely"
+                      ? "border-yellow-400 bg-yellow-700 text-white font-semibold"
+                      : "border-yellow-700 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/60"
+                  }`}
+                  data-testid="outcome-won-barely"
+                  aria-pressed={loggedOutcome === "wonBarely"}
+                >
+                  {loggedOutcome === "wonBarely" ? "✓ Won barely" : "Won barely"}
+                </button>
+                <button
+                  onClick={() => onRecordOutcome("lost")}
+                  className={`flex-1 rounded border px-2 py-1 text-[11px] transition-colors ${
+                    loggedOutcome === "lost"
+                      ? "border-red-400 bg-red-700 text-white font-semibold"
+                      : "border-red-700 bg-red-900/30 text-red-300 hover:bg-red-900/60"
+                  }`}
+                  data-testid="outcome-lost"
+                  aria-pressed={loggedOutcome === "lost"}
+                >
+                  {loggedOutcome === "lost" ? "✓ Lost" : "Lost"}
+                </button>
+              </div>
+              {loggedOutcome && (
+                <p className="mt-1 text-[11px] text-gray-500" data-testid="outcome-logged-note">
+                  Outcome logged — feeds the personal-margin suggestion.
+                </p>
+              )}
+            </>
           )}
           {showPicker && (
             <div className="mt-2 rounded border border-gray-600 bg-gray-900 p-2" data-testid="character-picker">
