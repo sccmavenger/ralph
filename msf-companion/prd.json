@@ -48,8 +48,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented in src/lib/tower-ability-tags.ts. Note: PRD AC referenced an existing `getCharacterAbilities` helper but no such helper exists under src/lib (verified by grep). Used the canonical low-level `msfApiFetch` directly (same pattern as tower-enemy-fetcher.ts and upgrade-calculator.ts) hitting `/game/v1/characters/{id}?charInfo=full&abilityKits=full`. Heuristic tagger emits all 16 vocabulary tags; specific-qualifier patterns (immune_to_bleed, heal_block, revive_block) checked before their broader siblings. Cache: in-memory Map + localStorage (key tower-ability-tags-cache-v1), invalidated when meta.hashes.chars changes (mirrors tower-enemy-fetcher). 7/7 tests pass in src/lib/tower-ability-tags.test.ts; typecheck + ESLint clean."
     },
     {
       "id": "US-004",

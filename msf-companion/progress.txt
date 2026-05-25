@@ -211,3 +211,17 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - `Character` interface lives in `src/lib/tower-readiness.ts` (the canonical solver-side shape). Import from there, not from any per-route definition.
   - For 0–100 scoring functions, prefer `Math.min(100, total)` with an early `return 100` short-circuit once saturated — keeps the function pure and avoids unnecessary trait scans after multi-passive overlap.
 ---
+
+## 2026-05-25 - US-003 - Opponent ability-tag extractor with cache
+- Implemented `src/lib/tower-ability-tags.ts` exporting `extractAbilityTags(characterIds, accessToken)`, `tagAbilityText(text)`, `clearAbilityTagCache()`, `ABILITY_TAG_VOCABULARY`, and `AbilityTag`.
+- Calls `/game/v1/characters/{id}?charInfo=full&abilityKits=full&lang=en` via existing `msfApiFetch` (the PRD/instructions said an existing `getCharacterAbilities` helper would be present under `src/lib` — verified by grep that NO such helper exists; `msfApiFetch` is the canonical low-level helper used by `tower-enemy-fetcher.ts`, `upgrade-calculator.ts`, etc., so I used it directly).
+- Heuristic tagger covers all 16 vocabulary tags: revive, heal, bleed, disrupted, slow, blind, offense_down, defense_down, stun, ability_block, dispel, taunt, counter_attack, immune_to_bleed, heal_block, revive_block. Specific-qualifier patterns checked before broader siblings (e.g. `immune to bleed` suppresses `bleed`).
+- Cache: in-memory `Map<charId, {hash, tags}>` + localStorage persistence (`tower-ability-tags-cache-v1` / `tower-ability-tags-chars-hash-v1`). Invalidates whole cache when `meta.hashes.chars` changes (mirrors `checkHashInvalidation` in `tower-enemy-fetcher.ts` / `dd-service.ts`).
+- `Promise.allSettled` over per-character fetches: characters whose fetch rejects are simply omitted from the result rather than failing the whole call.
+- 7 new tests in `src/lib/tower-ability-tags.test.ts`: tagger emits multiple tags, immune_to_bleed suppresses bleed, revive_block suppresses revive, dispel/taunt/counter-attack idioms, end-to-end tag extraction for 3 chars, in-memory cache hit, hash-invalidation flow, graceful per-character fetch rejection. Plus original 8 `tower-scoring` tests: 16/16 pass. Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - PRD claimed an existing helper that didn't exist — always verify with grep before trusting PRD AC. When the claim is wrong, follow the established repo pattern (`msfApiFetch` for MSF endpoints) and document the discrepancy in PRD notes + progress.
+  - Cache-invalidation semantics matter: my cache only checks the upstream hash on fetches, so a pure cache-hit call never re-validates. This is consistent with `tower-enemy-fetcher` and `dd-service`. Tests for invalidation must trigger a fetch (e.g. by requesting a NEW character) to surface the hash change — otherwise the cache hit short-circuits the check.
+  - The MSF `/game/v1/characters/{id}` endpoint returns `data.abilityKit.{basic,special,ultimate,passive}.levels[level].description`. Levels are keyed by numeric strings (e.g. `"1"`, `"7"`); take the highest-numbered level for max-rank kit text.
+  - `meta.hashes.chars` (not `meta.hashes.nodes`) is the right invalidation signal for character-keyed caches; nodes is for combat-cell data.
+---
