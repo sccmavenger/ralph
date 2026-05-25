@@ -6,23 +6,18 @@ Packaging service functions (npm dependencies already up-to-date)
 Packaging service functions (Running npm package script)
 Packaging service functions (Compressing deployment artifacts)
 Deploying service functions (Uploading deployment package)
-Deploying service functions (Fetching endpoints for function app)
-  (Γ£ô) Done: Deploying service functions
-  - Endpoint: https://func-47le33tuyu2mg.azurewebsites.net/ 
+  (x) Failed: Deploying service functions
 
-Deploying service web
-Publishing service web (Packing remote build context)
-Publishing service web (Uploading remote build context)
-Deploying service web (Updating container app revision)
-Deploying service web (Fetching endpoints for service)
-  (Γ£ô) Done: Deploying service web
-  - Endpoint: https://ca-web-47le33tuyu2mg.gentleground-8846f127.westus.azurecontainerapps.io/ 
+ERROR: failed deploying service 'functions': POST https://func-47le33tuyu2mg.scm.azurewebsites.net/api/zipdeploy
+--------------------------------------------------------------------------------
+RESPONSE 409: 409 Conflict
+ERROR CODE UNAVAILABLE
+--------------------------------------------------------------------------------
+"Run-From-Zip is set to a remote URL using WEBSITE_RUN_FROM_PACKAGE or WEBSITE_USE_ZIP app setting. Deployment is not supported in this configuration."
+--------------------------------------------------------------------------------
 
-
-SUCCESS: Your application was deployed to Azure in 3 minutes 27 seconds.
-You can view the resources created under the resource group rg-msf-companion-prod in Azure Portal:
-https://portal.azure.com/#@/resource/subscriptions/b2b3abbb-0921-496b-8a0f-7433a31290f8/resourceGroups/rg-msf-companion-prod/overview
-WARNING: your version of azd is out of date, you have 1.23.13 and the latest stable version is 1.25.1
+TraceID: c01d4f540b5a1acc05ecdcd653ee441a
+WARNING: your version of azd is out of date, you have 1.23.13 and the latest stable version is 1.25.2
 
 To update to the latest version, run:
 winget upgrade Microsoft.Azd
