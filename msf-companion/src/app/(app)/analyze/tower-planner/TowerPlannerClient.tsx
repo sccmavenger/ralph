@@ -9,6 +9,8 @@ import {
   type TeamAssignment as SolverTeamAssignment,
 } from "@/lib/tower-solver";
 import type { Character } from "@/lib/tower-readiness";
+import type { CompositeBreakdown } from "@/lib/tower-scoring";
+import { FACTION_PASSIVES, COUNTER_MAP } from "@/lib/tower-scoring-data";
 import {
   SAFETY_MARGIN_DEFAULT,
   SAFETY_MARGIN_MAX,
@@ -87,12 +89,13 @@ interface RoomReadiness {
 }
 
 interface TeamAssignment {
-  characters: Array<{ id: string; name: string }>;
+  characters: Array<{ id: string; name: string; traits?: string[] }>;
   power: number;
   confidence: "strong" | "shouldWork" | "risky" | "likelyLoss";
   reason: string;
   marginPct?: number;
   marginFallback?: boolean;
+  compositeScore?: CompositeBreakdown;
 }
 
 interface OpponentUnit {
@@ -450,12 +453,13 @@ export default function TowerPlannerClient() {
     const assignments: Record<string, TeamAssignment> = {};
     result.assignments.forEach((value: SolverTeamAssignment, key: string) => {
       assignments[key] = {
-        characters: value.characters.map((c) => ({ id: c.id, name: c.name })),
+        characters: value.characters.map((c) => ({ id: c.id, name: c.name, traits: c.traits })),
         power: value.power,
         confidence: value.confidence,
         reason: value.reason,
         marginPct: value.marginPct,
         marginFallback: value.marginFallback,
+        compositeScore: value.compositeScore,
       };
     });
     return {
@@ -829,6 +833,47 @@ function marginColorClass(marginPct: number): string {
   return "text-green-400";
 }
 
+/**
+ * Find which FACTION_PASSIVES were activated by this team (≥minMembers
+ * sharing the trait) and return their human descriptions. Used by the
+ * "Why this team?" panel (US-007).
+ */
+function activePassiveDescriptions(
+  characters: Array<{ traits?: string[] }>,
+): string[] {
+  const out: string[] = [];
+  for (const passive of Object.values(FACTION_PASSIVES)) {
+    const count = characters.reduce(
+      (n, c) => ((c.traits ?? []).includes(passive.trait) ? n + 1 : n),
+      0,
+    );
+    if (count >= passive.minMembers) out.push(passive.description);
+  }
+  return out;
+}
+
+/**
+ * Find opponent ability tags present on the opponent team that have an
+ * entry in COUNTER_MAP, and return a human description of each. The
+ * opponent unit tags surface in US-008 (`OpponentUnit.tags`); until then
+ * this returns [] for opponents without tag data.
+ */
+function counteredOpponentDescriptions(opponentTeam?: OpponentTeam): string[] {
+  if (!opponentTeam?.units) return [];
+  const tags = new Set<string>();
+  for (const unit of opponentTeam.units) {
+    const unitTags = (unit as { tags?: string[] }).tags;
+    if (Array.isArray(unitTags)) for (const t of unitTags) tags.add(t);
+  }
+  const out: string[] = [];
+  for (const tag of tags) {
+    const entry = COUNTER_MAP[tag];
+    if (!entry) continue;
+    out.push(`Opponent ${tag} — countered by ${entry.counteredBy.join(" / ")}`);
+  }
+  return out;
+}
+
 function RoomCard({ room, readiness, assignment, cleared, availableNow = false, onMarkCleared, opponentPower, opponentTeam, enemyFetchFailed = false, safetyMargin = SAFETY_MARGIN_DEFAULT, onRecordOutcome, loggedOutcome }: { room: TowerRoom; readiness?: RoomReadiness; assignment?: TeamAssignment; cleared: boolean; availableNow?: boolean; onMarkCleared: () => void; opponentPower?: number; opponentTeam?: OpponentTeam; enemyFetchFailed?: boolean; safetyMargin?: number; onRecordOutcome?: (outcome: FightOutcome) => void; loggedOutcome?: FightOutcome | null }) {
   const [showReason, setShowReason] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -971,7 +1016,53 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
             {showReason ? "Hide" : "Why this team?"}
           </button>
           {showReason && (
-            <p className="mt-1 text-xs text-gray-400">{assignment.reason}</p>
+            <div className="mt-1 text-xs text-gray-400" data-testid="why-this-team-panel">
+              <p>{assignment.reason}</p>
+              {assignment.compositeScore && (
+                <ul className="mt-2 flex flex-col gap-1" data-testid="composite-breakdown">
+                  <li data-testid="composite-power">
+                    <span className="text-gray-300">Power margin:</span>{" "}
+                    <span className="font-mono">{assignment.compositeScore.power}/100</span>
+                  </li>
+                  <li data-testid="composite-synergy">
+                    <span className="text-gray-300">Faction synergy:</span>{" "}
+                    <span className="font-mono">{assignment.compositeScore.synergy}/100</span>
+                    {assignment.compositeScore.synergy > 0 &&
+                      activePassiveDescriptions(assignment.characters).map((d, i) => (
+                        <span
+                          key={i}
+                          className="ml-1 block pl-3 text-[11px] text-gray-500"
+                          data-testid="composite-synergy-desc"
+                        >
+                          · {d}
+                        </span>
+                      ))}
+                  </li>
+                  <li data-testid="composite-counter">
+                    <span className="text-gray-300">Counter coverage:</span>{" "}
+                    <span className="font-mono">{assignment.compositeScore.counter}/100</span>
+                    {assignment.compositeScore.counter > 0 &&
+                      counteredOpponentDescriptions(opponentTeam).map((d, i) => (
+                        <span
+                          key={i}
+                          className="ml-1 block pl-3 text-[11px] text-gray-500"
+                          data-testid="composite-counter-desc"
+                        >
+                          · {d}
+                        </span>
+                      ))}
+                  </li>
+                  <li data-testid="composite-role-balance">
+                    <span className="text-gray-300">Role balance:</span>{" "}
+                    <span className="font-mono">{assignment.compositeScore.roleBalance}/100</span>
+                  </li>
+                  <li data-testid="composite-total" className="border-t border-gray-700 pt-1">
+                    <span className="text-gray-200">Total score:</span>{" "}
+                    <span className="font-mono">{assignment.compositeScore.total}/100</span>
+                  </li>
+                </ul>
+              )}
+            </div>
           )}
           {/* Opponent details expander — shows the actual enemy team behind the opp power number. */}
           {opponentTeam?.units && opponentTeam.units.length > 0 && (

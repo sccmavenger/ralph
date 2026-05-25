@@ -53,6 +53,32 @@ export const CONFIDENCE_THRESHOLDS = {
   risky: 0.95,
 } as const;
 
+/**
+ * Confidence thresholds for {@link getConfidenceFromComposite} (composite
+ * total, 0–100). Boundary values are inclusive of the higher tier
+ * (e.g. 75 → "strong"). US-007.
+ */
+export const COMPOSITE_CONFIDENCE_THRESHOLDS = {
+  strong: 75,
+  shouldWork: 55,
+  risky: 35,
+} as const;
+
+/**
+ * Map a composite total (0–100) to a confidence tier (US-007).
+ *
+ *   >= 75  → strong       ("Strong pick")
+ *   >= 55  → shouldWork   ("Should work")
+ *   >= 35  → risky        ("Risky")
+ *   <  35  → likelyLoss   ("Likely loss")
+ */
+export function getConfidenceFromComposite(total: number): TeamConfidence {
+  if (total >= COMPOSITE_CONFIDENCE_THRESHOLDS.strong) return "strong";
+  if (total >= COMPOSITE_CONFIDENCE_THRESHOLDS.shouldWork) return "shouldWork";
+  if (total >= COMPOSITE_CONFIDENCE_THRESHOLDS.risky) return "risky";
+  return "likelyLoss";
+}
+
 export interface SolverResult {
   assignments: Map<string, TeamAssignment>;
   unassignableRooms: string[];
@@ -396,9 +422,16 @@ export function solveTowerAllocation(
       }
 
       const power = chosenSum;
-      const confidence = getConfidence(power, opponentPower);
+      let confidence = getConfidence(power, opponentPower);
       const marginPct = Math.round((power / opponentPower - 1) * 100);
-      const reason = buildMarginReason(confidence, marginPct, marginFallback, safetyMargin);
+      let reason = buildMarginReason(confidence, marginPct, marginFallback, safetyMargin);
+      // US-007: when composite was computed, derive the confidence label from
+      // the composite total (not raw margin) and append the breakdown to the
+      // reason so the UI can show a quick textual summary.
+      if (compositeBreakdown) {
+        confidence = getConfidenceFromComposite(compositeBreakdown.total);
+        reason = `${reason} Score ${compositeBreakdown.total}/100 (power ${compositeBreakdown.power}, synergy ${compositeBreakdown.synergy}, counter ${compositeBreakdown.counter}, balance ${compositeBreakdown.roleBalance}).`;
+      }
 
       for (const char of assignedTeam) usedCharIds.add(char.id);
       assignments.set(room.id, {

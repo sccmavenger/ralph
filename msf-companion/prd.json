@@ -116,8 +116,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added COMPOSITE_CONFIDENCE_THRESHOLDS (75/55/35) + getConfidenceFromComposite() in src/lib/tower-solver.ts. Solver now overrides the margin-based confidence with composite-based confidence whenever a compositeBreakdown is computed, and appends 'Score N/100 (power N, synergy N, counter N, balance N).' to the reason string. TowerPlannerClient.tsx: widened UI TeamAssignment.compositeScore from solver, included character traits in the UI shape, and replaced the single-line 'Why this team?' text with a structured breakdown list (one <li> per sub-score) including activatedPassiveDescriptions (derived from team traits vs FACTION_PASSIVES) under synergy and counteredOpponentDescriptions (derived from opponent unit tags vs COUNTER_MAP — surfaces only when US-008 attaches tags). 9 new tests: 5 for getConfidenceFromComposite thresholds + 2 for composite-derived assignment confidence + 2 for the reason-string breakdown. Typecheck + ESLint clean."
     },
     {
       "id": "US-008",

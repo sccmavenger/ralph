@@ -5,6 +5,8 @@ import {
   SAFETY_MARGIN_DEFAULT,
   getConfidence,
   CONFIDENCE_THRESHOLDS,
+  getConfidenceFromComposite,
+  COMPOSITE_CONFIDENCE_THRESHOLDS,
 } from "./tower-solver";
 import { Character } from "./tower-readiness";
 
@@ -415,5 +417,96 @@ describe("solveTowerAllocation — composite re-ranking (US-006)", () => {
     const assn = result.assignments.get("r1")!;
     expect(assn.marginFallback).toBe(true);
     expect(assn.compositeScore).toBeUndefined();
+  });
+});
+
+describe("getConfidenceFromComposite — composite confidence label (US-007)", () => {
+  it("exposes COMPOSITE_CONFIDENCE_THRESHOLDS matching the PRD spec", () => {
+    expect(COMPOSITE_CONFIDENCE_THRESHOLDS.strong).toBe(75);
+    expect(COMPOSITE_CONFIDENCE_THRESHOLDS.shouldWork).toBe(55);
+    expect(COMPOSITE_CONFIDENCE_THRESHOLDS.risky).toBe(35);
+  });
+
+  it("returns 'strong' when total >= 75", () => {
+    expect(getConfidenceFromComposite(75)).toBe("strong");
+    expect(getConfidenceFromComposite(100)).toBe("strong");
+  });
+
+  it("returns 'shouldWork' when 55 <= total < 75", () => {
+    expect(getConfidenceFromComposite(55)).toBe("shouldWork");
+    expect(getConfidenceFromComposite(74)).toBe("shouldWork");
+  });
+
+  it("returns 'risky' when 35 <= total < 55", () => {
+    expect(getConfidenceFromComposite(35)).toBe("risky");
+    expect(getConfidenceFromComposite(54)).toBe("risky");
+  });
+
+  it("returns 'likelyLoss' when total < 35", () => {
+    expect(getConfidenceFromComposite(34)).toBe("likelyLoss");
+    expect(getConfidenceFromComposite(0)).toBe("likelyLoss");
+  });
+});
+
+describe("solveTowerAllocation — composite-derived confidence (US-007)", () => {
+  it("when composite is computed, confidence label derives from composite total (not raw margin)", () => {
+    // High raw-margin team (4x opponent power) BUT zero counter coverage,
+    // zero faction synergy → composite total should fall below 75 and the
+    // confidence should NOT be the margin-based "strong".
+    // Power-margin score: ratio 4.0, extra 4.0 - 1.10 = 2.90, normalized
+    // clipped to 1 → 100. Synergy 0 (Mutant not in FACTION_PASSIVES). Counter
+    // 0 (no opp tags counter-mapped, see below). Role balance: all chars
+    // tagged neither healer nor tank → all damage → only the damage bucket
+    // activates → ~33. Total ≈ 100*0.45 + 0 + 0 + 33*0.10 = 48 → "risky".
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 800_000 })
+    );
+    const opponentPowers = new Map<string, number>([["r1", 1_000_000]]);
+    const opponentTags = new Map<string, string[]>([["r1", []]]);
+    const characterTags: Record<string, string[]> = {
+      c0: [],
+      c1: [],
+      c2: [],
+      c3: [],
+      c4: [],
+    };
+    const result = solveTowerAllocation(
+      [makeRoom("r1")],
+      roster,
+      [],
+      undefined,
+      { opponentPowers, opponentTags, characterTags },
+    );
+    const assn = result.assignments.get("r1")!;
+    // Raw margin is +300% (very strong by margin) but composite confidence
+    // demotes it to risky because synergy/counter/balance contribute nothing.
+    expect(assn.marginPct).toBeGreaterThanOrEqual(200);
+    expect(assn.compositeScore).toBeDefined();
+    expect(assn.confidence).toBe("risky");
+    expect(assn.confidence).not.toBe("strong");
+  });
+
+  it("appends the composite-score breakdown numbers to the reason string", () => {
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 800_000 })
+    );
+    const opponentPowers = new Map<string, number>([["r1", 1_000_000]]);
+    const opponentTags = new Map<string, string[]>([["r1", []]]);
+    const characterTags: Record<string, string[]> = {
+      c0: [], c1: [], c2: [], c3: [], c4: [],
+    };
+    const result = solveTowerAllocation(
+      [makeRoom("r1")],
+      roster,
+      [],
+      undefined,
+      { opponentPowers, opponentTags, characterTags },
+    );
+    const assn = result.assignments.get("r1")!;
+    expect(assn.reason).toMatch(/Score \d+\/100/);
+    expect(assn.reason).toMatch(/power \d+/);
+    expect(assn.reason).toMatch(/synergy \d+/);
+    expect(assn.reason).toMatch(/counter \d+/);
+    expect(assn.reason).toMatch(/balance \d+/);
   });
 });
