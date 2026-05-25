@@ -17,6 +17,10 @@ vi.mock("@/lib/tower-enemy-fetcher", () => ({
   getEnemyTeam: vi.fn(),
 }));
 
+vi.mock("@/lib/tower-ability-tags", () => ({
+  extractAbilityTags: vi.fn(async () => ({})),
+}));
+
 vi.mock("@/lib/tower-solver", () => ({
   solveTowerAllocation: vi.fn(() => ({
     assignments: new Map(),

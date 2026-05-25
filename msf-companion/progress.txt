@@ -246,3 +246,19 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - `npm run cleanup` exits with code 1 on Windows after killing stale node processes — this is a known quirk, not a failure. Treat as success when the only output is "cleanup: killed N stale node processes".
   - Damage bucket math: at 0 damage chars, component is 0; at 1 it's 100/6 ≈ 17; at >=2 it caps at 100/3 ≈ 33. So adding a 2nd damage char swings the score from 83→100 in an otherwise-balanced team.
 ---
+
+## 2026-05-25 - US-006 - Composite-score re-ranking in tower-solver
+- Added TOWER_SCORING_WEIGHTS = { power: 0.45, synergy: 0.20, counter: 0.25, roleBalance: 0.10 } to src/lib/tower-scoring.ts plus pure helpers powerMarginScore(teamPower, opponentPower, safetyMargin) (0 at ratio<=safetyMargin, 100 at +0.50 over) and compositeScore(...) returning { power, synergy, counter, roleBalance, total }.
+- Extended SolverOptions (src/lib/tower-solver.ts) with opponentTags?: Map<roomId, tags[]>, characterTags?: Record<charId, tags[]>, factionPassives? (test override). TeamAssignment gained optional compositeScore?: CompositeBreakdown for US-007 consumption.
+- Composite re-ranking is gated by options.characterTags AND !marginFallback. The smallest-viable-subset team from US-003 is the seed; we enumerate combinations from the strongest 12 eligible (C(12,5)=792 worst case), filter to candidates passing opponentPower * safetyMargin, score each, pick the highest composite total (tie-break by raw power). Existing US-003 tests pass tags-free and keep their behavior.
+- Updated src/app/api/tower/solve/route.ts: collect union of opponent unit IDs + roster IDs, call extractAbilityTags ONCE per request (cached in-memory + localStorage), build per-room opponent tag sets, pass solver options. Tag-fetch failures are logged but non-fatal - solver just runs without composite re-ranking.
+- Updated src/app/api/tower/solve/route.test.ts to vi.mock("@/lib/tower-ability-tags"). 3/3 route tests still pass.
+- New unit tests: 7 in src/lib/tower-scoring.test.ts (weights sum=1, powerMarginScore boundaries + saturation + div-by-zero, compositeScore weighting + counter coverage), 3 in src/lib/tower-solver.test.ts (composite picks counter team over equal-power non-counter team; no characterTags = no composite/back-compat; marginFallback path skips composite). All pass; vitest 62/62 across the 3 affected suites. Typecheck + ESLint clean.
+- **Learnings for future iterations:**
+  - When extending a public solver with composite scoring, gate the new path on the new data being present (options.characterTags). Keeps pre-existing tests behaving as before WITHOUT needing to thread undefined tag args through them - and is a more honest runtime contract: "no tags - no composite".
+  - The smallest-viable-subset team from US-003 makes a great seed for the composite search - guarantees we never return a team worse than US-003 even if enumeration yields nothing better (e.g. eligible pool < 5).
+  - Bounded combinatorial enumeration: cap the candidate pool at top-K by power (K=12 here). C(12,5)=792 candidates fits comfortably under any request budget. Don't try full subset enumeration on 30+ char rosters - runs into the millions.
+  - Generators (function*) for combinations work cleanly with for..of and allow early bail - preferred over building the full array.
+  - Solver options object pattern (US-003 learning) paid off again: adding 3 more options (opponentTags, characterTags, factionPassives) required ZERO call-site churn outside the route.
+  - When mocking a new top-level import in an existing route test, just add vi.mock("@/lib/tower-ability-tags", () => ({ extractAbilityTags: vi.fn(async () => ({})) })). Defaulting to empty record means composite path is effectively off in the test, which is the simplest contract.
+---

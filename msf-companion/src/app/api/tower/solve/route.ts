@@ -3,6 +3,7 @@ import { getValidAccessTokenWithRefresh as getValidAccessToken } from "@/lib/aut
 import { msfApiFetch } from "@/lib/msf-api";
 import { fetchTowerRooms } from "@/lib/tower-fetcher";
 import { getEnemyTeam, type EnemyTeam } from "@/lib/tower-enemy-fetcher";
+import { extractAbilityTags } from "@/lib/tower-ability-tags";
 import type { Character } from "@/lib/tower-readiness";
 import type { RoomForSolver, MetaTeam } from "@/lib/tower-solver";
 
@@ -74,12 +75,6 @@ export async function POST(request: NextRequest) {
     }));
 
     const { solveTowerAllocation } = await import("@/lib/tower-solver");
-    const result = solveTowerAllocation(solverRooms, roster, metaTeams || [], clearedRooms);
-
-    const assignments: Record<string, unknown> = {};
-    result.assignments.forEach((value, key) => {
-      assignments[key] = value;
-    });
 
     // Fetch real opponent teams per room. Use allSettled so a single failed
     // combatId doesn't break the whole response — failures are surfaced via
@@ -107,6 +102,65 @@ export async function POST(request: NextRequest) {
         );
         roomFetchErrors.push(room.combatId);
       }
+    });
+
+    // US-006: fetch ability tags ONCE for every character that could matter
+    // (opponent units + the player's roster) so the solver can re-rank
+    // candidate teams by composite score. extractAbilityTags is cached per
+    // character + meta hash so this is cheap on repeat calls.
+    const opponentCharIds = new Set<string>();
+    for (const team of Object.values(opponentTeams)) {
+      for (const unit of team.units) {
+        if (unit.id) opponentCharIds.add(unit.id);
+      }
+    }
+    const rosterCharIds = roster.map((c) => c.id);
+    const allCharIds = Array.from(
+      new Set<string>([...opponentCharIds, ...rosterCharIds]),
+    );
+
+    let tagsRecord: Record<string, string[]> | undefined;
+    try {
+      if (allCharIds.length > 0) {
+        tagsRecord = await extractAbilityTags(allCharIds, userToken);
+      }
+    } catch (err) {
+      console.error("Failed to extract ability tags for tower solve:", err);
+    }
+
+    const opponentTagsByRoom = new Map<string, string[]>();
+    if (tagsRecord) {
+      for (const [roomId, team] of Object.entries(opponentTeams)) {
+        const tags = new Set<string>();
+        for (const unit of team.units) {
+          for (const t of tagsRecord[unit.id] ?? []) tags.add(t);
+        }
+        opponentTagsByRoom.set(roomId, Array.from(tags));
+      }
+    }
+    const opponentPowersMap = new Map<string, number>(
+      Object.entries(opponentPowers),
+    );
+
+    const result = solveTowerAllocation(
+      solverRooms,
+      roster,
+      metaTeams || [],
+      clearedRooms,
+      {
+        opponentPowers: opponentPowersMap,
+        ...(tagsRecord
+          ? {
+              opponentTags: opponentTagsByRoom,
+              characterTags: tagsRecord,
+            }
+          : {}),
+      },
+    );
+
+    const assignments: Record<string, unknown> = {};
+    result.assignments.forEach((value, key) => {
+      assignments[key] = value;
     });
 
     // US-006: include the solver inputs in the response so the client can

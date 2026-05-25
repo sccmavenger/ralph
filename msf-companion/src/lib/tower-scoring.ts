@@ -152,3 +152,94 @@ export function roleBalanceScore(
   );
 }
 
+// ── Composite scoring (US-006) ────────────────────────────────────────────
+
+/**
+ * Weights for the composite tower score (US-006). They sum to 1.0 and are
+ * exposed as a single exported constant so they can be tuned without
+ * touching the solver. Order: power-margin > counter > faction synergy >
+ * role balance.
+ */
+export const TOWER_SCORING_WEIGHTS = {
+  power: 0.45,
+  synergy: 0.2,
+  counter: 0.25,
+  roleBalance: 0.1,
+} as const;
+
+/**
+ * Width (in ratio points above the safety margin) over which
+ * {@link powerMarginScore} ramps from 0 to 100. A team that exceeds the
+ * safety margin by 50 percentage points (e.g. ratio 1.60 when safetyMargin
+ * = 1.10) scores 100; anything at or below the safety margin scores 0.
+ */
+const POWER_MARGIN_SATURATION = 0.5;
+
+/**
+ * Score a team 0–100 on how much extra power it has over the safety margin.
+ *
+ * - 0 when teamPower / opponentPower is at or below `safetyMargin`.
+ * - 100 when the ratio is at least `safetyMargin + 0.50` (i.e. 50 percentage
+ *   points over the safety threshold).
+ *
+ * Pure: no IO.
+ */
+export function powerMarginScore(
+  teamPower: number,
+  opponentPower: number,
+  safetyMargin: number,
+): number {
+  if (opponentPower <= 0) return 0;
+  const ratio = teamPower / opponentPower;
+  const extra = ratio - safetyMargin;
+  if (extra <= 0) return 0;
+  const normalized = Math.min(1, extra / POWER_MARGIN_SATURATION);
+  return Math.round(normalized * 100);
+}
+
+/**
+ * Per-sub-score breakdown of the composite tower score. All values 0–100.
+ * `total` is the weighted sum (using {@link TOWER_SCORING_WEIGHTS}) rounded
+ * to the nearest integer.
+ */
+export interface CompositeBreakdown {
+  power: number;
+  synergy: number;
+  counter: number;
+  roleBalance: number;
+  total: number;
+}
+
+/**
+ * Compute the composite score (US-006) for a candidate team against a known
+ * opponent. The composite blends:
+ *   - {@link powerMarginScore} (45%)
+ *   - {@link factionSynergyScore} (20%)
+ *   - {@link counterScore} (25%)
+ *   - {@link roleBalanceScore} (10%)
+ *
+ * Pure: no IO, no side effects.
+ */
+export function compositeScore(
+  team: readonly Character[],
+  teamPower: number,
+  opponentPower: number,
+  safetyMargin: number,
+  factionPassives: FactionPassiveMap,
+  teamTags: Readonly<Record<string, readonly string[]>>,
+  opponentTags: readonly string[],
+  counterMap: CounterMap = COUNTER_MAP,
+): CompositeBreakdown {
+  const power = powerMarginScore(teamPower, opponentPower, safetyMargin);
+  const synergy = factionSynergyScore(team, factionPassives);
+  const counter = counterScore(teamTags, opponentTags, counterMap);
+  const roleBalance = roleBalanceScore(teamTags);
+  const total = Math.round(
+    power * TOWER_SCORING_WEIGHTS.power +
+      synergy * TOWER_SCORING_WEIGHTS.synergy +
+      counter * TOWER_SCORING_WEIGHTS.counter +
+      roleBalance * TOWER_SCORING_WEIGHTS.roleBalance,
+  );
+  return { power, synergy, counter, roleBalance, total };
+}
+

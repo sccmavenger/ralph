@@ -1,4 +1,6 @@
 import { Character, RoomRequirements } from "./tower-readiness";
+import { compositeScore, type CompositeBreakdown } from "./tower-scoring";
+import { FACTION_PASSIVES, type FactionPassiveMap } from "./tower-scoring-data";
 
 export interface RoomForSolver {
   id: string;
@@ -33,6 +35,12 @@ export interface TeamAssignment {
    * warning when this is set.
    */
   marginFallback?: boolean;
+  /**
+   * Composite-score breakdown (US-006). Populated only when the solver was
+   * given ability-tag data (opponentTags + characterTags). Used by US-007
+   * to render the "Why this team?" sub-score breakdown.
+   */
+  compositeScore?: CompositeBreakdown;
 }
 
 /**
@@ -56,11 +64,51 @@ export interface SolverResult {
  */
 export const SAFETY_MARGIN_DEFAULT = 1.1;
 
+/**
+ * Upper bound on the candidate pool size for composite-score re-ranking
+ * (US-006). Combinations grow as C(N, teamSize) so we cap at 12 to keep the
+ * worst case at C(12,5)=792 — a few hundred microseconds at most.
+ */
+const COMPOSITE_POOL_LIMIT = 12;
+
+/**
+ * Yield all combinations of size `k` from `arr` (lexicographic by index).
+ * Iterative generator to keep memory bounded for moderate inputs.
+ */
+function* combinations<T>(arr: readonly T[], k: number): Generator<T[]> {
+  const n = arr.length;
+  if (k <= 0 || k > n) return;
+  const idx = Array.from({ length: k }, (_, i) => i);
+  while (true) {
+    yield idx.map((i) => arr[i]);
+    let i = k - 1;
+    while (i >= 0 && idx[i] === n - k + i) i--;
+    if (i < 0) return;
+    idx[i]++;
+    for (let j = i + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
+  }
+}
+
 export interface SolverOptions {
   /** Real opponent power per room id (from /api/tower/solve opponentPowers). */
   opponentPowers?: Map<string, number>;
   /** Multiplier applied to opponent power when picking a team. Defaults to SAFETY_MARGIN_DEFAULT. */
   safetyMargin?: number;
+  /**
+   * Per-room opponent ability tags (flat list across all opponent units).
+   * When provided alongside {@link characterTags}, the solver re-ranks
+   * candidate teams that pass the safety-margin gate by composite score
+   * (US-006).
+   */
+  opponentTags?: Map<string, readonly string[]>;
+  /**
+   * Per-character ability tags for the user's roster (and opponents, if you
+   * want — only roster ids are looked up). When provided alongside
+   * {@link opponentTags}, enables composite-score re-ranking (US-006).
+   */
+  characterTags?: Readonly<Record<string, readonly string[]>>;
+  /** Override the default {@link FACTION_PASSIVES} table (mostly for tests). */
+  factionPassives?: FactionPassiveMap;
 }
 
 /**
@@ -285,6 +333,68 @@ export function solveTowerAllocation(
         marginFallback = true;
       }
 
+      // US-006: composite-score re-ranking. Only re-rank teams that already
+      // pass the safety-margin gate (so the margin floor still wins) and only
+      // when ability-tag data is provided. Enumerate combinations from the
+      // strongest K eligible characters to keep the candidate set bounded.
+      let compositeBreakdown: CompositeBreakdown | undefined;
+      if (!marginFallback && options?.characterTags) {
+        const characterTags = options.characterTags;
+        const opponentTagsForRoom = options.opponentTags?.get(room.id) ?? [];
+        const factionPassives = options.factionPassives ?? FACTION_PASSIVES;
+
+        const byPowerDesc = [...eligible].sort((a, b) => b.power - a.power);
+        const poolSize = Math.min(byPowerDesc.length, COMPOSITE_POOL_LIMIT);
+        const pool = byPowerDesc.slice(0, poolSize);
+        const target = opponentPower * safetyMargin;
+
+        const buildTags = (team: readonly Character[]) => {
+          const out: Record<string, readonly string[]> = {};
+          for (const c of team) out[c.id] = characterTags[c.id] ?? [];
+          return out;
+        };
+
+        const initialBreakdown = compositeScore(
+          assignedTeam,
+          chosenSum,
+          opponentPower,
+          safetyMargin,
+          factionPassives,
+          buildTags(assignedTeam),
+          opponentTagsForRoom,
+        );
+        let bestTeam = assignedTeam;
+        let bestSum = chosenSum;
+        let bestBreakdown = initialBreakdown;
+
+        for (const combo of combinations(pool, teamSize)) {
+          const sum = teamPower(combo);
+          if (sum < target) continue;
+          const breakdown = compositeScore(
+            combo,
+            sum,
+            opponentPower,
+            safetyMargin,
+            factionPassives,
+            buildTags(combo),
+            opponentTagsForRoom,
+          );
+          // Higher composite wins; tie-break by higher raw power.
+          if (
+            breakdown.total > bestBreakdown.total ||
+            (breakdown.total === bestBreakdown.total && sum > bestSum)
+          ) {
+            bestTeam = combo;
+            bestSum = sum;
+            bestBreakdown = breakdown;
+          }
+        }
+
+        assignedTeam = bestTeam;
+        chosenSum = bestSum;
+        compositeBreakdown = bestBreakdown;
+      }
+
       const power = chosenSum;
       const confidence = getConfidence(power, opponentPower);
       const marginPct = Math.round((power / opponentPower - 1) * 100);
@@ -298,6 +408,7 @@ export function solveTowerAllocation(
         reason,
         marginPct,
         marginFallback,
+        compositeScore: compositeBreakdown,
       });
       continue;
     }

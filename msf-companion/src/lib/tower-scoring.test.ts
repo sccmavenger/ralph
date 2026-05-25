@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { counterScore, factionSynergyScore, roleBalanceScore } from "./tower-scoring";
+import {
+  counterScore,
+  factionSynergyScore,
+  roleBalanceScore,
+  powerMarginScore,
+  compositeScore,
+  TOWER_SCORING_WEIGHTS,
+} from "./tower-scoring";
 import { COUNTER_MAP, FACTION_PASSIVES, type CounterMap, type FactionPassiveMap } from "./tower-scoring-data";
 import type { Character } from "./tower-readiness";
 
@@ -278,5 +285,98 @@ describe("roleBalanceScore", () => {
     const score = roleBalanceScore(team);
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("TOWER_SCORING_WEIGHTS (US-006)", () => {
+  it("exposes the canonical composite weights summing to 1.0", () => {
+    expect(TOWER_SCORING_WEIGHTS.power).toBe(0.45);
+    expect(TOWER_SCORING_WEIGHTS.synergy).toBe(0.2);
+    expect(TOWER_SCORING_WEIGHTS.counter).toBe(0.25);
+    expect(TOWER_SCORING_WEIGHTS.roleBalance).toBe(0.1);
+    const total =
+      TOWER_SCORING_WEIGHTS.power +
+      TOWER_SCORING_WEIGHTS.synergy +
+      TOWER_SCORING_WEIGHTS.counter +
+      TOWER_SCORING_WEIGHTS.roleBalance;
+    expect(total).toBeCloseTo(1, 9);
+  });
+});
+
+describe("powerMarginScore (US-006)", () => {
+  it("returns 0 when team power exactly meets the safety margin", () => {
+    // ratio = 1.10 = safetyMargin → extra = 0 → 0
+    expect(powerMarginScore(1100, 1000, 1.1)).toBe(0);
+  });
+
+  it("returns 0 when team power is below the safety margin", () => {
+    expect(powerMarginScore(900, 1000, 1.1)).toBe(0);
+  });
+
+  it("returns 100 when the team exceeds the safety margin by 50 points or more", () => {
+    // ratio = 1.60, extra = 0.50 → 100
+    expect(powerMarginScore(1600, 1000, 1.1)).toBe(100);
+    // saturates beyond
+    expect(powerMarginScore(5000, 1000, 1.1)).toBe(100);
+  });
+
+  it("scales linearly between 0 and 100", () => {
+    // ratio = 1.35, extra = 0.25 → 50
+    expect(powerMarginScore(1350, 1000, 1.1)).toBe(50);
+  });
+
+  it("returns 0 when opponentPower is 0 or negative (avoids div-by-zero)", () => {
+    expect(powerMarginScore(1000, 0, 1.1)).toBe(0);
+    expect(powerMarginScore(1000, -1, 1.1)).toBe(0);
+  });
+});
+
+describe("compositeScore (US-006)", () => {
+  function mk(id: string, traits: string[] = []): Character {
+    return {
+      id,
+      name: id,
+      traits,
+      gearTier: 15,
+      stars: 6,
+      level: 90,
+      power: 200_000,
+    };
+  }
+
+  it("blends the four sub-scores using TOWER_SCORING_WEIGHTS", () => {
+    // team of 5 X-Men so factionSynergy = 100; counter & roleBalance = 0 (no tags).
+    const team = ["a", "b", "c", "d", "e"].map((i) => mk(i, ["X-Men"]));
+    const result = compositeScore(
+      team,
+      1_600_000,
+      1_000_000,
+      1.1,
+      FACTION_PASSIVES,
+      {}, // no team tags
+      [], // no opponent tags
+    );
+    expect(result.power).toBe(100);
+    expect(result.synergy).toBe(100);
+    expect(result.counter).toBe(0);
+    expect(result.roleBalance).toBe(0);
+    // 100*0.45 + 100*0.20 + 0 + 0 = 65
+    expect(result.total).toBe(65);
+  });
+
+  it("rewards counter coverage when opponent has threatening tags", () => {
+    const team = ["a", "b", "c", "d", "e"].map((i) => mk(i));
+    const teamTags = { a: ["heal_block", "revive_block"] };
+    const opponentTags = ["heal", "revive"];
+    const result = compositeScore(
+      team,
+      1_100_000,
+      1_000_000,
+      1.1,
+      FACTION_PASSIVES,
+      teamTags,
+      opponentTags,
+    );
+    expect(result.counter).toBe(100);
   });
 });

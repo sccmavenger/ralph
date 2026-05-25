@@ -100,8 +100,8 @@
         "Tests pass"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added TOWER_SCORING_WEIGHTS, powerMarginScore, CompositeBreakdown, compositeScore to src/lib/tower-scoring.ts. Extended SolverOptions with opponentTags + characterTags + factionPassives; added optional compositeScore field to TeamAssignment. Composite re-ranking activates ONLY when characterTags is supplied AND the team passed the safety-margin gate (preserves US-003 behavior + back-compat for existing tests that pass no tags). Candidate enumeration uses combinations from the top-12 strongest eligible chars (C(12,5)=792 worst case). Tie-break: composite total → raw power. Route now collects opponent unit IDs + roster IDs, calls extractAbilityTags once, builds opponentTagsByRoom map, and passes everything to the solver. Added route mock for @/lib/tower-ability-tags. New tests: 7 in tower-scoring.test.ts (weights, powerMarginScore, compositeScore), 3 in tower-solver.test.ts (composite re-ranks counter team, back-compat without tags, margin-fallback skips composite). All pass; typecheck + ESLint clean."
     },
     {
       "id": "US-007",

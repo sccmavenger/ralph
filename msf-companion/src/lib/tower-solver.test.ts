@@ -325,3 +325,95 @@ describe("solveTowerAllocation — marginPct and likelyLoss in result (US-004)",
     expect(assn.confidence).toBe("shouldWork");
   });
 });
+
+describe("solveTowerAllocation — composite re-ranking (US-006)", () => {
+  it("prefers a counter-relevant team over an equal-power team without counters", () => {
+    // 10 eligible characters, all the same power so no team wins on power
+    // alone. Opponent has heal+revive (very dangerous if uncountered).
+    const roster = Array.from({ length: 10 }, (_, i) =>
+      makeChar(`c${i}`, { power: 250_000, traits: ["Mutant"] })
+    );
+    const opponentPowers = new Map<string, number>([["r1", 1_000_000]]);
+    const opponentTags = new Map<string, string[]>([
+      ["r1", ["heal", "revive"]],
+    ]);
+    // Only c0..c4 have counters; c5..c9 have nothing useful.
+    const characterTags: Record<string, string[]> = {
+      c0: ["heal_block"],
+      c1: ["revive_block"],
+      c2: ["heal"],
+      c3: ["taunt"],
+      c4: ["ability_block"],
+      c5: [],
+      c6: [],
+      c7: [],
+      c8: [],
+      c9: [],
+    };
+
+    const result = solveTowerAllocation(
+      [makeRoom("r1")],
+      roster,
+      [],
+      undefined,
+      { opponentPowers, opponentTags, characterTags },
+    );
+    const assn = result.assignments.get("r1")!;
+    const chosenIds = assn.characters.map((c) => c.id).sort();
+    // The composite-winning team is the counter-loaded c0..c4.
+    expect(chosenIds).toEqual(["c0", "c1", "c2", "c3", "c4"]);
+    expect(assn.compositeScore).toBeDefined();
+    expect(assn.compositeScore!.counter).toBeGreaterThan(0);
+    expect(assn.compositeScore!.total).toBeGreaterThan(0);
+  });
+
+  it("does NOT activate composite re-ranking when characterTags is omitted (back-compat)", () => {
+    // Same roster as above; without tags the solver falls back to the
+    // smallest-viable-subset behavior from US-003.
+    const roster = Array.from({ length: 10 }, (_, i) =>
+      makeChar(`c${i}`, { power: 100_000 + i * 50_000 })
+    );
+    const opponentPowers = new Map<string, number>([["r1", 950_000]]);
+    const result = solveTowerAllocation(
+      [makeRoom("r1")],
+      roster,
+      [],
+      undefined,
+      { opponentPowers },
+    );
+    const assn = result.assignments.get("r1")!;
+    expect(assn.compositeScore).toBeUndefined();
+    // Same expectation as the US-003 mid-power test — strictly less than the
+    // strongest 5 (2,250k) and strictly greater than the weakest 5 (1,000k).
+    expect(assn.power).toBeLessThan(2_250_000);
+    expect(assn.power).toBeGreaterThan(1_000_000);
+  });
+
+  it("preserves the safety-margin gate — composite only re-ranks teams that pass the gate", () => {
+    // Weak roster against a strong opponent: no subset passes the margin
+    // gate, so the solver falls back to strongest team and DOES NOT attempt
+    // composite re-ranking (compositeScore stays undefined).
+    const roster = Array.from({ length: 5 }, (_, i) =>
+      makeChar(`c${i}`, { power: 100_000 })
+    );
+    const opponentPowers = new Map<string, number>([["r1", 1_000_000]]);
+    const opponentTags = new Map<string, string[]>([["r1", ["heal"]]]);
+    const characterTags: Record<string, string[]> = {
+      c0: ["heal_block"],
+      c1: [],
+      c2: [],
+      c3: [],
+      c4: [],
+    };
+    const result = solveTowerAllocation(
+      [makeRoom("r1")],
+      roster,
+      [],
+      undefined,
+      { opponentPowers, opponentTags, characterTags },
+    );
+    const assn = result.assignments.get("r1")!;
+    expect(assn.marginFallback).toBe(true);
+    expect(assn.compositeScore).toBeUndefined();
+  });
+});
