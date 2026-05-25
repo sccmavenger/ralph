@@ -190,3 +190,14 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - PRD wording 'tenths of a percent' + multiplier formula '1 + sum/1000' can read inconsistent at first glance; reconcile by computing on a known sample: 350 = 35.0% (per spec) -> sum 600 tenths -> +60% -> *1.60. Document the worked example next to the formula to prevent unit confusion in future maintenance.
   - Number.isFinite() correctly rejects NaN AND +-Infinity in one check; use it (not Number.isNaN alone) when parsing untrusted CSV numerics.
 ---
+
+## 2026-05-25 - US-001 - Faction-passive map constant
+- New file `src/lib/tower-scoring-data.ts` exports `FactionPassive`, `FactionPassiveMap`, and `FACTION_PASSIVES` constant with 12 entries: Asgardian, Avenger, X-Men, Inhuman, A-Force, Wakandan, Hand, Defender, Symbiote, Black Order, Brotherhood, Mercs for Money (trait id `Mercenary`).
+- Each entry: { trait, minMembers (=3), description }. Descriptions are one-line, used later for the 'Why this team?' breakdown.
+- Trait verification: grep for `Asgardian`/`Avenger`/`X-Men` etc. across `src/` finds NO canonical enum and no `src/lib/characters` directory. Existing room test fixtures use human-readable trait strings (`X-Men`, `Mutant`, `Bio`). MSF API `Trait` schema (msf-api.yaml:3313) is just `oneOf` string | { id, name } with no enum. Used PRD-suggested human-readable names; US-002 scoring function is the natural place to normalize `Avengers`-vs-`Avenger` style variants if they surface.
+- Typecheck (`npx tsc --noEmit`) and ESLint clean. No tests for this story — it is data only; US-002 will test the consumer.
+- **Learnings for future iterations:**
+  - There is no canonical trait/faction string list in this codebase — runtime values come straight from the MSF API. When introducing constants compared against `Character.traits`, expect to add a lightweight normalization step in the consumer (lowercase + strip `-` / `s` plural).
+  - The MSF API `Trait` schema in `msf-api/msf-api.yaml` is a free-form oneOf (string | object with id/name). Don't assume an enum exists; treat trait strings as opaque tokens from API responses.
+  - US-002 will probably want a `normalizeTrait(s: string)` helper since opponent units, roster traits, and our scoring constants all originate from independent API serialization paths.
+---

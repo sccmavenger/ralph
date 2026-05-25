@@ -1,0 +1,145 @@
+{
+  "project": "MSF Companion — Difficulty-Aware Tower Planner",
+  "branchName": "ralph/tower-planner-difficulty-aware",
+  "description": "Replace the tower planner's 'weakest viable team' logic with real-opponent-power, margin-aware selection. Fetches actual enemy teams from /game/v1/nodeCombats/{combatId}, allocates scarce strong characters to the hardest cells first, surfaces honest confidence and margin signals, and captures post-fight outcomes for personal-margin tuning.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Enemy team fetcher for tower cells",
+      "description": "As the tower planner, I need a module that fetches and caches the real enemy team for any tower cell so downstream solver and UI code has accurate opponent data.",
+      "acceptanceCriteria": [
+        "New module src/lib/tower-enemy-fetcher.ts exports getEnemyTeam(combatId, towerId) and getEnemyTeamsForRooms(rooms, towerId)",
+        "Calls /game/v1/nodeCombats/{combatId}?charInfo=full&difficulty=0&difficultyGroup={towerId} via existing msfApiFetch helper in src/lib/msf-api.ts",
+        "Returns typed EnemyTeam { combatId, units: EnemyUnit[], totalPower: number } where EnemyUnit includes id, name, level, gearTier, activeYellow, activeRed, power, stats, nodeEffects, iso8",
+        "Skips rooms with no combatId; returns null for those entries in the array form",
+        "In-memory cache keyed by combatId, invalidated when meta.hashes.nodes changes (mirrors checkHashInvalidation pattern in src/lib/dd-service.ts)",
+        "Unit tests in src/lib/tower-enemy-fetcher.test.ts cover: successful fetch, missing combatId, cache hit, cache invalidation on hash change",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented src/lib/tower-enemy-fetcher.ts with getEnemyTeam / getEnemyTeamsForRooms, in-memory cache keyed by combatId, node-hash invalidation mirroring dd-service.ts. 4 unit tests passing; typecheck + lint clean."
+    },
+    {
+      "id": "US-002",
+      "title": "Solve API exposes opponent power per room",
+      "description": "As the tower planner client, I need the /api/tower/solve route to include real opponent power per room in its response so the UI and solver work from the same numbers.",
+      "acceptanceCriteria": [
+        "src/app/api/tower/solve/route.ts handler calls getEnemyTeamsForRooms for the active tower's room list",
+        "Response JSON adds opponentPowers: Record<string, number> (roomId -> total opponent power) and opponentTeams: Record<string, EnemyTeam>",
+        "Existing response fields are preserved; no breaking changes to fields already consumed by TowerPlannerClient",
+        "Per-room fetch failures degrade gracefully: response includes successful rooms plus a roomFetchErrors: string[] listing failed combatIds",
+        "Unit test in src/app/api/tower/solve/route.test.ts mocks the fetcher and asserts opponentPowers, opponentTeams, and roomFetchErrors appear with correct values",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Implemented. Added optional combatId to TowerRoom (propagated from MSF room detail). Solve route now uses Promise.allSettled over getEnemyTeam per fetchable room; response gains opponentPowers, opponentTeams (keyed by roomId), and roomFetchErrors (failed combatIds). Rooms without combatId silently skipped. 3 new tests in route.test.ts all pass (mocks tower-solver dynamic import); typecheck + eslint clean."
+    },
+    {
+      "id": "US-003",
+      "title": "Margin-aware team selection in tower-solver",
+      "description": "As a commander, I want the solver to pick the lowest-power eligible team that still beats the opponent by a safety margin so I save my best characters for the hardest cells without recommending death squads.",
+      "acceptanceCriteria": [
+        "src/lib/tower-solver.ts solveTowerAllocation accepts new opponentPowers: Map<string, number> and safetyMargin: number (default 1.10) options",
+        "For each room, after meetsRequirements filtering, eligible characters are sorted ascending by power and the smallest contiguous prefix whose summed power >= opponentPower * safetyMargin is selected",
+        "When no eligible subset meets the margin, solver picks the strongest eligible team (descending sort, take top N) and tags that room's result with marginFallback: true",
+        "Rooms processed in descending opponentPower order so scarce strong characters are reserved for the hardest cells",
+        "Exports a named constant SAFETY_MARGIN_DEFAULT = 1.10",
+        "Three new tests in src/lib/tower-solver.test.ts: (a) comfortable margin selects mid-power team not weakest, (b) no-viable-margin falls back to strongest with marginFallback: true, (c) ordering reserves top characters for the highest-opponentPower room",
+        "All previously-passing tests in tower-solver.test.ts still pass (update expected outputs only where the new logic legitimately changes them)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Implemented. Added SAFETY_MARGIN_DEFAULT=1.10 export and optional 5th `options?: { opponentPowers?: Map<string, number>; safetyMargin?: number }` arg to solveTowerAllocation (backward-compatible). Rooms with known opponentPower are processed first, sorted descending by that power; per room the smallest ascending-power subset whose sum >= opponentPower * safetyMargin is selected via a swap-up window; when no subset qualifies, the strongest top-N is picked and tagged marginFallback: true. Rooms without opponentPower keep legacy weakest-viable + meta-team behavior. TeamAssignment gained optional marginFallback. 3 new tests added (SAFETY_MARGIN_DEFAULT constant, comfortable-margin mid-power selection, fallback when unmeetable, ordering reserves c9 for hardest cell). All 11 tower-solver tests + 3 solve-route tests + 4 enemy-fetcher tests pass. Typecheck + ESLint clean."
+    },
+    {
+      "id": "US-004",
+      "title": "Honest confidence score from real margin",
+      "description": "As a commander reading a recommendation, I want the confidence label and reason to reflect the team's margin over the actual opponent, not a self-referential calculation.",
+      "acceptanceCriteria": [
+        "src/lib/tower-solver.ts getConfidence(teamPower, opponentPower) returns one of 'strong' | 'shouldWork' | 'risky' | 'likelyLoss' using thresholds: >=1.30 strong, 1.10-1.30 shouldWork, 0.95-1.10 risky, <0.95 likelyLoss",
+        "Each result object includes marginPct (rounded to nearest integer) and a one-line reason string referencing the margin (e.g. 'Your team is ~18% stronger than the opponent.')",
+        "The previous self-referential baselineEstimate = minCharPower * 5 logic is removed",
+        "Old call sites that pass only teamPower keep compiling via a deprecated overload that delegates with opponentPower = teamPower / 1.10",
+        "Unit tests cover all four thresholds and the boundary values (1.30, 1.10, 0.95)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Implemented. Removed self-referential baselineEstimate logic from getConfidence. New exported `getConfidence(teamPower, opponentPower)` returns 4-state TeamConfidence ('strong' | 'shouldWork' | 'risky' | 'likelyLoss') with thresholds: >=1.30 strong, >=1.10 shouldWork, >=0.95 risky, <0.95 likelyLoss. Deprecated single-arg overload `getConfidence(teamPower)` delegates with opponentPower = teamPower / 1.10 (always returns 'shouldWork'), preserving the one legacy call site. TeamAssignment now exposes a required `marginPct: number` (rounded int, negative when team weaker). Reason strings rewritten to reference the actual margin (e.g. 'Your team is ~25% stronger than the opponent.'). Exported CONFIDENCE_THRESHOLDS constants. 12 new tests: all 4 confidence tiers, the three boundary values (1.30/1.10/0.95 inclusive), deprecated overload behavior, CONFIDENCE_THRESHOLDS values, marginPct present on opponent-aware path, likelyLoss on fallback, marginPct ≈ 10 on legacy path. All 30 targeted tests pass; typecheck + ESLint clean."
+    },
+    {
+      "id": "US-005",
+      "title": "UI shows opponent power, team power, margin, confidence per cell",
+      "description": "As a commander using the planner, I want each room card to show the real opponent power, my team's power, the margin percentage, and the new confidence chip so I can see why a recommendation is or isn't safe.",
+      "acceptanceCriteria": [
+        "src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx renders for each room: opponent power, team total power, margin % (color-coded: green >=25%, yellow 10-25%, red <10%, deep-red <0%), and confidence chip including the new likelyLoss state",
+        "Cards with marginFallback: true show a visible warning banner using the existing destructive alert style: 'No team meets the recommended {margin}x safety margin - best available shown.'",
+        "Rooms whose enemy fetch failed (present in roomFetchErrors) show a muted 'Opponent data unavailable' line and silently use legacy entry-requirement-based selection",
+        "New e2e spec e2e/tower-planner-difficulty.spec.ts asserts the margin % renders on at least one room card and the warning banner renders when forced into fallback mode (via test fixture / mock)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Implemented. TowerPlannerClient widened TeamAssignment.confidence to 4 states (added likelyLoss with bg-red-700) and added optional marginPct + marginFallback. SolverResult interface gained opponentPowers / opponentTeams / roomFetchErrors. RoomCard now renders per-cell: Team power (k), Opp power (k, when known), color-coded Margin % (green >=25, yellow 10-25, red <10, deep-red <0). marginFallback rooms render a red destructive banner: 'No team meets the recommended 1.10x safety margin \u2014 best available shown.' Rooms whose combatId is in roomFetchErrors render a muted 'Opponent data unavailable' line. New e2e/tower-planner-difficulty.spec.ts has 2 passing tests (margin % renders; fallback banner + likelyLoss chip). Typecheck + ESLint clean. All 30 existing solver/route/fetcher vitests still pass."
+    },
+    {
+      "id": "US-006",
+      "title": "User-tunable safety margin slider",
+      "description": "As a commander, I want a header slider to dial my safety margin up or down across the whole tower without re-fetching data.",
+      "acceptanceCriteria": [
+        "Slider in the TowerPlannerClient header, range 1.00-1.50, step 0.05, default 1.10, labeled 'Safety margin'",
+        "Changing the slider re-runs the client-side solve against already-fetched opponentPowers/opponentTeams - no new API calls",
+        "Value persists in localStorage keyed by `tower-planner-margin:${towerEventId}`; clears when towerEventId changes",
+        "A 'Reset to default' link next to the slider snaps the value back to 1.10",
+        "Unit test covers the persistence read/write helper (pure function)",
+        "E2E test covers slider interaction triggering a margin recompute on at least one room card",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Implemented. New `src/lib/tower-margin-storage.ts` exports SAFETY_MARGIN_{MIN,MAX,STEP,DEFAULT} plus pure `loadSafetyMargin`, `saveSafetyMargin`, `clampSafetyMargin`, and `clearOtherEventMargins`. Storage key `tower-planner-margin:${towerEventId}`; values are clamped to [1.00,1.50] and snapped to 0.05 step on both read and write. Other-event keys are wiped whenever the active tower changes. Slider added to TowerPlannerClient header (range 1.00-1.50, step 0.05, default 1.10) with value chip and 'Reset to default' link. /api/tower/solve response now includes `solverInputs: { roster, solverRooms, metaTeams, clearedRooms }` so the client can call `solveTowerAllocation` locally on slider change — verified zero new API calls via Playwright route counter. Fallback warning banner now reflects the current slider value (was hardcoded to 1.10x before). 16 unit tests in tower-margin-storage.test.ts + 3 new e2e tests in tower-planner-safety-margin.spec.ts all pass; tsc + eslint clean; existing solver/route/fetcher tests unchanged."
+    },
+    {
+      "id": "US-007",
+      "title": "Post-fight outcome feedback and suggested personal margin",
+      "description": "As a commander, after I run a fight I want to mark Won easily / Won barely / Lost so future runs suggest a personal safety margin based on my actual outcomes.",
+      "acceptanceCriteria": [
+        "Each room card renders three small buttons: 'Won easily', 'Won barely', 'Lost'",
+        "Clicking a button stores { towerEventId, roomId, outcome, recommendedTeam, opponentPower, timestamp } in localStorage under key 'tower-planner-outcomes' (rolling list)",
+        "A rolling tally of the last 20 outcomes computes a suggested personal margin displayed next to the safety-margin slider, e.g. 'Suggested: 1.20x - your last 10 fights at 1.10x lost 30% of the time.'",
+        "Suggestion is informational only - it never auto-changes the slider value",
+        "Unit tests cover outcome storage, rolling-window math, and the suggestion-text generator (pure functions)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Implemented. New `src/lib/tower-outcome-storage.ts` exports OutcomeEntry/FightOutcome types plus pure `loadOutcomes`, `recordOutcome`, `clearOutcomes`, `tallyOutcomes`, `generateMarginSuggestion` (all accept optional storage arg). Rolling list capped at 100; suggestion window = last 20 (min 5 to show). Suggestion rules: lostPct>=20 -> +0.10, or (total>=10 && lost==0 && wonEasilyPct>=70) -> -0.05; suppressed at MIN/MAX bounds. TowerPlannerClient: 3 buttons per RoomCard (Won easily / Won barely / Lost) stored with { towerEventId, roomId, outcome, recommendedTeam, opponentPower, timestamp }; suggestion text shown next to safety-margin slider, informational only (never auto-changes slider). 18 unit tests pass; tsc + eslint clean."
+    },
+    {
+      "id": "US-008",
+      "title": "Node-effect-aware opponent power adjustment",
+      "description": "As a commander, I want per-character node buffs (extra hp/dmg/armor on specific tower nodes) to be reflected in the displayed opponent power so buffed cells aren't underweighted.",
+      "acceptanceCriteria": [
+        "src/lib/tower-enemy-fetcher.ts exports applyNodeEffects(unit) that multiplies unit.power by 1 + sum(boosts) / 1000 (boosts CSV is health,damage,armor,focus,resist in tenths of a percent)",
+        "EnemyTeam.totalPower reflects the adjusted values for every unit",
+        "Unit test verifies (a) an unboosted unit's adjusted power equals its base power and (b) a unit with boosts '350,150,50,25,25' has adjusted power higher than base by the expected ratio within +-2%",
+        "Code comment documents this as a heuristic pending dev clarification on Q1 (difficulty scaling)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Implemented. `src/lib/tower-enemy-fetcher.ts` now exports `applyNodeEffects(unit)` (and supporting `NodeEffects`/`NodeEffectBoosts` types). Handles BOTH boost shapes from the MSF StatBoost schema: CSV string (PRD order health,damage,armor,focus,resist[,...]) and object form. Power multiplier = 1 + sum(health+damage+armor+focus+resist)/1000 (values are tenths of a percent per PRD). Returns unit unchanged when sum is 0 or power is missing. `buildEnemyTeam` applies the adjustment so `EnemyTeam.totalPower` reflects buffed values automatically — downstream solver/UI need no changes since they consume totalPower via opponentPowers from US-002. JSDoc marks the formula as a heuristic pending dev clarification on Q1 (difficulty scaling). 4 new unit tests: unboosted unchanged, CSV '350,150,50,25,25' within ±2% of base*1.60, object form (200 sum → ×1.20 exact), totalPower aggregates adjusted values. All 8 enemy-fetcher tests + 68 related (solver/route/margin/outcome) pass; tsc + eslint clean."
+    }
+  ]
+}
