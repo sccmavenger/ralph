@@ -130,8 +130,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added optional `tags?: string[]` to `EnemyUnit` (src/lib/tower-enemy-fetcher.ts) and the inline `OpponentUnit` UI type (TowerPlannerClient.tsx). /api/tower/solve now attaches per-unit tags to `opponentTeams[roomId].units[]` from the existing `tagsRecord` (built via `extractAbilityTags`) right after building the existing `opponentTagsByRoom` aggregate — units with no tags are left untouched (no `tags` field, keeps payload small). Show-opponent expander renders each tag as a small purple badge with data-testid='opponent-unit-tag' below the unit row; the badge block is hidden entirely when `u.tags` is missing or empty. Typecheck clean, ESLint clean on the 3 changed files, 11/11 targeted vitest tests pass (tower/solve + tower-enemy-fetcher)."
     },
     {
       "id": "US-009",

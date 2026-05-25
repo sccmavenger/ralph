@@ -276,3 +276,14 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - The composite-rerank back-compat test ("does NOT activate composite re-ranking when characterTags is omitted") was the key invariant — confirming that legacy code paths still get margin-based confidence. When changing solver behavior conditional on `options.characterTags`, always re-run that test.
   - The composite total math for "Mutant chars with damage-only kits vs no opp tags" works out to ~48 (power 100 * 0.45 + balance 33 * 0.10). Use this as a known anchor when writing future composite-confidence tests — it sits in the "risky" tier (35–54) so it's a useful midpoint to assert label demotion from raw-margin "strong".
 ---
+## 2026-05-25 - US-008 - Surface opponent ability tags in Show-opponent expander
+- Added optional `tags?: string[]` to `EnemyUnit` in src/lib/tower-enemy-fetcher.ts.
+- /api/tower/solve (src/app/api/tower/solve/route.ts) now attaches per-unit tags to `opponentTeams[roomId].units[]` from the existing `tagsRecord` (built via `extractAbilityTags`). Units with no tags are left without a `tags` field (keeps payload lean).
+- TowerPlannerClient.tsx: widened inline `OpponentUnit` interface with `tags?: string[]`. Show-opponent expander now renders each tag as a small purple badge (data-testid='opponent-unit-tag') beneath the unit row. Badge block hidden when `u.tags` is missing or empty.
+- Files changed: src/lib/tower-enemy-fetcher.ts, src/app/api/tower/solve/route.ts, src/app/(app)/analyze/tower-planner/TowerPlannerClient.tsx, prd.json.
+- Verification: `npx tsc --noEmit` clean. `npx eslint` clean on the 3 changed files. 11/11 targeted vitest tests pass (tower/solve route + tower-enemy-fetcher).
+- **Learnings for future iterations:**
+  - The solve route already builds a per-room aggregate `opponentTagsByRoom` (used by the solver for counter scoring). Per-unit `tags` are a SEPARATE concern (UI display) — do not conflate the two; both live in the same route block but serve different consumers.
+  - `opponentTeams` is mutated in place before being returned. Acceptable because the EnemyTeam objects come from `getEnemyTeam`'s cache and the spread `{ ...unit, tags }` avoids mutating the cached unit references — only the team's `units` array is reassigned.
+  - The inline UI types in TowerPlannerClient.tsx (OpponentUnit/OpponentTeam) are a manual mirror of src/lib/tower-enemy-fetcher.ts EnemyUnit/EnemyTeam — when widening one, widen both (same PR). API data crosses the boundary as `any` so TS won't catch drift.
+---

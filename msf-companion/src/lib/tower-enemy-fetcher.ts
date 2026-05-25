@@ -48,6 +48,10 @@ export interface EnemyUnit {
   stats?: Record<string, number>;
   nodeEffects?: NodeEffects | unknown;
   iso8?: { active?: string; level?: number; pips?: number };
+  // US-008: ability tags surfaced by the solve route (sourced from
+  // `extractAbilityTags`). Empty/omitted when tag extraction wasn't run
+  // or returned no tags for this character.
+  tags?: string[];
 }
 
 export interface EnemyTeam {

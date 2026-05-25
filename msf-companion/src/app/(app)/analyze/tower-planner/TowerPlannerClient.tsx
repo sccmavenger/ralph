@@ -104,6 +104,8 @@ interface OpponentUnit {
   level?: number;
   gearTier?: number;
   power?: number;
+  // US-008: ability tags surfaced from the solver's ability-tag extractor.
+  tags?: string[];
 }
 
 interface OpponentTeam {
@@ -1084,17 +1086,32 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
                   </div>
                   <ul className="space-y-0.5 text-[11px] text-gray-300">
                     {opponentTeam.units.map((u) => (
-                      <li key={u.id} className="flex justify-between gap-2" data-testid="opponent-unit">
-                        <span className="truncate">
-                          {u.name ?? u.id}
-                          {(u.gearTier || u.level) && (
-                            <span className="ml-1 text-gray-500">
-                              {u.gearTier ? `G${u.gearTier}` : ""}{u.gearTier && u.level ? " · " : ""}{u.level ? `Lv${u.level}` : ""}
-                            </span>
+                      <li key={u.id} className="flex flex-col gap-0.5" data-testid="opponent-unit">
+                        <div className="flex justify-between gap-2">
+                          <span className="truncate">
+                            {u.name ?? u.id}
+                            {(u.gearTier || u.level) && (
+                              <span className="ml-1 text-gray-500">
+                                {u.gearTier ? `G${u.gearTier}` : ""}{u.gearTier && u.level ? " · " : ""}{u.level ? `Lv${u.level}` : ""}
+                              </span>
+                            )}
+                          </span>
+                          {typeof u.power === "number" && u.power > 0 && (
+                            <span className="text-gray-400 whitespace-nowrap">{(u.power / 1000).toFixed(0)}k</span>
                           )}
-                        </span>
-                        {typeof u.power === "number" && u.power > 0 && (
-                          <span className="text-gray-400 whitespace-nowrap">{(u.power / 1000).toFixed(0)}k</span>
+                        </div>
+                        {u.tags && u.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pl-1">
+                            {u.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                data-testid="opponent-unit-tag"
+                                className="rounded bg-purple-900/40 px-1.5 py-0.5 text-[10px] text-purple-200"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </li>
                     ))}

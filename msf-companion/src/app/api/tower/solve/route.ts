@@ -138,6 +138,18 @@ export async function POST(request: NextRequest) {
         opponentTagsByRoom.set(roomId, Array.from(tags));
       }
     }
+
+    // US-008: attach per-unit tags to opponentTeams so the UI Show-opponent
+    // expander can render them as badges. Skipped silently when extraction
+    // failed (tagsRecord is undefined) or when a unit has no tags.
+    if (tagsRecord) {
+      for (const team of Object.values(opponentTeams)) {
+        team.units = team.units.map((unit) => {
+          const tags = tagsRecord[unit.id];
+          return tags && tags.length > 0 ? { ...unit, tags } : unit;
+        });
+      }
+    }
     const opponentPowersMap = new Map<string, number>(
       Object.entries(opponentPowers),
     );
