@@ -236,3 +236,13 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - Tag vocabulary is shared between src/lib/tower-ability-tags.ts (ABILITY_TAG_VOCABULARY) and COUNTER_MAP keys. When adding a new tag, add it in BOTH places or counterScore will silently ignore it.
   - Counter map values use the same tag strings on both sides (opp tag key + counteredBy tags) drawn from ABILITY_TAG_VOCABULARY — no string normalization needed at the boundary in US-006 as long as US-003's tagger emits canonical tags.
 ---
+
+## 2026-05-25 - US-005 - roleBalanceScore pure function
+- Added `roleBalanceScore(teamTags)` to `src/lib/tower-scoring.ts`. Returns 0–100; balanced team (>=1 healer, >=1 frontline, >=2 damage) scores 100. Three equal components of 100/3, rounded.
+- Roles inferred from tags: healer=`heal`, tank=`taunt`/`defense_up`, disruptor=`ability_block`/`stun`/`disrupted`, damage = default for characters without healer/tank tags.
+- 8 new tests in `src/lib/tower-scoring.test.ts` (33 total). All pass. Typecheck + ESLint clean on touched files.
+- **Learnings for future iterations:**
+  - PRD AC referenced `defense_up` for the tank role but it isn't in `ABILITY_TAG_VOCABULARY` (src/lib/tower-ability-tags.ts). Left it in `TANK_TAGS` for forward-compat; today only `taunt` actually matches. If a new tag is needed in the vocab, add it to BOTH `ABILITY_TAG_VOCABULARY` (tagger) AND COUNTER_MAP/role sets (consumers).
+  - `npm run cleanup` exits with code 1 on Windows after killing stale node processes — this is a known quirk, not a failure. Treat as success when the only output is "cleanup: killed N stale node processes".
+  - Damage bucket math: at 0 damage chars, component is 0; at 1 it's 100/6 ≈ 17; at >=2 it caps at 100/3 ≈ 33. So adding a 2nd damage char swings the score from 83→100 in an otherwise-balanced team.
+---

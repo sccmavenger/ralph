@@ -96,3 +96,59 @@ export function counterScore(
   if (maxWeight === 0) return 0;
   return Math.round((earnedWeight / maxWeight) * 100);
 }
+
+/**
+ * Score a team 0–100 on role balance.
+ *
+ * Roles are inferred from each character's ability tags:
+ * - healer: has the `heal` tag
+ * - tank: has `taunt` or `defense_up`
+ * - disruptor: has `ability_block`, `stun`, or `disrupted`
+ * - damage: any character without a healer or tank tag (disruptors can also
+ *   double as damage so they still count toward the damage bucket)
+ *
+ * A "balanced" team has ≥1 healer, ≥1 tank-or-disruptor, and ≥2 damage —
+ * each of those three buckets contributes ~⅓ of the score, so a fully
+ * balanced team scores 100 and a single-role team scores ~33.
+ *
+ * Pure: no IO, no side effects.
+ */
+export function roleBalanceScore(
+  teamTags: Readonly<Record<string, readonly string[]>>,
+): number {
+  const ids = Object.keys(teamTags);
+  if (ids.length === 0) return 0;
+
+  const HEALER_TAGS = new Set(["heal"]);
+  const TANK_TAGS = new Set(["taunt", "defense_up"]);
+  const DISRUPTOR_TAGS = new Set(["ability_block", "stun", "disrupted"]);
+
+  let healers = 0;
+  let tanks = 0;
+  let disruptors = 0;
+  let damage = 0;
+
+  for (const id of ids) {
+    const tags = teamTags[id] ?? [];
+    const isHealer = tags.some((t) => HEALER_TAGS.has(t));
+    const isTank = tags.some((t) => TANK_TAGS.has(t));
+    const isDisruptor = tags.some((t) => DISRUPTOR_TAGS.has(t));
+
+    if (isHealer) healers += 1;
+    if (isTank) tanks += 1;
+    if (isDisruptor) disruptors += 1;
+    // Damage = anyone who isn't pigeonholed as a pure support (healer/tank).
+    if (!isHealer && !isTank) damage += 1;
+  }
+
+  // Three balance components, each worth up to 100/3.
+  const healerComponent = Math.min(1, healers) * (100 / 3);
+  const frontlineComponent = Math.min(1, tanks + disruptors) * (100 / 3);
+  const damageComponent = Math.min(1, damage / 2) * (100 / 3);
+
+  return Math.min(
+    100,
+    Math.round(healerComponent + frontlineComponent + damageComponent),
+  );
+}
+

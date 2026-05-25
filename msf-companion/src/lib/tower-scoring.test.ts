@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { counterScore, factionSynergyScore } from "./tower-scoring";
+import { counterScore, factionSynergyScore, roleBalanceScore } from "./tower-scoring";
 import { COUNTER_MAP, FACTION_PASSIVES, type CounterMap, type FactionPassiveMap } from "./tower-scoring-data";
 import type { Character } from "./tower-readiness";
 
@@ -189,5 +189,94 @@ describe("counterScore", () => {
     };
     expect(counterScore({ a: ["bar"] }, ["foo"], custom)).toBe(100);
     expect(counterScore({ a: ["baz"] }, ["foo"], custom)).toBe(0);
+  });
+});
+
+describe("roleBalanceScore", () => {
+  it("returns 0 for an empty team", () => {
+    expect(roleBalanceScore({})).toBe(0);
+  });
+
+  it("scores an all-damage team low (no healer, no frontline)", () => {
+    const team = {
+      a: ["bleed"],
+      b: ["offense_down"],
+      c: ["counter_attack"],
+      d: ["bleed"],
+      e: [],
+    };
+    // Only the damage component fires (5 damage chars → caps at 1 × 100/3 ≈ 33).
+    expect(roleBalanceScore(team)).toBe(33);
+  });
+
+  it("scores a healer-only team low (no frontline, no damage past the healer)", () => {
+    const team = {
+      a: ["heal"],
+      b: ["heal"],
+      c: ["heal"],
+      d: ["heal"],
+      e: ["heal"],
+    };
+    // Healer present (33) but 0 frontline and 0 damage chars → 33.
+    expect(roleBalanceScore(team)).toBe(33);
+  });
+
+  it("scores a fully balanced team 100 (healer + tank + ≥2 damage)", () => {
+    const team = {
+      a: ["heal"],
+      b: ["taunt"],
+      c: ["bleed"],
+      d: ["offense_down"],
+      e: ["counter_attack"],
+    };
+    expect(roleBalanceScore(team)).toBe(100);
+  });
+
+  it("treats a disruptor as a valid frontline when there's no tank", () => {
+    const team = {
+      a: ["heal"],
+      b: ["ability_block"],
+      c: ["bleed"],
+      d: ["offense_down"],
+      e: ["counter_attack"],
+    };
+    expect(roleBalanceScore(team)).toBe(100);
+  });
+
+  it("scores a full-tank team without a healer ~67 (frontline + damage, no healer)", () => {
+    const team = {
+      a: ["taunt"],
+      b: ["taunt"],
+      c: ["taunt"],
+      d: ["bleed"],
+      e: ["bleed"],
+    };
+    // Frontline present (33) + 2 damage chars (33) → 67. No healer.
+    expect(roleBalanceScore(team)).toBe(67);
+  });
+
+  it("scales the damage component down when there's only 1 damage character", () => {
+    const team = {
+      a: ["heal"],
+      b: ["taunt"],
+      c: ["taunt"],
+      d: ["taunt"],
+      e: ["bleed"],
+    };
+    // Healer (33) + Frontline (33) + 1/2 damage (17) → 83.
+    expect(roleBalanceScore(team)).toBe(83);
+  });
+
+  it("returns a value in the 0–100 range for any input", () => {
+    const team = {
+      a: ["heal", "taunt"],
+      b: ["heal"],
+      c: ["ability_block"],
+      d: ["bleed"],
+      e: ["bleed"],
+    };
+    const score = roleBalanceScore(team);
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
   });
 });

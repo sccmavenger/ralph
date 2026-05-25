@@ -82,8 +82,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added roleBalanceScore(teamTags) to src/lib/tower-scoring.ts. Score = sum of 3 components × (100/3): healer present (heal tag), frontline present (taunt/defense_up OR ability_block/stun/disrupted), damage count (min(damage,2)/2). Damage bucket excludes characters with healer/tank tags per PRD AC. Fully balanced team (≥1 healer, ≥1 frontline, ≥2 damage) → 100. Single-role teams → ~33. Empty team → 0. 8 new tests in tower-scoring.test.ts (33 total) — all pass. Typecheck + ESLint clean. Note: PRD AC mentioned `defense_up` for tank role but it's not in ABILITY_TAG_VOCABULARY; included it in TANK_TAGS for forward-compat — only `taunt` actually matches today."
     },
     {
       "id": "US-006",
