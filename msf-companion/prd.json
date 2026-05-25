@@ -31,8 +31,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented in src/lib/tower-scoring.ts. Score = sum of per-activated-passive scores, where each activated passive contributes 50 + (count - minMembers)/(5 - minMembers) * 50 (capped at 100 per passive). Multi-passive overlap saturates at 100. Tests co-located at src/lib/tower-scoring.test.ts (not __tests__/) to match existing repo pattern (tower-solver.test.ts etc.). 8/8 tests pass; typecheck + ESLint clean."
     },
     {
       "id": "US-003",

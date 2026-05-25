@@ -201,3 +201,13 @@ ecordOutcome returns the updated list even when storage is null so callers can k
   - The MSF API `Trait` schema in `msf-api/msf-api.yaml` is a free-form oneOf (string | object with id/name). Don't assume an enum exists; treat trait strings as opaque tokens from API responses.
   - US-002 will probably want a `normalizeTrait(s: string)` helper since opponent units, roster traits, and our scoring constants all originate from independent API serialization paths.
 ---
+
+## 2026-05-25 - US-002 - factionSynergyScore pure function
+- Implemented `factionSynergyScore(team, factionPassives)` in `src/lib/tower-scoring.ts`.
+- Scoring rule: for each passive whose member-count meets `minMembers`, contribute `50 + clamp01((count - minMembers) / (5 - minMembers)) * 50` (so threshold=50, all-5=100). Sum across passives, cap at 100. Empty team or no activation → 0.
+- 8 unit tests in co-located `src/lib/tower-scoring.test.ts`: empty team, no synergy, exactly-threshold (3/5 → 50), 4/5 (75), 5/5 (100), multi-passive overlap (saturates at 100), below-threshold ignored, custom minMembers=5 edge case. All pass. `tsc --noEmit` + `eslint` clean.
+- **Learnings for future iterations:**
+  - PRD AC said `src/lib/__tests__/tower-scoring.test.ts` but the repo convention is co-located `src/lib/<name>.test.ts` (see tower-solver.test.ts, tower-readiness.test.ts, etc.). Followed repo convention — vitest config picks both up but the rest of the suite is co-located.
+  - `Character` interface lives in `src/lib/tower-readiness.ts` (the canonical solver-side shape). Import from there, not from any per-route definition.
+  - For 0–100 scoring functions, prefer `Math.min(100, total)` with an early `return 100` short-circuit once saturated — keeps the function pure and avoids unnecessary trait scans after multi-passive overlap.
+---
