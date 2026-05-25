@@ -333,8 +333,10 @@ export default function TowerPlannerClient() {
     return () => {
       cancelled = true;
     };
+    // Watch both the multi-tower array length AND the back-compat singular tower id
+    // so the rooms/readiness/upgrades load whichever shape the events API returns.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTowerIndex, towerData?.towers?.length]);
+  }, [activeTowerIndex, towerData?.towers?.length, towerData?.tower?.id]);
 
   if (loading) {
     return (
@@ -742,37 +744,53 @@ export default function TowerPlannerClient() {
         </div>
       )}
 
-      {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view. */}
+      {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view.
+          A single "Week 2" divider is emitted above the first week-2 room (when one exists). */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
-        {roomsByCellDesc.map((room) => {
-          const opponentPower = solverResult?.opponentPowers?.[room.id];
-          const opponentTeam = solverResult?.opponentTeams?.[room.id];
-          // A room is "data unavailable" when it had a combatId we tried to fetch but failed.
-          // Rooms with no combatId at all silently use the legacy path with no message.
-          const enemyFetchFailed = !!(
-            room.combatId &&
-            solverResult?.roomFetchErrors?.includes(room.combatId)
-          );
-          const evtId = tower?.eventId ?? tower?.id ?? "";
-          const loggedOutcome = evtId ? getRoomOutcome(outcomes, evtId, room.id) : null;
-          return (
-            <RoomCard
-              key={room.id}
-              room={room}
-              readiness={roomReadiness.get(room.id)}
-              assignment={solverResult?.assignments[room.id]}
-              cleared={clearedRooms.has(room.id)}
-              availableNow={isAvailableNow(room)}
-              onMarkCleared={() => markRoomCleared(room.id)}
-              opponentPower={opponentPower}
-              opponentTeam={opponentTeam}
-              enemyFetchFailed={enemyFetchFailed}
-              safetyMargin={safetyMargin}
-              onRecordOutcome={(outcome) => handleRecordOutcome(room.id, outcome)}
-              loggedOutcome={loggedOutcome?.outcome ?? null}
-            />
-          );
-        })}
+        {(() => {
+          const elements: React.ReactNode[] = [];
+          let week2DividerEmitted = !roomsByCellDesc.some((r) => r.week === 2);
+          for (const room of roomsByCellDesc) {
+            if (!week2DividerEmitted && room.week === 2) {
+              elements.push(
+                <div
+                  key={`week-2-divider-${room.id}`}
+                  className="mt-2 mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400"
+                  data-testid="week-2-divider"
+                >
+                  Week 2
+                </div>
+              );
+              week2DividerEmitted = true;
+            }
+            const opponentPower = solverResult?.opponentPowers?.[room.id];
+            const opponentTeam = solverResult?.opponentTeams?.[room.id];
+            const enemyFetchFailed = !!(
+              room.combatId &&
+              solverResult?.roomFetchErrors?.includes(room.combatId)
+            );
+            const evtId = tower?.eventId ?? tower?.id ?? "";
+            const loggedOutcome = evtId ? getRoomOutcome(outcomes, evtId, room.id) : null;
+            elements.push(
+              <RoomCard
+                key={room.id}
+                room={room}
+                readiness={roomReadiness.get(room.id)}
+                assignment={solverResult?.assignments[room.id]}
+                cleared={clearedRooms.has(room.id)}
+                availableNow={isAvailableNow(room)}
+                onMarkCleared={() => markRoomCleared(room.id)}
+                opponentPower={opponentPower}
+                opponentTeam={opponentTeam}
+                enemyFetchFailed={enemyFetchFailed}
+                safetyMargin={safetyMargin}
+                onRecordOutcome={(outcome) => handleRecordOutcome(room.id, outcome)}
+                loggedOutcome={loggedOutcome?.outcome ?? null}
+              />
+            );
+          }
+          return elements;
+        })()}
       </div>
 
       {/* History Section */}

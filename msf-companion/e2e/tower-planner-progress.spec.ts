@@ -79,7 +79,10 @@ test.describe("Tower Planner Progress Tracking", () => {
     await expect(firstCard).toHaveClass(/opacity-50/);
   });
 
-  test("Mark as Cleared persists on reload", async ({ page }) => {
+  test("Mark as Cleared is in-memory only and resets on reload (by design)", async ({ page }) => {
+    // Manual "Mark as Cleared" is an in-memory prediction layer; the API's
+    // `completedTier` is the authoritative source for cleared cells per tower.
+    // See TowerPlannerClient.tsx markRoomCleared / computeAutoCleared.
     await setupMockRoutes(page);
     await page.goto("/analyze/tower-planner");
     await dismissModals(page);
@@ -94,13 +97,19 @@ test.describe("Tower Planner Progress Tracking", () => {
     await expect(markBtn).toBeVisible({ timeout: 10000 });
     await markBtn.click();
 
-    // Navigate away and back (mocks stay since page.route persists)
+    // Cleared badge appears immediately in the current session
+    const clearedBadge = page.locator("[data-testid='cleared-badge']").first();
+    await expect(clearedBadge).toBeVisible();
+
+    // Navigate away and back — should NOT persist
     await page.goto("/analyze/tower-planner");
     await dismissModals(page);
 
-    // Should still be cleared
-    const clearedBadge = page.locator("[data-testid='cleared-badge']").first();
-    await expect(clearedBadge).toBeVisible({ timeout: 10000 });
+    // Should be back to un-cleared state (mock readiness has no cleared rooms)
+    await expect(page.locator("[data-testid='cleared-badge']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='mark-cleared-btn']").first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("Reset All shows confirm then clears", async ({ page }) => {
