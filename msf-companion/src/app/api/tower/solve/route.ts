@@ -30,10 +30,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { towerId, clearedRooms, metaTeams } = body as {
+    const { towerId, clearedRooms, metaTeams, lostTeamsByRoom } = body as {
       towerId?: string;
       clearedRooms?: string[];
       metaTeams?: MetaTeam[];
+      /**
+       * Optional per-room list of character-id arrays representing teams the
+       * user has logged a `lost` outcome with. The solver will not re-pick
+       * them unless they are the only ones passing the safety-margin gate.
+       */
+      lostTeamsByRoom?: Record<string, string[][]>;
     };
 
     if (!towerId) {
@@ -154,6 +160,22 @@ export async function POST(request: NextRequest) {
       Object.entries(opponentPowers),
     );
 
+    // Build canonical-key set of losing teams per room so the solver can
+    // exclude them (or warn when they're the only option).
+    const losingTeamsByRoom = new Map<string, ReadonlySet<string>>();
+    if (lostTeamsByRoom) {
+      for (const [roomId, teams] of Object.entries(lostTeamsByRoom)) {
+        if (!Array.isArray(teams)) continue;
+        const keys = new Set<string>();
+        for (const t of teams) {
+          if (Array.isArray(t) && t.every((x) => typeof x === "string")) {
+            keys.add([...t].sort().join("|"));
+          }
+        }
+        if (keys.size > 0) losingTeamsByRoom.set(roomId, keys);
+      }
+    }
+
     const result = solveTowerAllocation(
       solverRooms,
       roster,
@@ -161,6 +183,7 @@ export async function POST(request: NextRequest) {
       clearedRooms,
       {
         opponentPowers: opponentPowersMap,
+        ...(losingTeamsByRoom.size > 0 ? { losingTeamsByRoom } : {}),
         ...(tagsRecord
           ? {
               opponentTags: opponentTagsByRoom,
@@ -189,6 +212,11 @@ export async function POST(request: NextRequest) {
         solverRooms,
         metaTeams: metaTeams || [],
         clearedRooms: clearedRooms || [],
+        // Preserve composite-score inputs so client-side slider-driven re-solve
+        // produces identical scoring (and continues to exclude losing teams).
+        characterTags: tagsRecord ?? null,
+        opponentTagsByRoom: Object.fromEntries(opponentTagsByRoom),
+        lostTeamsByRoom: lostTeamsByRoom ?? {},
       },
     });
   } catch (error: unknown) {

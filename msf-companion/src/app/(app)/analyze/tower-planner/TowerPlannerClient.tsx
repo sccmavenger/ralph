@@ -127,6 +127,11 @@ interface SolverResult {
     solverRooms: RoomForSolver[];
     metaTeams: MetaTeam[];
     clearedRooms: string[];
+    // Composite-scoring inputs preserved so client-side slider re-solve
+    // mirrors server-side scoring (including loss-exclusion).
+    characterTags?: Record<string, string[]> | null;
+    opponentTagsByRoom?: Record<string, string[]>;
+    lostTeamsByRoom?: Record<string, string[][]>;
   };
 }
 
@@ -394,10 +399,11 @@ export default function TowerPlannerClient() {
   const clearable = readyCount + almostCount;
 
   // Game-order: cells are presented as a single linear sequence (CELL 1 .. CELL N).
-  // The game UI lists them top-down with the highest cell at the top, current/next cell
-  // highlighted, and previously cleared cells dimmed below it. We mirror that.
+  // We list them top-down with CELL 1 at the top (ascending), so the commander sees
+  // the starting cell first without scrolling to the bottom. The next cell to clear
+  // is highlighted and previously cleared cells are dimmed.
   const cellOf = (r: TowerRoom): number => cellNumberOf(r.name) ?? 0;
-  const roomsByCellDesc = [...rooms].sort((a, b) => cellOf(b) - cellOf(a));
+  const roomsByCellAsc = [...rooms].sort((a, b) => cellOf(a) - cellOf(b));
   const clearedSet = clearedRooms;
   // The next cell to clear = (highest cleared cell number) + 1.
   const maxClearedCell = rooms.reduce(
@@ -412,6 +418,18 @@ export default function TowerPlannerClient() {
   async function handlePickMyTeams() {
     setSolving(true);
     try {
+      // Build per-room list of teams the user has previously LOST with, so
+      // the solver excludes them from re-recommendation.
+      const evtIdForLoss = tower?.eventId ?? tower?.id;
+      const lostTeamsByRoom: Record<string, string[][]> = {};
+      if (evtIdForLoss) {
+        for (const o of outcomes) {
+          if (o.outcome !== "lost") continue;
+          if (o.towerEventId !== evtIdForLoss) continue;
+          if (!Array.isArray(o.recommendedTeam) || o.recommendedTeam.length === 0) continue;
+          (lostTeamsByRoom[o.roomId] ??= []).push(o.recommendedTeam);
+        }
+      }
       const res = await fetch("/api/tower/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -419,6 +437,7 @@ export default function TowerPlannerClient() {
           towerId: tower.id,
           clearedRooms: [...clearedRooms],
           metaTeams: [],
+          lostTeamsByRoom,
         }),
       });
       if (res.ok) {
@@ -446,13 +465,41 @@ export default function TowerPlannerClient() {
     margin: number,
   ): SolverResult | null {
     if (!base?.solverInputs) return null;
-    const { roster, solverRooms, metaTeams, clearedRooms: cleared } = base.solverInputs;
+    const {
+      roster,
+      solverRooms,
+      metaTeams,
+      clearedRooms: cleared,
+      characterTags,
+      opponentTagsByRoom,
+      lostTeamsByRoom,
+    } = base.solverInputs;
     const opponentPowersMap = new Map<string, number>(
       Object.entries(base.opponentPowers ?? {}),
     );
+    // Rebuild composite-score inputs so the client-side re-solve mirrors the
+    // server-side scoring (including loss-exclusion). Without this, dragging
+    // the safety-margin slider silently drops composite scoring & lets a
+    // previously-LOST team back into the recommendation.
+    const opponentTagsMap = opponentTagsByRoom
+      ? new Map<string, readonly string[]>(Object.entries(opponentTagsByRoom))
+      : undefined;
+    const losingTeamsMap = (() => {
+      if (!lostTeamsByRoom) return undefined;
+      const m = new Map<string, ReadonlySet<string>>();
+      for (const [roomId, teams] of Object.entries(lostTeamsByRoom)) {
+        const keys = new Set<string>();
+        for (const t of teams) keys.add([...t].sort().join("|"));
+        if (keys.size > 0) m.set(roomId, keys);
+      }
+      return m.size > 0 ? m : undefined;
+    })();
     const result = solveTowerAllocation(solverRooms, roster, metaTeams, cleared, {
       opponentPowers: opponentPowersMap,
       safetyMargin: margin,
+      ...(characterTags ? { characterTags } : {}),
+      ...(opponentTagsMap ? { opponentTags: opponentTagsMap } : {}),
+      ...(losingTeamsMap ? { losingTeamsByRoom: losingTeamsMap } : {}),
     });
     const assignments: Record<string, TeamAssignment> = {};
     result.assignments.forEach((value: SolverTeamAssignment, key: string) => {
@@ -502,6 +549,22 @@ export default function TowerPlannerClient() {
     };
     const next = recordOutcome(entry);
     setOutcomes(next);
+    // If the user just told us the recommended team LOST, immediately re-solve
+    // (client-side) so they see a different recommendation. We mutate the
+    // cached solverInputs.lostTeamsByRoom to include the new loss, then call
+    // recomputeWithMargin — no API round-trip needed.
+    if (outcome === "lost" && entry.recommendedTeam.length > 0) {
+      const cached = lastSolverResponseRef.current;
+      if (cached?.solverInputs) {
+        const lostMap: Record<string, string[][]> = {
+          ...(cached.solverInputs.lostTeamsByRoom ?? {}),
+        };
+        lostMap[roomId] = [...(lostMap[roomId] ?? []), entry.recommendedTeam];
+        cached.solverInputs.lostTeamsByRoom = lostMap;
+        const recomputed = recomputeWithMargin(cached, safetyMargin);
+        if (recomputed) setSolverResult(recomputed);
+      }
+    }
   }
 
   const marginSuggestion = generateMarginSuggestion(outcomes, safetyMargin);
@@ -744,13 +807,13 @@ export default function TowerPlannerClient() {
         </div>
       )}
 
-      {/* Rooms in game order: highest cell at the top, descending. Matches the in-game tower view.
+      {/* Rooms in game order: CELL 1 at the top, ascending. Starting cell is shown first.
           A single "Week 2" divider is emitted above the first week-2 room (when one exists). */}
       <div className="flex flex-col gap-3" data-testid="tower-room-list">
         {(() => {
           const elements: React.ReactNode[] = [];
-          let week2DividerEmitted = !roomsByCellDesc.some((r) => r.week === 2);
-          for (const room of roomsByCellDesc) {
+          let week2DividerEmitted = !roomsByCellAsc.some((r) => r.week === 2);
+          for (const room of roomsByCellAsc) {
             if (!week2DividerEmitted && room.week === 2) {
               elements.push(
                 <div
@@ -1079,6 +1142,22 @@ function RoomCard({ room, readiness, assignment, cleared, availableNow = false, 
                   <li data-testid="composite-total" className="border-t border-gray-700 pt-1">
                     <span className="text-gray-200">Total score:</span>{" "}
                     <span className="font-mono">{assignment.compositeScore.total}/100</span>
+                  </li>
+                  <li className="mt-2 text-[11px] text-gray-500">
+                    <details>
+                      <summary className="cursor-pointer hover:text-gray-400">How is this scored?</summary>
+                      <div className="mt-1 space-y-1 pl-2">
+                        <p>
+                          <span className="font-mono">Total = 0.45·power + 0.20·synergy + 0.25·counter + 0.10·balance</span>
+                        </p>
+                        <p><span className="text-gray-400">Power margin</span>: your team power vs opponent · safety margin. 100 = at or above target.</p>
+                        <p><span className="text-gray-400">Faction synergy</span>: shared-trait passives (Asgardian, X-Men, Avenger, etc.). Starts at 50 at threshold, scales to 100.</p>
+                        <p><span className="text-gray-400">Counter coverage</span>: how much of the opponent&apos;s ability kit (heal, revive, bleed, stun, ability_block&hellip;) your team neutralises via its own kit tags.</p>
+                        <p><span className="text-gray-400">Role balance</span>: damage/control/support mix.</p>
+                        <p className="text-gray-600">When picking between teams, the solver subtracts a <em>power-overshoot penalty</em> for going more than 1.5× past the safety-margin target — this conserves your strongest characters for harder rooms instead of stacking them on easy ones.</p>
+                        <p className="text-gray-600">Teams you&apos;ve logged a <span className="text-red-400">Lost</span> outcome with for this room are excluded from re-recommendation when an alternative exists.</p>
+                      </div>
+                    </details>
                   </li>
                 </ul>
               )}

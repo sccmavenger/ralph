@@ -448,16 +448,12 @@ describe("getConfidenceFromComposite — composite confidence label (US-007)", (
   });
 });
 
-describe("solveTowerAllocation — composite-derived confidence (US-007)", () => {
-  it("when composite is computed, confidence label derives from composite total (not raw margin)", () => {
-    // High raw-margin team (4x opponent power) BUT zero counter coverage,
-    // zero faction synergy → composite total should fall below 75 and the
-    // confidence should NOT be the margin-based "strong".
-    // Power-margin score: ratio 4.0, extra 4.0 - 1.10 = 2.90, normalized
-    // clipped to 1 → 100. Synergy 0 (Mutant not in FACTION_PASSIVES). Counter
-    // 0 (no opp tags counter-mapped, see below). Role balance: all chars
-    // tagged neither healer nor tank → all damage → only the damage bucket
-    // activates → ~33. Total ≈ 100*0.45 + 0 + 0 + 33*0.10 = 48 → "risky".
+describe("solveTowerAllocation — power-first confidence with composite breakdown (US-007)", () => {
+  it("confidence label tracks raw power margin even when composite sub-scores are sparse", () => {
+    // High raw-margin team (4x opponent power) BUT zero counter coverage and
+    // zero faction synergy. The composite breakdown is still attached (and
+    // drives team SELECTION), but it must NOT drag the confidence label below
+    // what the power margin justifies. Ratio 4.0 → "strong".
     const roster = Array.from({ length: 5 }, (_, i) =>
       makeChar(`c${i}`, { power: 800_000 })
     );
@@ -478,12 +474,12 @@ describe("solveTowerAllocation — composite-derived confidence (US-007)", () =>
       { opponentPowers, opponentTags, characterTags },
     );
     const assn = result.assignments.get("r1")!;
-    // Raw margin is +300% (very strong by margin) but composite confidence
-    // demotes it to risky because synergy/counter/balance contribute nothing.
+    // Raw margin is +300% → power-based label is "strong"; the composite
+    // breakdown is still present for the "Why this team?" UI, but no longer
+    // overrides the label into a contradiction.
     expect(assn.marginPct).toBeGreaterThanOrEqual(200);
     expect(assn.compositeScore).toBeDefined();
-    expect(assn.confidence).toBe("risky");
-    expect(assn.confidence).not.toBe("strong");
+    expect(assn.confidence).toBe("strong");
   });
 
   it("appends the composite-score breakdown numbers to the reason string", () => {

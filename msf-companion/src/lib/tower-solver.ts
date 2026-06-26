@@ -1,6 +1,6 @@
 import { Character, RoomRequirements } from "./tower-readiness";
 import { compositeScore, type CompositeBreakdown } from "./tower-scoring";
-import { FACTION_PASSIVES, type FactionPassiveMap } from "./tower-scoring-data";
+import { FACTION_PASSIVES, COUNTER_MAP, type FactionPassiveMap } from "./tower-scoring-data";
 
 export interface RoomForSolver {
   id: string;
@@ -92,10 +92,21 @@ export const SAFETY_MARGIN_DEFAULT = 1.1;
 
 /**
  * Upper bound on the candidate pool size for composite-score re-ranking
- * (US-006). Combinations grow as C(N, teamSize) so we cap at 12 to keep the
- * worst case at C(12,5)=792 — a few hundred microseconds at most.
+ * (US-006). The pool is the union of top-by-power AND top-by-counter-potential,
+ * so counter-rich characters outside the top-strongest still get considered.
+ * Combinations grow as C(N, teamSize) so we cap at 12 to keep the worst case
+ * at C(12,5)=792 — a few hundred microseconds at most.
  */
 const COMPOSITE_POOL_LIMIT = 12;
+
+/**
+ * Canonical key for a team of characters: sorted ids joined with `|`.
+ * Used by {@link SolverOptions.losingTeamsByRoom} to identify previously-lost
+ * compositions regardless of input order.
+ */
+export function teamKey(chars: readonly { id: string }[]): string {
+  return [...chars.map((c) => c.id)].sort().join("|");
+}
 
 /**
  * Yield all combinations of size `k` from `arr` (lexicographic by index).
@@ -135,6 +146,14 @@ export interface SolverOptions {
   characterTags?: Readonly<Record<string, readonly string[]>>;
   /** Override the default {@link FACTION_PASSIVES} table (mostly for tests). */
   factionPassives?: FactionPassiveMap;
+  /**
+   * Per-room set of canonical team keys (see {@link teamKey}) that the user
+   * has logged a `lost` outcome for. The solver will skip any candidate team
+   * whose key matches — unless no other team passes the safety-margin gate,
+   * in which case the losing team is returned with a reason note explaining
+   * why no alternative exists.
+   */
+  losingTeamsByRoom?: Map<string, ReadonlySet<string>>;
 }
 
 /**
@@ -359,19 +378,49 @@ export function solveTowerAllocation(
         marginFallback = true;
       }
 
-      // US-006: composite-score re-ranking. Only re-rank teams that already
-      // pass the safety-margin gate (so the margin floor still wins) and only
-      // when ability-tag data is provided. Enumerate combinations from the
-      // strongest K eligible characters to keep the candidate set bounded.
+      // US-006 / loss-aware re-ranking. Only re-rank teams that already pass
+      // the safety-margin gate (so the margin floor still wins) and only when
+      // ability-tag data is provided. The candidate pool is the union of
+      // top-by-power AND top-by-counter-potential vs this room's opponent,
+      // so counter-rich characters outside the top-strongest get considered.
+      // Any team whose canonical key matches a logged "lost" outcome for this
+      // room is excluded — unless excluding it would leave no viable team.
       let compositeBreakdown: CompositeBreakdown | undefined;
+      let lostFallback = false;
       if (!marginFallback && options?.characterTags) {
         const characterTags = options.characterTags;
         const opponentTagsForRoom = options.opponentTags?.get(room.id) ?? [];
         const factionPassives = options.factionPassives ?? FACTION_PASSIVES;
+        const lostKeys = options.losingTeamsByRoom?.get(room.id) ?? new Set<string>();
+
+        // Pool = top-K by power UNION top-K by counter-potential.
+        // Counter-potential for a single character = number of its tags that
+        // appear in the union of `counteredBy` sets for the opponent's tags.
+        const oppCounteredBy = new Set<string>();
+        for (const t of opponentTagsForRoom) {
+          const entry = COUNTER_MAP[t];
+          if (entry) for (const c of entry.counteredBy) oppCounteredBy.add(c);
+        }
+        const counterPotential = (c: Character): number => {
+          const tags = characterTags[c.id];
+          if (!tags) return 0;
+          let n = 0;
+          for (const t of tags) if (oppCounteredBy.has(t)) n++;
+          return n;
+        };
 
         const byPowerDesc = [...eligible].sort((a, b) => b.power - a.power);
-        const poolSize = Math.min(byPowerDesc.length, COMPOSITE_POOL_LIMIT);
-        const pool = byPowerDesc.slice(0, poolSize);
+        const byCounterDesc = [...eligible].sort((a, b) => {
+          const d = counterPotential(b) - counterPotential(a);
+          return d !== 0 ? d : b.power - a.power;
+        });
+        const poolMap = new Map<string, Character>();
+        for (const c of byPowerDesc.slice(0, COMPOSITE_POOL_LIMIT)) poolMap.set(c.id, c);
+        for (const c of byCounterDesc.slice(0, COMPOSITE_POOL_LIMIT)) {
+          if (counterPotential(c) === 0) break; // skip if no counter value
+          poolMap.set(c.id, c);
+        }
+        const pool = Array.from(poolMap.values());
         const target = opponentPower * safetyMargin;
 
         const buildTags = (team: readonly Character[]) => {
@@ -380,6 +429,17 @@ export function solveTowerAllocation(
           return out;
         };
 
+        // Power-conservation penalty: once a team's power is comfortably
+        // past the safety-margin target (overshoot ≥ 1.5×), every additional
+        // multiple of the target costs composite points. This stops the
+        // solver from burning A-tier characters on easy rooms when a smaller
+        // team with similar composite would also win.
+        const powerOvershootPenalty = (sum: number): number => {
+          const t = opponentPower * safetyMargin;
+          if (t <= 0) return 0;
+          const overshoot = sum / t;
+          return Math.max(0, (overshoot - 1.5) * 10);
+        };
         const initialBreakdown = compositeScore(
           assignedTeam,
           chosenSum,
@@ -389,9 +449,21 @@ export function solveTowerAllocation(
           buildTags(assignedTeam),
           opponentTagsForRoom,
         );
-        let bestTeam = assignedTeam;
-        let bestSum = chosenSum;
-        let bestBreakdown = initialBreakdown;
+        const initialAdjusted = initialBreakdown.total - powerOvershootPenalty(chosenSum);
+
+        const initialKey = teamKey(assignedTeam);
+        const initialIsLost = lostKeys.has(initialKey);
+        // Seed best with the initial team only if it's not a known loser.
+        // Otherwise leave best undefined and let the combinations loop find one.
+        let bestTeam: Character[] | null = initialIsLost ? null : assignedTeam;
+        let bestSum = initialIsLost ? 0 : chosenSum;
+        let bestBreakdown: CompositeBreakdown | null = initialIsLost ? null : initialBreakdown;
+        let bestAdjusted = initialIsLost ? -Infinity : initialAdjusted;
+        // Track the best LOST team as a fallback so we never return nothing.
+        let bestLostTeam: Character[] | null = initialIsLost ? assignedTeam : null;
+        let bestLostSum = initialIsLost ? chosenSum : 0;
+        let bestLostBreakdown: CompositeBreakdown | null = initialIsLost ? initialBreakdown : null;
+        let bestLostAdjusted = initialIsLost ? initialAdjusted : -Infinity;
 
         for (const combo of combinations(pool, teamSize)) {
           const sum = teamPower(combo);
@@ -405,32 +477,66 @@ export function solveTowerAllocation(
             buildTags(combo),
             opponentTagsForRoom,
           );
-          // Higher composite wins; tie-break by higher raw power.
+          const adjusted = breakdown.total - powerOvershootPenalty(sum);
+          const key = teamKey(combo);
+          if (lostKeys.has(key)) {
+            if (
+              adjusted > bestLostAdjusted ||
+              (adjusted === bestLostAdjusted && sum < bestLostSum)
+            ) {
+              bestLostTeam = combo;
+              bestLostSum = sum;
+              bestLostBreakdown = breakdown;
+              bestLostAdjusted = adjusted;
+            }
+            continue;
+          }
+          // Primary: higher adjusted composite (= composite − overshoot penalty)
+          // Tie-break: LOWER raw power, so we conserve strong characters for
+          // harder rooms when two teams score equivalently well.
           if (
-            breakdown.total > bestBreakdown.total ||
-            (breakdown.total === bestBreakdown.total && sum > bestSum)
+            adjusted > bestAdjusted ||
+            (adjusted === bestAdjusted && sum < bestSum)
           ) {
             bestTeam = combo;
             bestSum = sum;
             bestBreakdown = breakdown;
+            bestAdjusted = adjusted;
           }
         }
 
-        assignedTeam = bestTeam;
-        chosenSum = bestSum;
-        compositeBreakdown = bestBreakdown;
+        if (bestTeam && bestBreakdown) {
+          assignedTeam = bestTeam;
+          chosenSum = bestSum;
+          compositeBreakdown = bestBreakdown;
+        } else if (bestLostTeam && bestLostBreakdown) {
+          // Only known-losing teams pass the gate — return the best of them
+          // and flag it so the reason can warn the user.
+          assignedTeam = bestLostTeam;
+          chosenSum = bestLostSum;
+          compositeBreakdown = bestLostBreakdown;
+          lostFallback = true;
+        }
       }
 
       const power = chosenSum;
       let confidence = getConfidence(power, opponentPower);
       const marginPct = Math.round((power / opponentPower - 1) * 100);
       let reason = buildMarginReason(confidence, marginPct, marginFallback, safetyMargin);
-      // US-007: when composite was computed, derive the confidence label from
-      // the composite total (not raw margin) and append the breakdown to the
-      // reason so the UI can show a quick textual summary.
+      // US-007: the composite ability score drives team *selection* (the ranking
+      // above), but it must NOT override the confidence label. The curated
+      // ability tables are sparse (counter/synergy are often 0), so letting the
+      // composite total bucket the label produces contradictions like a +62%
+      // power team flagged "Likely loss". The label stays power-margin based;
+      // the composite breakdown is appended to the reason for transparency.
       if (compositeBreakdown) {
-        confidence = getConfidenceFromComposite(compositeBreakdown.total);
         reason = `${reason} Score ${compositeBreakdown.total}/100 (power ${compositeBreakdown.power}, synergy ${compositeBreakdown.synergy}, counter ${compositeBreakdown.counter}, balance ${compositeBreakdown.roleBalance}).`;
+      }
+      if (lostFallback) {
+        // Downgrade confidence: even if composite is high, the user already
+        // lost with this exact composition. Surface that loudly.
+        confidence = "risky";
+        reason = `You logged a Loss with this exact team here, but no other team passes the safety-margin gate. Consider lowering the safety margin or upgrading a counter-relevant character. ${reason}`;
       }
 
       for (const char of assignedTeam) usedCharIds.add(char.id);

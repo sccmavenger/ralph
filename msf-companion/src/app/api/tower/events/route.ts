@@ -130,6 +130,8 @@ export async function GET(request?: Request) {
       if (n.includes("accursed")) return "accursed";
       if (n.includes("fantastic")) return "fantastic4mcu";
       if (n.includes("magneto")) return "magnetopf";
+      // Fear Tower: Symbiotes events map to the `survivaltower_arena_*` defs.
+      if (n.includes("symbiote") || n.includes("fear") || n.includes("arena")) return "arena";
       return "default";
     }
     // Collect candidate tower IDs per family.
