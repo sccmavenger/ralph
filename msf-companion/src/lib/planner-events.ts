@@ -12,9 +12,22 @@ interface RawEvent {
   tower?: { requirements?: RawRequirements };
 }
 
+interface RawNodeCompletion {
+  type?: string;
+  id?: string;
+}
+
+interface RawOtherRequirements {
+  allNodeCompletions?: RawNodeCompletion[];
+}
+
 interface RawRequirements {
   anyCharacterFilters?: CharacterFilter[];
   specificCharacters?: string[];
+  minCharacters?: number;
+  maxCharacters?: number;
+  missionCharacters?: boolean;
+  otherRequirements?: RawOtherRequirements;
 }
 
 interface CharacterFilter {
@@ -56,13 +69,44 @@ export interface NormalizedRequirements {
   minLevel: number | null;
 }
 
+/** A single gate within one encounter (one anyCharacterFilter or a specificCharacters group). */
+export interface EncounterFilter {
+  traits: string[];
+  specificCharacters: string[];
+  minGearTier: number | null;
+  minStars: number | null;
+  minLevel: number | null;
+}
+
+/** One encounter (an episodic tier/node) with its own team requirements. */
+export interface NormalizedEncounter {
+  chapter: number;
+  tier: number;
+  minCharacters: number | null;
+  maxCharacters: number | null;
+  /** Game supplies the team (boss tier) — no roster gate, excluded from readiness. */
+  missionCharacters: boolean;
+  filters: EncounterFilter[];
+}
+
+/** A prerequisite campaign that must be completed first (from allNodeCompletions). */
+export interface PrerequisiteRef {
+  type: string;
+  id: string;
+}
+
 export interface NormalizedEvent {
   id: string;
   name: string;
   type: string;
   startTime: string;
   endTime: string;
+  /** Aggregate of all encounters (kept for backward compatibility). */
   requirements: NormalizedRequirements;
+  /** Per-encounter requirements — preserves each tier's distinct team gate. */
+  encounters: NormalizedEncounter[];
+  /** Distinct campaigns that must be completed before this event unlocks. */
+  prerequisites: PrerequisiteRef[];
 }
 
 function traitId(t: string | { id: string }): string {
@@ -75,26 +119,93 @@ function toISOString(t: number | string | undefined): string {
   return t;
 }
 
-function extractFromReqs(reqs: RawRequirements): NormalizedRequirements {
+function filterFromCharacterFilter(f: CharacterFilter): EncounterFilter {
+  const traits = new Set<string>();
+  for (const t of f.allTraits ?? []) traits.add(traitId(t));
+  for (const t of f.anyTraits ?? []) traits.add(traitId(t));
+  return {
+    traits: [...traits],
+    specificCharacters: [...(f.anyCharacters ?? [])],
+    minGearTier: f.gearTier ?? null,
+    minStars: f.activeYellow ?? null,
+    minLevel: f.level ?? null,
+  };
+}
+
+function isBareGearFilter(f: CharacterFilter): boolean {
+  const hasTraits = (f.allTraits?.length ?? 0) > 0 || (f.anyTraits?.length ?? 0) > 0;
+  const hasChars = (f.anyCharacters?.length ?? 0) > 0;
+  return !hasTraits && !hasChars;
+}
+
+/**
+ * Build a single encounter from one tier/node's raw requirements.
+ * Returns null when there is no roster gate at all (and it isn't a mission tier).
+ */
+function buildEncounter(
+  reqs: RawRequirements,
+  chapter: number,
+  tier: number,
+): NormalizedEncounter | null {
+  const missionCharacters = reqs.missionCharacters === true;
+  const allFilters = reqs.anyCharacterFilters ?? [];
+  const filters: EncounterFilter[] = [];
+
+  if (reqs.specificCharacters && reqs.specificCharacters.length > 0) {
+    // The gear/level/star gate from a bare filter applies to these named characters.
+    const bare = allFilters.find(isBareGearFilter);
+    filters.push({
+      traits: [],
+      specificCharacters: [...reqs.specificCharacters],
+      minGearTier: bare?.gearTier ?? null,
+      minStars: bare?.activeYellow ?? null,
+      minLevel: bare?.level ?? null,
+    });
+    // Keep any non-bare filters (trait/character gates) as their own filters.
+    for (const f of allFilters) {
+      if (!isBareGearFilter(f)) filters.push(filterFromCharacterFilter(f));
+    }
+  } else {
+    for (const f of allFilters) filters.push(filterFromCharacterFilter(f));
+  }
+
+  if (
+    !missionCharacters &&
+    filters.length === 0 &&
+    reqs.minCharacters == null &&
+    reqs.maxCharacters == null
+  ) {
+    return null;
+  }
+
+  return {
+    chapter,
+    tier,
+    minCharacters: reqs.minCharacters ?? null,
+    maxCharacters: reqs.maxCharacters ?? null,
+    missionCharacters,
+    filters,
+  };
+}
+
+/** Collapse a list of encounters into the legacy aggregate requirements blob. */
+function aggregateRequirements(encounters: NormalizedEncounter[]): NormalizedRequirements {
   const traits = new Set<string>();
   const specificCharacters = new Set<string>();
   let minGearTier: number | null = null;
   let minStars: number | null = null;
   let minLevel: number | null = null;
 
-  if (reqs.anyCharacterFilters) {
-    for (const f of reqs.anyCharacterFilters) {
-      for (const t of f.allTraits ?? []) traits.add(traitId(t));
-      for (const t of f.anyTraits ?? []) traits.add(traitId(t));
-      if (f.anyCharacters) for (const c of f.anyCharacters) specificCharacters.add(c);
-      if (f.gearTier != null) minGearTier = Math.max(minGearTier ?? 0, f.gearTier);
-      if (f.activeYellow != null) minStars = Math.max(minStars ?? 0, f.activeYellow);
-      if (f.level != null) minLevel = Math.max(minLevel ?? 0, f.level);
+  for (const enc of encounters) {
+    for (const f of enc.filters) {
+      for (const t of f.traits) traits.add(t);
+      for (const c of f.specificCharacters) specificCharacters.add(c);
+      if (f.minGearTier != null) minGearTier = Math.max(minGearTier ?? 0, f.minGearTier);
+      if (f.minStars != null) minStars = Math.max(minStars ?? 0, f.minStars);
+      if (f.minLevel != null) minLevel = Math.max(minLevel ?? 0, f.minLevel);
     }
   }
-  if (reqs.specificCharacters) {
-    for (const c of reqs.specificCharacters) specificCharacters.add(c);
-  }
+
   return {
     traits: [...traits],
     specificCharacters: [...specificCharacters],
@@ -104,62 +215,64 @@ function extractFromReqs(reqs: RawRequirements): NormalizedRequirements {
   };
 }
 
-function mergeReqs(target: NormalizedRequirements, source: NormalizedRequirements): void {
-  for (const t of source.traits) target.traits.push(t);
-  for (const c of source.specificCharacters) target.specificCharacters.push(c);
-  if (source.minGearTier != null) target.minGearTier = Math.max(target.minGearTier ?? 0, source.minGearTier);
-  if (source.minStars != null) target.minStars = Math.max(target.minStars ?? 0, source.minStars);
-  if (source.minLevel != null) target.minLevel = Math.max(target.minLevel ?? 0, source.minLevel);
-}
-
-function extractEpisodicReqs(wrapper: EpisodicDetailWrapper): NormalizedRequirements {
-  const detail = wrapper.data ?? wrapper;
-  const allReqs: RawRequirements[] = [];
-
-  const d = detail as {
-    requirements?: RawRequirements;
+/** Extract every encounter (tier/node) from one episodic detail response. */
+export function extractEpisodicEncounters(wrapper: EpisodicDetailWrapper): NormalizedEncounter[] {
+  const detail = (wrapper.data ?? wrapper) as {
     nodes?: Record<string, EpisodicNode>;
     chapters?: Record<string, EpisodicChapter>;
   };
+  const encounters: NormalizedEncounter[] = [];
 
-  if (d.requirements?.anyCharacterFilters || d.requirements?.specificCharacters) {
-    allReqs.push(d.requirements);
-  }
-
-  if (d.nodes) {
-    for (const node of Object.values(d.nodes)) {
-      if (node.requirements) allReqs.push(node.requirements);
+  const pushNodes = (
+    nodes: Record<string, EpisodicNode> | undefined,
+    chapter: number,
+    tier: number,
+  ) => {
+    if (!nodes) return;
+    for (const node of Object.values(nodes)) {
+      if (!node.requirements) continue;
+      const enc = buildEncounter(node.requirements, chapter, tier);
+      if (enc) encounters.push(enc);
     }
-  }
-
-  if (d.chapters) {
-    for (const chapter of Object.values(d.chapters)) {
-      if (chapter.nodes) {
-        for (const node of Object.values(chapter.nodes)) {
-          if (node.requirements) allReqs.push(node.requirements);
-        }
-      }
-      if (chapter.tiers) {
-        for (const tier of Object.values(chapter.tiers)) {
-          if (tier.requirements) allReqs.push(tier.requirements);
-          if (tier.nodes) {
-            for (const node of Object.values(tier.nodes)) {
-              if (node.requirements) allReqs.push(node.requirements);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const result: NormalizedRequirements = {
-    traits: [], specificCharacters: [],
-    minGearTier: null, minStars: null, minLevel: null,
   };
-  for (const r of allReqs) mergeReqs(result, extractFromReqs(r));
-  result.traits = [...new Set(result.traits)];
-  result.specificCharacters = [...new Set(result.specificCharacters)];
-  return result;
+
+  // Top-level nodes (no chapter/tier context).
+  pushNodes(detail.nodes, 0, 0);
+
+  if (detail.chapters) {
+    for (const [chKey, chapter] of Object.entries(detail.chapters)) {
+      const chNum = Number(chKey) || 0;
+      pushNodes(chapter.nodes, chNum, 0);
+      if (chapter.tiers) {
+        for (const [tKey, tier] of Object.entries(chapter.tiers)) {
+          const tNum = Number(tKey) || 0;
+          if (tier.requirements) {
+            const enc = buildEncounter(tier.requirements, chNum, tNum);
+            if (enc) encounters.push(enc);
+          }
+          pushNodes(tier.nodes, chNum, tNum);
+        }
+      }
+    }
+  }
+
+  return encounters;
+}
+
+/** Extract prerequisite campaign refs from one episodic detail response. */
+export function extractEpisodicPrerequisites(wrapper: EpisodicDetailWrapper): PrerequisiteRef[] {
+  const detail = (wrapper.data ?? wrapper) as { requirements?: RawRequirements };
+  const completions = detail.requirements?.otherRequirements?.allNodeCompletions ?? [];
+  const seen = new Set<string>();
+  const refs: PrerequisiteRef[] = [];
+  for (const c of completions) {
+    if (!c.type || !c.id) continue;
+    const key = `${c.type}/${c.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push({ type: c.type, id: c.id });
+  }
+  return refs;
 }
 
 export async function fetchNormalizedEvents(
@@ -188,10 +301,9 @@ export async function fetchNormalizedEvents(
   const normalized: NormalizedEvent[] = [];
 
   for (const event of events) {
-    const requirements: NormalizedRequirements = {
-      traits: [], specificCharacters: [],
-      minGearTier: null, minStars: null, minLevel: null,
-    };
+    const encounters: NormalizedEncounter[] = [];
+    const prerequisites: PrerequisiteRef[] = [];
+    const seenPrereqs = new Set<string>();
 
     if (event.type === "episodic" && event.episodic) {
       const epType = event.episodic.type;
@@ -202,17 +314,23 @@ export async function fetchNormalizedEvents(
             path: `/game/v1/episodics/${epType}/${epId}?nodeReqs=full&traitFormat=id`,
             accessToken,
           });
-          mergeReqs(requirements, extractEpisodicReqs(detail));
+          encounters.push(...extractEpisodicEncounters(detail));
+          for (const ref of extractEpisodicPrerequisites(detail)) {
+            const key = `${ref.type}/${ref.id}`;
+            if (seenPrereqs.has(key)) continue;
+            seenPrereqs.add(key);
+            prerequisites.push(ref);
+          }
         } catch (err) {
           console.warn(`Failed to fetch episodic ${event.id}/${epId}:`, err);
         }
       }
-      requirements.traits = [...new Set(requirements.traits)];
-      requirements.specificCharacters = [...new Set(requirements.specificCharacters)];
     } else if (event.type === "blitz" && event.blitz?.requirements) {
-      mergeReqs(requirements, extractFromReqs(event.blitz.requirements));
+      const enc = buildEncounter(event.blitz.requirements, 0, 0);
+      if (enc) encounters.push(enc);
     } else if (event.type === "tower" && event.tower?.requirements) {
-      mergeReqs(requirements, extractFromReqs(event.tower.requirements));
+      const enc = buildEncounter(event.tower.requirements, 0, 0);
+      if (enc) encounters.push(enc);
     }
 
     normalized.push({
@@ -221,7 +339,9 @@ export async function fetchNormalizedEvents(
       type: event.type ?? "unknown",
       startTime: toISOString(event.startTime),
       endTime: toISOString(event.endTime),
-      requirements,
+      requirements: aggregateRequirements(encounters),
+      encounters,
+      prerequisites,
     });
   }
 
