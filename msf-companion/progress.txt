@@ -56,6 +56,7 @@ Tower endpoints:
 - vitest needs `resolve.alias { "@": ./src }` (added to `vitest.config.ts`) so real (unmocked) `@/`-aliased imports resolve. Tests that only `vi.mock("@/...")` didn't need it; DB integration tests importing real modules do.
 - DB integration tests: `import "dotenv/config"` at the top to load `DATABASE_URL` from `.env` (vitest doesn't auto-load env). Create throwaway `Commander` rows and clean up via `prisma.commander.deleteMany` (Cascade removes children) in `afterAll`.
 - Migration workflow when the dev DB has drift (`prisma migrate dev` wants to reset): hand-write `prisma/migrations/<ts>_name/migration.sql`, apply with `npx prisma db execute --file <sql>`, then `npx prisma migrate resolve --applied <migration_name>`, then `npx prisma generate`. `migrate status` then reports up to date.
+- UI (US-003+): reusable input sheet is `src/app/components/WalletInputSheet.tsx` (`onSkip`, `onSaved(wallet)`, optional `initialGold`/`initialCores`); it exports `SavedWallet`. Pure format/validate logic is in `src/lib/wallet-format.ts` (`formatWalletNumber` for display, `parseWalletNumber` for the raw API int). No React test infra in repo (no jsdom/testing-library) — put testable UI logic in a pure module and unit-test that. Wallet mockup accent colors: Gold `#f0c14b`, Cores `#5fd0e0`. Modal theme template: copy `src/app/components/EmailModal.tsx`.
 
 ### Known Issues
 - planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
@@ -343,3 +344,25 @@ ecomputeWithMargin only forwards opponentPowers + safetyMargin, NOT characterTag
   - API route auth pattern for player-scoped (non-premium-gated) endpoints: use `getScopelyId(true)` (Route Handlers pass true to persist recovered id), NOT `getValidAccessTokenWithRefresh` alone. scopelyId is the account identity; map to Commander.id via prisma. Premium endpoints additionally gate with `getSubscriptionTier`/`isPremium` (see inventory route).
   - Route tests mock `@/lib/scopely-id` and `@/lib/prisma`; use `vi.importActual` on `@/lib/wallet` to exercise real validation while stubbing DB calls. No DB needed for route tests.
   - Build a PUT `Request` in tests with `new Request(url, { method, body, headers })` and call the exported handler directly.
+
+## 2026-07-02 23:55 - US-003 - Wallet input sheet
+- Implemented mobile-first 2-field wallet sheet (Gold, Cores) that thousands-formats display but sends raw integers to the existing `PUT /api/msf/wallet`.
+- New files:
+  - `src/lib/wallet-format.ts` — pure display/parse helpers: `digitsOnly`, `formatWalletNumber`, `parseWalletNumber` (returns int or null), `isValidWalletValue`. Sign/decimal chars are stripped, so `-100` / `12.3.4` / `abc` can never yield a negative or non-integer (TC-003.3/.4).
+  - `src/lib/wallet-format.test.ts` — 10 vitest unit tests covering formatting, raw-int parse, non-numeric/negative rejection, unsafe-int guard, and Save-block validity.
+  - `src/app/components/WalletInputSheet.tsx` — client component. Props: `onSkip()` (dismiss, no PUT/no wallet), `onSaved(wallet)` (called after 200 with saved balances), optional `initialGold`/`initialCores` for the US-004/US-011 pre-filled edit flow.
+- Behavior mapped to TCs:
+  - TC-003.1: Save PUTs `{gold, cores}` as raw ints; on ok, calls `onSaved` (caller closes + reflects values).
+  - TC-003.2: input onChange runs `formatWalletNumber` -> shows `1,840,000`; `parseWalletNumber` sends `1840000`.
+  - TC-003.3/.4: non-digits stripped at input; Save disabled via `canSave` until both fields valid; `handleSave` re-guards and never PUTs invalid.
+  - TC-003.5: `onSkip` (button + backdrop click) sends no PUT.
+  - TC-003.6: helper text states Gold/Cores aren't in the MSF API and are stored "self-reported".
+  - TC-003.7: non-ok response sets error and returns WITHOUT calling onSaved/closing (no false success).
+- Verified: `npx vitest run src/lib/wallet-format.test.ts` (10 pass), `npx tsc --noEmit` (only the 2 pre-existing planner-events.test.ts errors), `npx next build` success, eslint clean on new files.
+- **Learnings for future iterations:**
+  - No React test infra (no jsdom/testing-library) in this repo — extract UI logic into a pure `*-format.ts` module and unit-test that; keep the `.tsx` thin so typecheck+build is sufficient verification.
+  - Theme tokens used across modals: `--color-surface`, `--color-background`, `--color-surface-light`, `--color-foreground`, `--color-muted`, `--color-accent`. Copy `EmailModal.tsx` as the modal/sheet template (backdrop `bg-black/60`, `rounded-2xl bg-[var(--color-surface)]`).
+  - Wallet accent colors from the approved mockup: Gold `#f0c14b`, Power Cores `#5fd0e0`.
+  - The wallet API (`PUT /api/msf/wallet`) returns `{ exists, gold, cores, confirmedAt }`; `SavedWallet` type is exported from `WalletInputSheet.tsx` for US-004 to reuse.
+  - US-004 wires this sheet: import `WalletInputSheet`, pass `initialGold`/`initialCores` from GET for the edit affordance, update the strip in place from the `onSaved` payload.
+---

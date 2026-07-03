@@ -52,7 +52,7 @@
         "All TC-003.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
