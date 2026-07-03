@@ -42,6 +42,7 @@ model Commander {
   usageEvents              UsageEvent[]
   churnInterventions       ChurnIntervention[]
   towerResults             TowerResult[]
+  wallet                   CommanderWallet?
 }
 
 model RosterSnapshot {
@@ -242,4 +243,17 @@ model TowerResult {
 
   @@unique([commanderId, towerEventId])
   @@index([commanderId])
+}
+
+/// Self-reported Gold and Power Cores balances. These two currencies are the
+/// only progression resources the MSF API does NOT expose, so commanders enter
+/// them manually. One wallet per account; an absent wallet is a valid state.
+model CommanderWallet {
+  id          String    @id @default(cuid())
+  commanderId String    @unique
+  gold        Int       @default(0)
+  cores       Int       @default(0)
+  confirmedAt DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 }

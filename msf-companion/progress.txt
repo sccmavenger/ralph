@@ -43,6 +43,14 @@ Tower endpoints:
 - KB sync: `functions/src/functions/kbMetaSync.ts` — daily meta sync
 - Explore route: `src/app/api/msf/explore/route.ts` — API investigation endpoint
 
+### Commander Wallet (US-001+)
+- Account/user model is `Commander` (in `prisma/schema.prisma`); per-account one-to-one rows use `commanderId String @unique` + `commander Commander @relation(..., onDelete: Cascade)`, plus the inverse (`wallet CommanderWallet?`) on `Commander`.
+- Non-negative integer enforcement lives at BOTH layers: app-level `validateWalletInput` in `src/lib/wallet.ts` (throws `WalletValidationError`) AND a Postgres `CHECK (col >= 0)` constraint hand-added to the migration SQL (Prisma schema can't express CHECK).
+- Wallet data-access helpers: `src/lib/wallet.ts` — `getWalletByCommanderId`, `upsertWallet`, `validateWalletInput`. Reuse these in the US-002 API route rather than calling `prisma.commanderWallet` directly.
+- vitest needs `resolve.alias { "@": ./src }` (added to `vitest.config.ts`) so real (unmocked) `@/`-aliased imports resolve. Tests that only `vi.mock("@/...")` didn't need it; DB integration tests importing real modules do.
+- DB integration tests: `import "dotenv/config"` at the top to load `DATABASE_URL` from `.env` (vitest doesn't auto-load env). Create throwaway `Commander` rows and clean up via `prisma.commander.deleteMany` (Cascade removes children) in `afterAll`.
+- Migration workflow when the dev DB has drift (`prisma migrate dev` wants to reset): hand-write `prisma/migrations/<ts>_name/migration.sql`, apply with `npx prisma db execute --file <sql>`, then `npx prisma migrate resolve --applied <migration_name>`, then `npx prisma generate`. `migrate status` then reports up to date.
+
 ### Known Issues
 - planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
 - API key alone (without bearer token) returns 401 — always need OAuth token
@@ -300,4 +308,18 @@ ecomputeWithMargin(data, safetyMargin) ?? data on initial solve response. If the
 ecomputeWithMargin only forwards opponentPowers + safetyMargin, NOT characterTags / opponentTags. The recomputed assignment therefore has NO compositeScore, and any composite-related UI (composite-breakdown, composite-counter) won't render. For e2e tests that need to assert composite UI, OMIT solverInputs from the mock so the client falls back to the raw data.
   - The Why this team? panel root ([data-testid='why-this-team-panel']) renders unconditionally on click, but the breakdown <ul data-testid='composite-breakdown'> only renders when ssignment.compositeScore is truthy. Asserting on the panel alone is not enough — assert on composite-breakdown or a specific sub-score testid.
   - Counter sub-score parsing: text format is "Counter coverage: N/100". Regex /(\d+)\s*\/\s*100/ against innerText() of [data-testid='composite-counter'] extracts N reliably.
+---
+
+## 2026-07-02 20:30 - US-001 Wallet data model & persistence
+- Added `CommanderWallet` Prisma model (id, commanderId @unique, gold Int, cores Int, confirmedAt, updatedAt) with one-to-one relation to `Commander` (Cascade delete); added inverse `wallet CommanderWallet?` on Commander.
+- Created migration `20260702201800_add_commander_wallet` with UNIQUE index on commanderId, FK, and CHECK (gold>=0)/(cores>=0) constraints. Applied via `db execute` + `migrate resolve --applied` (dev DB had pre-existing drift so `migrate dev` couldn't be used). `prisma migrate status` = up to date.
+- Added `src/lib/wallet.ts` data-access + validation helpers (`getWalletByCommanderId`, `upsertWallet`, `validateWalletInput`, `WalletValidationError`).
+- Added `src/lib/wallet.test.ts` integration tests (6 tests, all pass) covering TC-001.2 persist/read-back, TC-001.3 uniqueness, TC-001.4 absent=null, TC-001.5 non-negative (validation + DB CHECK).
+- Added `resolve.alias` to `vitest.config.ts` so real `@/` imports resolve in tests.
+- Files changed: prisma/schema.prisma, prisma/migrations/20260702201800_add_commander_wallet/migration.sql, src/lib/wallet.ts, src/lib/wallet.test.ts, vitest.config.ts, prd.json, progress.txt.
+- Verified: `npx next build` exits 0; wallet files lint clean; wallet typecheck clean.
+- **Learnings for future iterations:**
+  - `npx next build` does NOT fail on `.test.ts` type errors, but `npx tsc --noEmit` does. Two PRE-EXISTING type errors exist in `src/lib/planner-events.test.ts` (tower/planner WIP on the base branch) — unrelated to wallet, do not touch.
+  - PRE-EXISTING failing tests inherited from the tower branch base: `src/app/api/tower/{events,rooms,history}/route.test.ts` (9 assertion failures). Before adding the vitest alias these files failed at module-load (0 tests); the alias makes them load and their WIP assertions fail. Baseline was already RED (3 failed files). Not caused by wallet work — verified via `git stash` baseline (1 failed test baseline vs surfaced tower failures).
+  - Gold stored as `Int` (Postgres int4, max ~2.1B) — ample for realistic gold balances (~millions). Chose Int over BigInt to avoid JS BigInt JSON-serialization friction.
 ---
