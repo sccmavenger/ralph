@@ -455,3 +455,14 @@ ull.
   - GET /api/msf/wallet returns { exists, gold, cores, confirmedAt } — branch on `exists` for first-run vs zero-balance. Cores accent color: #5fd0e0.
   - Pre-existing planner-events.test.ts (2 TS2345 errors) + tower test failures are known WIP; leave them.
 ---
+
+## 2026-07-03 17:43 - US-011 (Staleness nudge)
+- Added pure helper `isWalletStale(confirmedAt, now?, thresholdDays=7)` + `WALLET_STALE_DAYS` const to src/lib/wallet-format.ts. Strict boundary: exactly 7d => NOT stale; >7d => stale. Absent/invalid confirmedAt => never stale.
+- Wired a subtle amber "confirm your gold?" nudge into src/app/components/WalletStrip.tsx below the balances grid, shown only when hasWallet && !nudgeDismissed && isWalletStale(confirmedAt). Tap => opens pre-filled WalletInputSheet (reuses sheetOpen); saving (confirmedAt=now) clears staleness + resets session dismissal. ✕ dismiss = session-only state, never persisted, never overwrites values.
+- New tests: src/lib/wallet-format.test.ts (+8) cover TC-011.1 (8d stale), TC-011.2 (2d fresh), strict boundary, no-timestamp, custom threshold, Date input. 22/22 pass.
+- Files changed: src/lib/wallet-format.ts, src/lib/wallet-format.test.ts, src/app/components/WalletStrip.tsx, prd.json.
+- **Learnings for future iterations:**
+  - Staleness is derived purely from confirmedAt at render time (no polling/timer). The nudge auto-clears on next mount once confirmedAt is fresh; within a session, saving resets nudgeDismissed so re-staleness can nudge again.
+  - Dismissal is intentionally session-only (React state) — no localStorage — per TC-011.4 "hides for the session". Reloading the planner re-evaluates staleness.
+  - ALL 11 stories (US-001..US-011) now pass:true. Feature complete.
+---
