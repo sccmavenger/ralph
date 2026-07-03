@@ -423,3 +423,23 @@ ull.
   - gaps route only processes eventsWithReqs (aggregate has traits or specificCharacters). Events with ONLY trait gates ARE included. teams/underGate are computed from event.encounters (per-encounter), not the aggregate.
   - Pre-existing US-007 left AffordabilityBadge + badges/setBadges state UNUSED in page.tsx (badge was never wired into the card render). Harmless warnings; wire or remove if touching that area.
 ---
+
+## 2026-07-03 08:18 - US-009 - Cost-vs-wallet bill + verdict
+- Pure engine src/lib/cost-bill.ts: buildCostBill(chars: BillChar[], book, wallet|null, api) -> CostBill { bundle, rows(4), affordability, affordable, verdict, verdictLabel }.
+  - Aggregates CostBundle across the deduped under-gate characters by reusing computeEventCostBundle (US-007) — prices gear+stars only (level held at 1, neutral abilities), unowned from zero. Then computeAffordability (US-006).
+  - Dedupes by id internally (defensive) so a character blocking two teams is billed EXACTLY once. underGate from selectUnlockTeams is already deduped; this is belt-and-suspenders.
+  - Exactly 4 rows in fixed order: gold, cores, abilityMats, trainingXp. Ability Mats row = sum of per-item required/have/short (you can't substitute one mat for another, so shortfall is the SUM of per-item shortfalls, not required-have overall).
+  - verdictLabel: "affordable now" | "short by <compact> <unit> [+ ...]" | "Add wallet". Uses formatWalletCompact (9,000,000 -> "9M").
+  - No-wallet: gold/cores rows status 'unknown' (have null, short 0), mats+XP still real, verdict 'wallet-needed', never a false 'short'.
+- Tests src/lib/cost-bill.test.ts (7): TC-009.1 four rows; .2 affordable; .3 "short by 9M gold"; .4 cross-team dedupe (via selectUnlockTeams -> underGate) counted once; .5 no-wallet fallback; .6 totals == summed per-character computeCostBundle (sum of parts); + purity.
+- UI wiring:
+  - src/app/api/msf/planner/affordability/route.ts: request events now carry optional underGate: BillChar[]; response adds bills: Record<eventId, CostBill>. Added loadApiBalances(token) fetching /player/v1/inventory best-effort (catch -> empty) for the mats 'have' column; trainingXp defaults 0 (gaps deltas carry no level cost). Badge still uses empty api (currency-only).
+  - src/app/(app)/planner/page.tsx: after gaps load, fires a NON-BLOCKING POST to /api/msf/planner/affordability with { events:[{eventId,characters,underGate}] } and stores badges + bills. This ALSO finally wires the US-007 AffordabilityBadge onto event cards (was previously defined-but-unused). CostBillTable renders the 4-row table (have/short bars, per-row accent from mockup, top-line ✅/⛔/👛 verdict) inside the event-detail cost-summary when a bill exists; falls back to the old "Short on: names" summary otherwise.
+- Files changed: src/lib/cost-bill.ts (new), src/lib/cost-bill.test.ts (new), src/app/api/msf/planner/affordability/route.ts, src/app/(app)/planner/page.tsx, prd.json.
+- Verified: 49 related tests pass (cost-bill + affordability + event-affordability + unlock-teams + cost-bundle + wallet route); tsc --noEmit shows only the 2 PRE-EXISTING planner-events.test.ts errors; eslint clean on all 4 changed files (fixed the pre-existing badges/AffordabilityBadge unused warnings by wiring the badge); npx next build succeeds.
+- **Learnings for future iterations:**
+  - The affordability POST route (/api/msf/planner/affordability) was NEVER called client-side before US-009 (US-007 wired the component but not the fetch). US-009 added that fetch, so badges now render on cards too. If US-010/US-011 touch the planner, the fetch lives inside fetchData() right after setGaps.
+  - buildCostBill reuses computeEventCostBundle, which does NOT pass shardItemId to computeCostBundle — so yellow-star SHARDS are priced as GOLD (via yellowStarTotalGold curve) and do NOT appear in the Ability Mats row. Mats come from gear pieces (gearTiers slots) + ability upgrade lines only. If a fuller bill needs star shards as mats, set shardItemId per character.
+  - The planner cost book built in the affordability route only fetches yellow-star curves (shards + star-gold). Gear-piece mats / gear-gold / training-XP curves are NOT fetched there (would need per-character /game/v1/characters/{id} calls — heavy). So in production the bill's gold comes from star gates and mats/XP rows are often 0. The ENGINE handles the richer book correctly (proven by tests); enriching the book is a separate perf-sensitive task.
+  - formatWalletCompact(9000000) === "9M" (>=1M abbreviations). Reuse it for any wallet-scale number display; it's browser-safe (no server imports).
+---
