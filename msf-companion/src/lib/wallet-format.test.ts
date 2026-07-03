@@ -6,6 +6,8 @@ import {
   formatConfirmedAgo,
   isValidWalletValue,
   parseWalletNumber,
+  isWalletStale,
+  WALLET_STALE_DAYS,
 } from "./wallet-format";
 
 describe("wallet-format", () => {
@@ -103,6 +105,47 @@ describe("wallet-format", () => {
       expect(formatConfirmedAgo(null, now)).toBe("");
       expect(formatConfirmedAgo(undefined, now)).toBe("");
       expect(formatConfirmedAgo("not-a-date", now)).toBe("");
+    });
+  });
+
+  describe("isWalletStale (US-011)", () => {
+    const now = new Date("2026-01-20T12:00:00Z");
+    const daysAgo = (n: number) =>
+      new Date(now.getTime() - n * 86_400_000).toISOString();
+
+    it("default threshold is 7 days", () => {
+      expect(WALLET_STALE_DAYS).toBe(7);
+    });
+
+    it("shows the nudge after the threshold (TC-011.1: 8 days ago is stale)", () => {
+      expect(isWalletStale(daysAgo(8), now)).toBe(true);
+    });
+
+    it("hides the nudge before the threshold (TC-011.2: 2 days ago is fresh)", () => {
+      expect(isWalletStale(daysAgo(2), now)).toBe(false);
+    });
+
+    it("is strict at the boundary (exactly 7 days is not yet stale)", () => {
+      expect(isWalletStale(daysAgo(7), now)).toBe(false);
+      // A hair over the boundary flips to stale.
+      expect(isWalletStale(new Date(now.getTime() - 7 * 86_400_000 - 1000), now)).toBe(
+        true,
+      );
+    });
+
+    it("is never stale without a valid confirmedAt", () => {
+      expect(isWalletStale(null, now)).toBe(false);
+      expect(isWalletStale(undefined, now)).toBe(false);
+      expect(isWalletStale("not-a-date", now)).toBe(false);
+    });
+
+    it("respects a custom threshold", () => {
+      expect(isWalletStale(daysAgo(4), now, 3)).toBe(true);
+      expect(isWalletStale(daysAgo(2), now, 3)).toBe(false);
+    });
+
+    it("accepts Date instances", () => {
+      expect(isWalletStale(new Date(now.getTime() - 10 * 86_400_000), now)).toBe(true);
     });
   });
 });

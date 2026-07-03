@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import WalletInputSheet, { type SavedWallet } from "./WalletInputSheet";
-import { formatWalletCompact, formatConfirmedAgo } from "@/lib/wallet-format";
+import {
+  formatWalletCompact,
+  formatConfirmedAgo,
+  isWalletStale,
+} from "@/lib/wallet-format";
 
 // Wallet accent colors from the approved mockup.
 const GOLD = "#f0c14b";
@@ -30,6 +34,9 @@ export default function WalletStrip() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Session-only dismissal of the staleness nudge (US-011 / TC-011.4). Never
+  // persisted and never touches the wallet values.
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,12 +64,20 @@ export default function WalletStrip() {
       confirmedAt: saved.confirmedAt,
     });
     setSheetOpen(false);
+    // Saving refreshes confirmedAt to now, which clears staleness. Reset the
+    // session dismissal so a future re-staleness can nudge again (TC-011.3).
+    setNudgeDismissed(false);
   };
 
   // Don't flash any UI until the wallet state is known.
   if (!loaded) return null;
 
   const hasWallet = wallet?.exists === true;
+  // Show the subtle "confirm your gold?" nudge only when a wallet exists, its
+  // confirmedAt is older than the 7-day threshold, and it hasn't been dismissed
+  // this session (US-011 / TC-011.1..4).
+  const showNudge =
+    hasWallet && !nudgeDismissed && isWalletStale(wallet?.confirmedAt);
 
   return (
     <>
@@ -100,6 +115,32 @@ export default function WalletStrip() {
               onEdit={() => setSheetOpen(true)}
             />
           </div>
+          {showNudge && (
+            <div
+              className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+              data-testid="wallet-stale-nudge"
+              role="status"
+            >
+              <button
+                type="button"
+                onClick={() => setSheetOpen(true)}
+                className="flex flex-1 items-center gap-2 text-left text-[11px] font-semibold text-amber-300"
+                data-testid="wallet-nudge-confirm"
+              >
+                <span aria-hidden>🔔</span>
+                <span>Been a while — confirm your gold?</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNudgeDismissed(true)}
+                className="shrink-0 rounded p-0.5 text-sm leading-none text-[var(--color-muted)] transition-colors hover:text-[var(--color-foreground)]"
+                aria-label="Dismiss reminder"
+                data-testid="wallet-nudge-dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </section>
       ) : (
         <section

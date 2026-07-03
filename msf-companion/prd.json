@@ -183,8 +183,8 @@
         "All TC-011.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Staleness nudge (US-011). Pure helper isWalletStale(confirmedAt, now?, thresholdDays=7) + WALLET_STALE_DAYS const in src/lib/wallet-format.ts: strict boundary (exactly 7d => NOT stale, >7d => stale); absent/invalid confirmedAt => never stale (first-run 'Add wallet' covers that). WalletStrip renders a subtle amber 'confirm your gold?' nudge below the balances only when hasWallet && !nudgeDismissed && isWalletStale(confirmedAt). Tap the nudge => opens pre-filled WalletInputSheet (reuses existing sheetOpen path); saving PUTs (confirmedAt=now) which clears staleness and resets session dismissal. ✕ dismiss sets session-only nudgeDismissed (never persisted, never overwrites values -> TC-011.4). 8 new tests in wallet-format.test.ts cover TC-011.1 (8d stale), TC-011.2 (2d fresh), boundary, no-timestamp, custom threshold, Date input. tsc clean (only 2 pre-existing planner-events.test.ts errors), eslint clean."
     }
   ]
 }

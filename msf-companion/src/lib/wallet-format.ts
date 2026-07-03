@@ -81,3 +81,30 @@ export function formatConfirmedAgo(
   if (days === 1) return "confirmed 1d ago";
   return `confirmed ${days}d ago`;
 }
+
+/** Default staleness threshold (US-011): a wallet confirmed more than this many
+ * days ago is considered "stale" and gets a gentle re-confirm nudge. */
+export const WALLET_STALE_DAYS = 7;
+
+/**
+ * True when a wallet's `confirmedAt` is OLDER than the staleness threshold
+ * (US-011 / TC-011.1..2). Used to decide whether the wallet strip shows the
+ * subtle "confirm your gold?" nudge.
+ *
+ * - Absent/invalid `confirmedAt` -> NOT stale (nothing to re-confirm yet; the
+ *   first-run "Add your wallet" prompt covers that case instead).
+ * - Boundary is strict: exactly `thresholdDays` old is NOT yet stale; the nudge
+ *   appears only once the age exceeds the threshold.
+ */
+export function isWalletStale(
+  confirmedAt: string | Date | null | undefined,
+  now: Date = new Date(),
+  thresholdDays: number = WALLET_STALE_DAYS,
+): boolean {
+  if (!confirmedAt) return false;
+  const then = confirmedAt instanceof Date ? confirmedAt : new Date(confirmedAt);
+  const time = then.getTime();
+  if (Number.isNaN(time)) return false;
+  const days = (now.getTime() - time) / 86_400_000;
+  return days > thresholdDays;
+}
