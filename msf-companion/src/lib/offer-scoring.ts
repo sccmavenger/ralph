@@ -8,10 +8,57 @@
  * - Cost efficiency (items per cost unit)
  */
 
+import { CORE_ITEM_ID } from "@/lib/cost-bundle";
+
 interface OfferRewardItem {
   itemName: string;
   itemId: string;
   quantity: number;
+}
+
+/**
+ * Power Cores cost view for an offer (US-010, additive to value scoring).
+ *
+ * When an offer's cost is paid in Power Cores AND the commander has a wallet
+ * with a positive cores balance, we can show what fraction of their balance
+ * the offer would consume: "costs N cores (~X% of your balance)".
+ *
+ * Pure and side-effect free. Returns `null` (i.e. show nothing) when:
+ *   - there is no cost, or the cost isn't in cores, or
+ *   - there is no wallet (`walletCores == null`) or a non-positive balance.
+ *
+ * Percentage = round(cost / cores * 100). Existing High/Medium/Low value
+ * scoring is untouched — this only adds an optional cost-side annotation.
+ */
+export interface OfferCoresCost {
+  cores: number;
+  percent: number;
+}
+
+export function offerCoresCost(
+  cost: { itemId: string; quantity: number } | null | undefined,
+  walletCores: number | null | undefined
+): OfferCoresCost | null {
+  if (!cost) return null;
+  if (cost.itemId !== CORE_ITEM_ID) return null;
+  if (walletCores == null || walletCores <= 0) return null;
+  return {
+    cores: cost.quantity,
+    percent: Math.round((cost.quantity / walletCores) * 100),
+  };
+}
+
+/**
+ * Formats an {@link OfferCoresCost} as the display string used in the UI.
+ * Returns `null` when there is nothing to show (delegates to offerCoresCost).
+ */
+export function formatOfferCoresCost(
+  cost: { itemId: string; quantity: number } | null | undefined,
+  walletCores: number | null | undefined
+): string | null {
+  const c = offerCoresCost(cost, walletCores);
+  if (!c) return null;
+  return `costs ${c.cores.toLocaleString()} cores (~${c.percent}% of your balance)`;
 }
 
 interface OfferChoice {

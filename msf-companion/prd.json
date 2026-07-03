@@ -168,8 +168,8 @@
         "All TC-010.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Pure helper offerCoresCost(cost, walletCores) + formatOfferCoresCost in src/lib/offer-scoring.ts (additive; value scoring untouched). Cores currency id is CORE_ITEM_ID 'PC' (reused from cost-bundle.ts). Returns null (=> render nothing) when cost missing, cost.itemId !== 'PC', walletCores null/undefined (no wallet), or cores <= 0. percent = round(cost/cores*100). Wired into OffersFullPageClient: best-effort GET /api/msf/wallet (branch on exists) sets walletCores; a cyan '🔷 costs N cores (~X% of your balance)' line renders under the cost only when helper returns non-null. Wallet fetch failure never blocks offers. 7 tests in offer-scoring.test.ts cover TC-010.1..3 + rounding/purity. tsc clean (only 2 pre-existing planner-events.test.ts errors)."
     },
     {
       "id": "US-011",

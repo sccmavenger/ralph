@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { formatOfferCoresCost } from "@/lib/offer-scoring";
 
 interface OfferRewardItem {
   itemName: string;
@@ -70,6 +71,7 @@ function SkeletonPage() {
 
 export default function OffersFullPageClient() {
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [walletCores, setWalletCores] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,6 +80,19 @@ export default function OffersFullPageClient() {
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
+
+    // Wallet is optional and additive (US-010): a failure here must never
+    // block offers from rendering, and absence means no cores percentage.
+    async function fetchWallet() {
+      try {
+        const res = await fetch("/api/msf/wallet");
+        if (!res.ok) return;
+        const w = (await res.json()) as { exists?: boolean; cores?: number };
+        if (w.exists && typeof w.cores === "number") setWalletCores(w.cores);
+      } catch {
+        /* ignore — offers still render without cores percentage */
+      }
+    }
 
     async function fetchData() {
       try {
@@ -95,6 +110,7 @@ export default function OffersFullPageClient() {
         setLoading(false);
       }
     }
+    fetchWallet();
     fetchData();
   }, []);
 
@@ -202,6 +218,18 @@ export default function OffersFullPageClient() {
                     💰 {choice.cost.quantity.toLocaleString()} {choice.cost.itemName}
                   </div>
                 )}
+                {/* Cores affordability (US-010) — additive, only when wallet + cores cost */}
+                {(() => {
+                  const coresLabel = formatOfferCoresCost(choice.cost, walletCores);
+                  return coresLabel ? (
+                    <div
+                      className="mb-2 text-[11px] font-medium text-[#5fd0e0]"
+                      data-testid="offer-cores-cost"
+                    >
+                      🔷 {coresLabel}
+                    </div>
+                  ) : null;
+                })()}
                 {/* Rewards */}
                 {choice.rewards.length > 0 && (
                   <div className="space-y-1">

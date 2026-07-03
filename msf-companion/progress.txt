@@ -443,3 +443,15 @@ ull.
   - The planner cost book built in the affordability route only fetches yellow-star curves (shards + star-gold). Gear-piece mats / gear-gold / training-XP curves are NOT fetched there (would need per-character /game/v1/characters/{id} calls — heavy). So in production the bill's gold comes from star gates and mats/XP rows are often 0. The ENGINE handles the richer book correctly (proven by tests); enriching the book is a separate perf-sensitive task.
   - formatWalletCompact(9000000) === "9M" (>=1M abbreviations). Reuse it for any wallet-scale number display; it's browser-safe (no server imports).
 ---
+
+## 2026-07-03 17:40 - US-010 (Offer cost-in-cores view)
+- Added pure helpers `offerCoresCost` + `formatOfferCoresCost` to `src/lib/offer-scoring.ts` (additive; High/Medium/Low value scoring untouched).
+- Wired into `src/app/(app)/dashboard/offers/OffersFullPageClient.tsx`: best-effort GET /api/msf/wallet -> walletCores; renders '🔷 costs N cores (~X% of your balance)' under the cost only when a wallet exists AND the offer cost is in cores (itemId 'PC').
+- New tests: `src/lib/offer-scoring.test.ts` (7 tests) cover TC-010.1 percent formula, TC-010.2 non-cores, TC-010.3 no-wallet, rounding, purity.
+- Files changed: src/lib/offer-scoring.ts, src/lib/offer-scoring.test.ts, src/app/(app)/dashboard/offers/OffersFullPageClient.tsx, prd.json.
+- **Learnings for future iterations:**
+  - Offer cost currency uses the raw MSF item id; Power Cores = 'PC' (== CORE_ITEM_ID exported from cost-bundle.ts, Gold = 'SC'). Reuse those constants rather than hardcoding.
+  - Offers UI is client-only (OffersFullPageClient) fetching /api/msf/offers; no vitest tests for offers (only e2e/offers.spec.ts Playwright). Put testable logic in pure lib modules.
+  - GET /api/msf/wallet returns { exists, gold, cores, confirmedAt } — branch on `exists` for first-run vs zero-balance. Cores accent color: #5fd0e0.
+  - Pre-existing planner-events.test.ts (2 TS2345 errors) + tower test failures are known WIP; leave them.
+---
