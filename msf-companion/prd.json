@@ -136,12 +136,12 @@
         "All TC-008.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Cost-vs-wallet bill + verdict",
+      "passes": true,
+      "notes": "Pure selector src/lib/unlock-teams.ts: selectUnlockTeams(NormalizedEvent, roster) -> { teams (one BlockingTeam per NON-mission encounter, missionCharacters excluded), prerequisites (from event.prerequisites, empty when none), underGate (distinct 'under' chars deduped by id) }. Each RequiredCharacter has current vs required gear/stars + status 'ok'|'under' (owned&&meets gate -> ok; else under; unowned -> under). Trait gates resolve to matching roster chars; specificCharacters resolve owned/unowned. 8 unit tests cover TC-008.1..5 + trait/unowned/purity. Wired into gaps route (adds teams+underGate to each gap; prerequisites already present) and rendered in planner page event-detail: prerequisites block (only when present), 'N teams block this unlock' with per-char ok/under chips, under-gate count. tsc clean (only 2 pre-existing planner-events.test.ts errors), eslint clean on new files, next build OK."
+         },
+         {
+           "id": "US-009",
+           "title": "Cost-vs-wallet bill + verdict",
       "description": "As a commander, I want the total cost to complete an outcome compared against my wallet so I get one clear 'can I afford this' answer.",
       "acceptanceCriteria": [
         "The 'Unlock X' view shows a cost table with rows Gold, Cores, Ability Mats, Training XP — each with required, have, and a have/short indicator (bars per mockup)",

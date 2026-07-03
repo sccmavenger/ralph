@@ -408,3 +408,18 @@ ull.
   - Boundary have==required is affordable via short=max(0,required-have)==0.
   - US-007 (next) builds a per-event badge from US-005+US-006 across an event's blocking characters; it will call computeCostBundle then computeAffordability and aggregate. Badge text 'short by X gold/cores' should use gold/cores.short; 'Add wallet' when verdict==='wallet-needed'.
 ---
+
+## 2026-07-03 07:22 - US-008 - "Unlock X" required-teams view
+- Implemented a pure selector deriving the blocking-teams / under-gate list from a NormalizedEvent + roster, and rendered it in the planner event-detail.
+- Files changed:
+  - src/lib/unlock-teams.ts (new): selectUnlockTeams(event: NormalizedEvent, roster: RosterEntry[]) -> UnlockTeamsView { teams: BlockingTeam[], prerequisites: PrerequisiteRef[], underGate: RequiredCharacter[] }. One BlockingTeam per NON-mission encounter (missionCharacters:true excluded). Each RequiredCharacter: current vs required gear+stars + status 'ok'|'under'. specificCharacters -> owned/unowned resolution; trait gates -> matching roster chars. underGate = distinct 'under' chars deduped by id (shared chars counted once -> consistent status).
+  - src/lib/unlock-teams.test.ts (new): 8 tests covering TC-008.1..5 + trait resolution, unowned, purity. All pass.
+  - src/app/api/msf/planner/gaps/route.ts: added selectUnlockTeams import; each gap now carries teams[] + underGate[] (prerequisites was already present). Additive only.
+  - src/app/(app)/planner/page.tsx: extended GapEvent type (prerequisites, teams, underGate + BlockingTeam/RequiredCharacter types); event-detail now renders a prerequisites block (only when present), a "N teams block this unlock" card with per-character ok/under chips (G-current -> G-required), and an under-gate count line.
+- Verification: 8/8 unlock-teams tests + 34 related (affordability/event-affordability/cost-bundle/planner-events) pass. tsc --noEmit shows only the 2 PRE-EXISTING planner-events.test.ts type errors. eslint clean on new files (3 pre-existing US-007 unused-var warnings in page.tsx remain). npx next build succeeds.
+- **Learnings for future iterations:**
+  - The planner event-detail (US-009's cost table) lives in src/app/(app)/planner/page.tsx after the "required-teams" card and before the "cost-summary" card. US-009 should aggregate CostBundle across selectedEvent.underGate (already deduped) and compare against wallet+API balances (reuse computeAffordability). underGate is the authoritative deduped roster-gap list — do NOT re-dedupe.
+  - selectUnlockTeams is pure and browser-safe (no imports of msf-api/prisma) — US-009 can import it client-side too if needed, but the gaps route already ships teams+underGate in the response.
+  - gaps route only processes eventsWithReqs (aggregate has traits or specificCharacters). Events with ONLY trait gates ARE included. teams/underGate are computed from event.encounters (per-encounter), not the aggregate.
+  - Pre-existing US-007 left AffordabilityBadge + badges/setBadges state UNUSED in page.tsx (badge was never wired into the card render). Harmless warnings; wire or remove if touching that area.
+---

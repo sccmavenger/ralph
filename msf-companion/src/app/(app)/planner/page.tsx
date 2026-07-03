@@ -23,6 +23,30 @@ interface GapEvent {
     meetsRequirements: boolean;
     owned: boolean;
   }>;
+  prerequisites?: Array<{ type: string; id: string }>;
+  teams?: BlockingTeam[];
+  underGate?: RequiredCharacter[];
+}
+
+type GateStatus = "ok" | "under";
+
+interface RequiredCharacter {
+  id: string;
+  name: string;
+  portrait: string;
+  owned: boolean;
+  currentGear: number;
+  requiredGear: number;
+  currentStars: number;
+  requiredStars: number;
+  status: GateStatus;
+}
+
+interface BlockingTeam {
+  chapter: number;
+  tier: number;
+  minCharacters: number | null;
+  characters: RequiredCharacter[];
 }
 
 type BadgeTone = "affordable" | "short" | "wallet-needed";
@@ -326,6 +350,98 @@ export default function PlannerPage() {
                 );
               })}
             </div>
+
+            {/* Prerequisite campaigns (US-008) — only when present */}
+            {selectedEvent.prerequisites &&
+              selectedEvent.prerequisites.length > 0 && (
+                <div
+                  className="mb-3 rounded-lg border border-purple-500/40 bg-purple-500/10 p-3"
+                  data-testid="prerequisites"
+                >
+                  <p className="text-xs font-semibold text-purple-200">
+                    🔒 Complete first
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {selectedEvent.prerequisites.map((p) => (
+                      <li
+                        key={`${p.type}/${p.id}`}
+                        className="text-[10px] text-purple-100/90"
+                      >
+                        {p.id}
+                        <span className="ml-1 text-purple-300/60">
+                          ({p.type})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+            {/* Required teams (US-008) — one team per non-mission encounter */}
+            {selectedEvent.teams && selectedEvent.teams.length > 0 && (
+              <div
+                className="mb-3 rounded-lg bg-[var(--color-surface)] p-3"
+                data-testid="required-teams"
+              >
+                <p className="text-xs font-semibold text-[var(--color-foreground)]">
+                  {selectedEvent.teams.length} team
+                  {selectedEvent.teams.length === 1 ? "" : "s"} block this
+                  unlock
+                </p>
+                <p className="mb-2 text-[10px] text-[var(--color-muted)]">
+                  Built from each encounter&apos;s team gate.
+                </p>
+                <div className="space-y-2">
+                  {selectedEvent.teams.map((team, i) => (
+                    <div
+                      key={`${team.chapter}-${team.tier}-${i}`}
+                      className="rounded-md bg-[var(--color-surface-light)]/40 p-2"
+                      data-testid="blocking-team"
+                    >
+                      <p className="mb-1 text-[9px] font-medium uppercase tracking-wide text-[var(--color-muted)]">
+                        Team {i + 1}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {team.characters.map((c) => (
+                          <div
+                            key={c.id}
+                            className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${
+                              c.status === "ok"
+                                ? "border-green-500/40 bg-green-500/10 text-green-300"
+                                : "border-red-500/40 bg-red-500/10 text-red-300"
+                            }`}
+                            data-testid="required-character"
+                            data-status={c.status}
+                          >
+                            <span aria-hidden>
+                              {c.status === "ok" ? "✓" : "✗"}
+                            </span>
+                            <span className="line-clamp-1">{c.name}</span>
+                            <span className="opacity-80">
+                              G{c.currentGear}
+                              {c.requiredGear > 0 &&
+                                c.requiredGear !== c.currentGear &&
+                                ` → G${c.requiredGear}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {selectedEvent.underGate &&
+                  selectedEvent.underGate.length > 0 && (
+                    <p
+                      className="mt-2 text-[10px] text-red-400"
+                      data-testid="under-gate-count"
+                    >
+                      {selectedEvent.underGate.length} character
+                      {selectedEvent.underGate.length === 1 ? "" : "s"} below the
+                      gate — costed below.
+                    </p>
+                  )}
+              </div>
+            )}
 
             {/* Cost summary */}
             <div

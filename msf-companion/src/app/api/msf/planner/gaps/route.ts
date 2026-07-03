@@ -7,6 +7,7 @@ import {
   NormalizedEncounter,
   EncounterFilter,
 } from "@/lib/planner-events";
+import { selectUnlockTeams } from "@/lib/unlock-teams";
 
 export const dynamic = "force-dynamic";
 
@@ -200,6 +201,11 @@ export async function GET(request: Request) {
             ? Math.round((meetingReqs / total) * 100)
             : 100;
 
+      // "Unlock X" required-teams view (US-008): one team per non-mission
+      // encounter, each required character with an ok/under gate indicator,
+      // plus prerequisite campaigns and the deduped under-gate roster gap.
+      const unlock = selectUnlockTeams(event, rosterChars);
+
       return {
         eventId: event.id,
         eventName: event.name,
@@ -210,6 +216,8 @@ export async function GET(request: Request) {
         characters,
         encounters: encounterDetails,
         prerequisites: event.prerequisites,
+        teams: unlock.teams,
+        underGate: unlock.underGate,
       };
     });
 
