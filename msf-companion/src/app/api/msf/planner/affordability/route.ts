@@ -15,6 +15,7 @@ import {
   type EventBadge,
   type EventBlockingChar,
 } from "@/lib/event-affordability";
+import { buildCostBill, type BillChar, type CostBill } from "@/lib/cost-bill";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,8 @@ export const dynamic = "force-dynamic";
 interface RequestEvent {
   eventId: string;
   characters: EventBlockingChar[];
+  /** Deduped under-gate characters (US-008) — priced into the full bill (US-009). */
+  underGate?: BillChar[];
 }
 
 /** A cost line from the MSF cost book (item id + quantity). */
@@ -119,6 +122,33 @@ async function loadWallet(): Promise<WalletInput | null> {
   return wallet ? { gold: wallet.gold, cores: wallet.cores } : null;
 }
 
+/** A single raw inventory line (`{ item, quantity }`). */
+interface RawInventoryEntry {
+  item?: string | { id?: string };
+  quantity?: number;
+}
+
+/**
+ * Load API-readable balances (ability materials + training XP) for the full
+ * bill's "have" column. Best-effort: fetch failures degrade to empty balances
+ * (the bill still renders — required stays real, have shows 0). Training XP is
+ * not exposed as a distinct inventory line, so it defaults to 0 (the planner
+ * deltas carry no level cost, so the XP row is 0/0 anyway).
+ */
+async function loadApiBalances(token: string): Promise<ApiBalances> {
+  const raw = await msfApiFetch<{ data?: RawInventoryEntry[] }>({
+    path: "/player/v1/inventory",
+    accessToken: token,
+  }).catch(() => null);
+
+  const abilityMats: Record<string, number> = {};
+  for (const entry of raw?.data ?? []) {
+    const id = itemId(entry.item);
+    if (id) abilityMats[id] = (abilityMats[id] ?? 0) + (entry.quantity ?? 0);
+  }
+  return { abilityMats, trainingXp: 0 };
+}
+
 export async function POST(request: Request) {
   const scopelyId = await getScopelyId(true);
   if (!scopelyId) return unauthorized();
@@ -144,23 +174,28 @@ export async function POST(request: Request) {
       loadWallet(),
     ]);
 
-    // Ability mats / training XP are not part of the currency badge, so an
-    // empty balance set is sufficient (the bundle carries no mats/XP here).
-    const api: ApiBalances = { abilityMats: {}, trainingXp: 0 };
+    // API-readable balances for the full bill's "have" column (best-effort).
+    const api: ApiBalances = await loadApiBalances(token);
 
     const badges: Record<string, EventBadge> = {};
+    const bills: Record<string, CostBill> = {};
     for (const event of events) {
       if (!event?.eventId) continue;
       const chars = Array.isArray(event.characters) ? event.characters : [];
+      // Badge uses only the wallet-tracked currencies (empty api is fine).
       badges[event.eventId] = summarizeEventAffordability(
         chars,
         book,
         wallet,
-        api,
+        { abilityMats: {}, trainingXp: 0 },
       ).badge;
+
+      // Full itemised bill (US-009) across the deduped under-gate characters.
+      const underGate = Array.isArray(event.underGate) ? event.underGate : [];
+      bills[event.eventId] = buildCostBill(underGate, book, wallet, api);
     }
 
-    return NextResponse.json({ badges });
+    return NextResponse.json({ badges, bills });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 

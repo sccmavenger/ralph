@@ -152,8 +152,8 @@
         "All TC-009.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Pure engine src/lib/cost-bill.ts: buildCostBill(underGate, book, wallet|null, api) -> { bundle, rows(4: gold/cores/abilityMats/trainingXp with required/have/short/status), affordability, affordable, verdict, verdictLabel }. Aggregates CostBundle across under-gate chars via computeEventCostBundle (US-007) then computeAffordability (US-006); dedupes shared chars by id (counted once). Ability Mats row sums per-item required/have/short (no cross-mat substitution). verdictLabel: 'affordable now'|'short by 9M gold'|'Add wallet'. No-wallet -> gold/cores unknown, mats+XP real, no false short. 7 tests (cost-bill.test.ts) cover TC-009.1..6 + purity incl. cross-team dedupe via selectUnlockTeams and totals-match-sum-of-parts. Affordability route now returns per-event bills (loads inventory best-effort for mat 'have'); planner page renders CostBillTable (4-row have/short bars + top-line verdict) in event-detail cost-summary and now wires the US-007 badge fetch."
     },
     {
       "id": "US-010",

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PriorityList from "@/app/components/PriorityList";
 import WalletStrip from "@/app/components/WalletStrip";
+import { formatWalletCompact } from "@/lib/wallet-format";
 import { CharPortrait } from "@/app/components/CharPortrait";
 
 interface GapEvent {
@@ -56,6 +57,25 @@ interface EventBadge {
   label: string;
 }
 
+type ResourceStatus = "ok" | "short" | "unknown";
+type CostBillRowKey = "gold" | "cores" | "abilityMats" | "trainingXp";
+
+interface CostBillRow {
+  key: CostBillRowKey;
+  label: string;
+  required: number;
+  have: number | null;
+  short: number;
+  status: ResourceStatus;
+}
+
+interface CostBill {
+  rows: CostBillRow[];
+  affordable: boolean;
+  verdict: "affordable" | "short" | "wallet-needed";
+  verdictLabel: string;
+}
+
 /** Tailwind classes for each badge tone (green / amber-red / neutral). */
 const BADGE_STYLES: Record<BadgeTone, string> = {
   affordable: "bg-green-500/15 text-green-400 border border-green-500/40",
@@ -94,6 +114,110 @@ interface PriorityEntry {
   requiredGear: number;
 }
 
+/** Format a bill amount for display; `null` (unknown) shows an em dash. */
+function fmtHave(v: number | null): string {
+  return v === null ? "—" : formatWalletCompact(v);
+}
+
+/** Accent colour per bill row (matches the wallet mockup). */
+const BILL_ROW_ACCENT: Record<CostBillRowKey, string> = {
+  gold: "#f0c14b",
+  cores: "#5fd0e0",
+  abilityMats: "#a78bfa",
+  trainingXp: "#4ade80",
+};
+
+/**
+ * The full cost-vs-wallet bill (US-009): a four-row table (Gold, Cores,
+ * Ability Mats, Training XP) with required / have / have-short bars, plus a
+ * single top-line verdict.
+ */
+function CostBillTable({ bill }: { bill: CostBill }) {
+  const verdictTone =
+    bill.verdict === "affordable"
+      ? "text-green-400"
+      : bill.verdict === "short"
+        ? "text-red-400"
+        : "text-purple-300";
+  const verdictIcon =
+    bill.verdict === "affordable" ? "✅" : bill.verdict === "short" ? "⛔" : "👛";
+
+  return (
+    <div className="mt-2" data-testid="cost-bill">
+      <p
+        className={`mb-2 flex items-center gap-1 text-xs font-bold ${verdictTone}`}
+        data-testid="bill-verdict"
+        data-verdict={bill.verdict}
+      >
+        <span aria-hidden>{verdictIcon}</span>
+        <span>{bill.verdictLabel}</span>
+      </p>
+      <div className="space-y-1.5">
+        {bill.rows.map((row) => {
+          const accent = BILL_ROW_ACCENT[row.key];
+          const pct =
+            row.required > 0 && row.have !== null
+              ? Math.min(100, Math.round((row.have / row.required) * 100))
+              : row.status === "ok"
+                ? 100
+                : 0;
+          return (
+            <div
+              key={row.key}
+              className="rounded-md bg-[var(--color-surface-light)]/40 p-1.5"
+              data-testid="bill-row"
+              data-row={row.key}
+              data-status={row.status}
+            >
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-medium text-[var(--color-foreground)]">
+                  {row.label}
+                </span>
+                <span className="text-[var(--color-muted)]">
+                  {row.status === "unknown" ? (
+                    <span className="text-purple-300">
+                      Add wallet · need {formatWalletCompact(row.required)}
+                    </span>
+                  ) : (
+                    <>
+                      <span
+                        className={
+                          row.status === "short"
+                            ? "text-red-400"
+                            : "text-green-400"
+                        }
+                      >
+                        {fmtHave(row.have)}
+                      </span>{" "}
+                      / {formatWalletCompact(row.required)}
+                      {row.status === "short" && (
+                        <span className="ml-1 text-red-400">
+                          (short {formatWalletCompact(row.short)})
+                        </span>
+                      )}
+                    </>
+                  )}
+                </span>
+              </div>
+              {/* have/short bar */}
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface)]">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor:
+                      row.status === "short" ? "#ef4444" : accent,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl bg-[var(--color-surface)] p-4">
@@ -107,6 +231,7 @@ function SkeletonCard() {
 export default function PlannerPage() {
   const [gaps, setGaps] = useState<GapEvent[] | null>(null);
   const [badges, setBadges] = useState<Record<string, EventBadge>>({});
+  const [bills, setBills] = useState<Record<string, CostBill>>({});
   const [priorities, setPriorities] = useState<PriorityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +266,31 @@ export default function PlannerPage() {
       setGaps(gapsData);
       setPriorities(priData);
       setLastUpdated(new Date());
+
+      // Fetch per-event affordability badges + full cost bills (US-007/US-009)
+      // in the background — never blocks the initial card render. Failures are
+      // swallowed so the planner keeps working with no wallet/affordability.
+      if (Array.isArray(gapsData)) {
+        const events = gapsData.map((g: GapEvent) => ({
+          eventId: g.eventId,
+          characters: g.characters,
+          underGate: g.underGate ?? [],
+        }));
+        fetch("/api/msf/planner/affordability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ events }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (!data) return;
+            if (data.badges) setBadges(data.badges);
+            if (data.bills) setBills(data.bills);
+          })
+          .catch(() => {
+            /* non-blocking */
+          });
+      }
     } catch {
       setError("Failed to load planner data. Please try again.");
     } finally {
@@ -284,6 +434,12 @@ export default function PlannerPage() {
                     <p className="mt-1 text-[10px] text-[var(--color-muted)]">
                       {event.readinessPercent}% ready
                     </p>
+                    {badges[event.eventId] && (
+                      <AffordabilityBadge
+                        badge={badges[event.eventId]}
+                        className="mt-1"
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -457,7 +613,10 @@ export default function PlannerPage() {
                 characters need upgrades ·{" "}
                 {selectedEvent.readinessPercent}% ready
               </p>
-              {(() => {
+              {bills[selectedEvent.eventId] ? (
+                <CostBillTable bill={bills[selectedEvent.eventId]} />
+              ) : (
+                (() => {
                 const unready = selectedEvent.characters.filter(
                   (c) => !c.meetsRequirements,
                 );
@@ -478,7 +637,8 @@ export default function PlannerPage() {
                     <span>⚠️</span> Short on: {shortNames}{more}
                   </p>
                 );
-              })()}
+              })()
+              )}
             </div>
           </div>
         )}
