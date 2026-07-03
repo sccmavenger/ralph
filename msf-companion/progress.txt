@@ -2,6 +2,12 @@
 
 ## Codebase Patterns
 
+### Player-scoped API route auth (wallet, etc.)
+- Resolve account identity with `getScopelyId(true)` from `@/lib/scopely-id` (pass `true` in Route Handlers to persist recovered id). `null` -> return 401.
+- Map scopelyId -> `Commander` row via prisma to get `commander.id`, then scope all per-account data to that id (enforces account isolation).
+- Premium-gated endpoints additionally check `getSubscriptionTier`/`isPremium` (see `src/app/api/msf/inventory/route.ts`).
+- Route tests: mock `@/lib/scopely-id` + `@/lib/prisma`; use `vi.importActual` to keep real domain validation while stubbing DB. No DB required.
+
 ### MSF API Authentication
 - Client credentials flow: POST `https://hydra-public.prod.m3.scopelypv.com/oauth2/token`
   - Body: `grant_type=client_credentials`
@@ -323,3 +329,17 @@ ecomputeWithMargin only forwards opponentPowers + safetyMargin, NOT characterTag
   - PRE-EXISTING failing tests inherited from the tower branch base: `src/app/api/tower/{events,rooms,history}/route.test.ts` (9 assertion failures). Before adding the vitest alias these files failed at module-load (0 tests); the alias makes them load and their WIP assertions fail. Baseline was already RED (3 failed files). Not caused by wallet work — verified via `git stash` baseline (1 failed test baseline vs surfaced tower failures).
   - Gold stored as `Int` (Postgres int4, max ~2.1B) — ample for realistic gold balances (~millions). Chose Int over BigInt to avoid JS BigInt JSON-serialization friction.
 ---
+
+## 2026-07-02 23:48 - US-002 Wallet read/write API
+- Added `src/app/api/msf/wallet/route.ts` with GET + PUT handlers scoped to the authenticated commander. Reuses `src/lib/wallet.ts` helpers (getWalletByCommanderId, upsertWallet, validateWalletInput, WalletValidationError) — no reimplemented validation/persistence.
+- Auth pattern: resolve identity via `getScopelyId(true)` from `@/lib/scopely-id` (returns null when unauthenticated -> 401). Map scopelyId -> Commander row (findUnique on GET, upsert on PUT) to get commander.id, then scope wallet ops to that id (account isolation).
+- GET: 401 unauth; 200 explicit empty state `{ exists:false, gold:null, cores:null, confirmedAt:null }` when commander/wallet absent; 200 `{ exists:true, gold, cores, confirmedAt(ISO) }` when present.
+- PUT: 401 unauth; 400 on malformed JSON or invalid input (validate BEFORE any write so an invalid PUT never mutates an existing wallet); 200 saved wallet with fresh confirmedAt.
+- Added `src/app/api/msf/wallet/route.test.ts` (9 tests) mocking scopely-id + prisma.commander, using `vi.importActual` to keep the REAL wallet validation while mocking only persistence. Covers TC-002.1 (GET 401), TC-002.2 (empty state), TC-002.3 (round-trip values), TC-002.4 (PUT 401 no persist), TC-002.5 (400 invalid, no persist), TC-002.6 (account isolation), plus malformed JSON.
+- Added TC-002.7 (confirmedAt strictly-later on re-write) as a DB integration test in `src/lib/wallet.test.ts`.
+- Files changed: src/app/api/msf/wallet/route.ts, src/app/api/msf/wallet/route.test.ts, src/lib/wallet.test.ts, prd.json, progress.txt.
+- Verified: 9 route tests + 7 wallet.test.ts tests all pass; wallet files lint clean (eslint exit 0); tsc shows only the 2 PRE-EXISTING planner-events.test.ts errors (no wallet errors).
+- **Learnings for future iterations:**
+  - API route auth pattern for player-scoped (non-premium-gated) endpoints: use `getScopelyId(true)` (Route Handlers pass true to persist recovered id), NOT `getValidAccessTokenWithRefresh` alone. scopelyId is the account identity; map to Commander.id via prisma. Premium endpoints additionally gate with `getSubscriptionTier`/`isPremium` (see inventory route).
+  - Route tests mock `@/lib/scopely-id` and `@/lib/prisma`; use `vi.importActual` on `@/lib/wallet` to exercise real validation while stubbing DB calls. No DB needed for route tests.
+  - Build a PUT `Request` in tests with `new Request(url, { method, body, headers })` and call the exported handler directly.

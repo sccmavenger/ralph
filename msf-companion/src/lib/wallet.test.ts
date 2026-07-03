@@ -51,6 +51,19 @@ describe("CommanderWallet persistence", () => {
     expect(read!.commanderId).toBe(commanderA);
   });
 
+  it("TC-002.7 refreshes confirmedAt to a strictly later time on re-write", async () => {
+    const first = await upsertWallet(commanderA, { gold: 100, cores: 5 });
+    // Small delay so the second write is measurably later.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const second = await upsertWallet(commanderA, { gold: 200, cores: 6 });
+
+    expect(second.confirmedAt.getTime()).toBeGreaterThan(
+      first.confirmedAt.getTime(),
+    );
+    expect(second.gold).toBe(200);
+    expect(second.cores).toBe(6);
+  });
+
   it("TC-001.3 enforces one wallet per account (unique constraint)", async () => {
     // A wallet already exists for commanderA from the previous test; a raw
     // create (bypassing upsert) for the same account must be rejected.
