@@ -393,3 +393,18 @@ ecomputeWithMargin only forwards opponentPowers + safetyMargin, NOT characterTag
   - Pre-existing planner-events.test.ts has 2 compile-time type errors (RawRequirements null) that do NOT break 
 ext build or vitest runtime — leave them.
 ---
+
+## 2026-07-03 06:11 - US-006
+- Implemented affordability comparison as a pure function.
+- Files changed:
+  - src/lib/affordability.ts (new): computeAffordability(bundle, wallet|null, api) -> per-resource ResourceComparison { required, have, short, status } for gold/cores/trainingXp + abilityMats Record; overall affordable:boolean + verdict ('affordable'|'short'|'wallet-needed'). ResourceStatus = 'ok'|'short'|'unknown'.
+  - src/lib/affordability.test.ts (new): 7 tests covering TC-006.1..6 (fully affordable, short-on-one, no-wallet->unknown, no-wallet+mat-short, exact boundary, zero-cost, purity).
+  - prd.json: US-006 passes -> true.
+- **Learnings for future iterations:**
+  - Reused CostBundle from cost-bundle.ts and WalletInput from wallet.ts via import type (no redefinition). WalletInput = { gold, cores }; wallet absence is modeled as passing 
+ull.
+  - API balances (ability mats + training XP) are ALWAYS known (from MSF API) so they are never 'unknown' — only gold/cores can be 'unknown'.
+  - Degradation rule: currency with required<=0 is 'ok' even with no wallet (zero-cost needs no wallet); currency with required>0 and no wallet is 'unknown', short=0, have=null. affordable = !anyShort (unknowns never force affordable:false). verdict='wallet-needed' only when nothing is short but a currency is unknown.
+  - Boundary have==required is affordable via short=max(0,required-have)==0.
+  - US-007 (next) builds a per-event badge from US-005+US-006 across an event's blocking characters; it will call computeCostBundle then computeAffordability and aggregate. Badge text 'short by X gold/cores' should use gold/cores.short; 'Add wallet' when verdict==='wallet-needed'.
+---

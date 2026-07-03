@@ -104,8 +104,8 @@
         "All TC-006.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented src/lib/affordability.ts: pure computeAffordability(bundle, wallet|null, api) returning per-resource { required, have, short, status } + overall affordable + verdict ('affordable'|'short'|'wallet-needed'). No wallet -> gold/cores 'unknown' (never false short); mats/XP always evaluated. 7 tests in affordability.test.ts cover TC-006.1..6."
     },
     {
       "id": "US-007",
