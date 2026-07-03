@@ -87,8 +87,8 @@
         "All TC-005.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Open Question #1 resolved: cost book DOES expose gold (item id 'SC') and the training-XP curve (characterLevelTotalXp cumulative). Pure engine in src/lib/cost-bundle.ts."
     },
     {
       "id": "US-006",

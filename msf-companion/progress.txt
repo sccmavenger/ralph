@@ -59,6 +59,16 @@ Tower endpoints:
 - UI (US-003+): reusable input sheet is `src/app/components/WalletInputSheet.tsx` (`onSkip`, `onSaved(wallet)`, optional `initialGold`/`initialCores`); it exports `SavedWallet`. Pure format/validate logic is in `src/lib/wallet-format.ts` (`formatWalletNumber` for display, `parseWalletNumber` for the raw API int). No React test infra in repo (no jsdom/testing-library) — put testable UI logic in a pure module and unit-test that. Wallet mockup accent colors: Gold `#f0c14b`, Cores `#5fd0e0`. Modal theme template: copy `src/app/components/EmailModal.tsx`.
 - UI (US-004+): wallet strip is `src/app/components/WalletStrip.tsx` (self-contained: fetches GET /api/msf/wallet, opens WalletInputSheet for add/edit, updates in place). GET returns `{ exists, gold, cores, confirmedAt }` — branch on `exists`, not zero-values, to tell first-run from an all-zero wallet. Pass RAW integers to `WalletInputSheet` (`initialGold={wallet.gold}`). Display helpers in `wallet-format.ts`: `formatWalletCompact` (abbreviates >=1M) and `formatConfirmedAgo` (relative "confirmed Nd ago"). Strip is rendered in `src/app/(app)/planner/page.tsx` just after the header, above the event timeline.
 
+### Cost / affordability engine (US-005+)
+- **Resolved Open Question #1:** the MSF cost book (`/game/v1/upgradeData/{field}`, client-credentials, NO player login) DOES expose gold and the training-XP curve — nothing is guessed. Proven by `scripts/probe-upgrade-costs.ts` (run it to re-dump).
+  - **Training XP:** `characterLevelTotalXp[level]` = CUMULATIVE training XP to reach a level (lvl50=94,090, lvl60=219,390, lvl70=581,690, lvl75=896,690). Delta cost = `totalXp[target] - totalXp[current]`.
+  - **Gold:** item id **`SC`** (Silver Credits). Appears as a normal cost line inside `abilityUpgradeCosts[type][level]` (e.g. ability lvl2 = 1000 SC) and `yellowStarTotalCosts`. Sum every `SC` line; optional gear/level/star gold curves supported.
+  - **Cores:** item id **`PC`** (Power Cores). Character gear/level/star deltas normally cost 0 cores; PC lines are routed to `cores` not mats.
+  - **Ability mats / gear / shards:** all non-currency item lines aggregate into `abilityMats: Record<itemId,qty>` (gear pieces + ability materials + star shards keyed by a caller-supplied `shardItemId`).
+- **Pure engine:** `src/lib/cost-bundle.ts` — `computeCostBundle(book: CostBook, delta: CostDelta): CostBundle`. NO network/DB; all data passed in. Exports `GOLD_ITEM_ID`, `CORE_ITEM_ID`, `UNOWNED_BASE_STATE`. The async fetch-based equivalents (that produce the CostBook fields at runtime) live in `src/lib/upgrade-calculator.ts` — keep the pure math here, the I/O there.
+- **Unowned character:** pass `delta.current = null` → priced from `UNOWNED_BASE_STATE` (gear1/level1/0★/abilities1).
+- **Testing sparse arrays:** `characterLevelTotalXp` is a sparse array. Use `structuredClone` (NOT `JSON.parse(JSON.stringify(...))`) for mutation-purity snapshots — JSON turns sparse holes into `null` and gives false diffs.
+
 ### Known Issues
 - planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
 - API key alone (without bearer token) returns 401 — always need OAuth token
