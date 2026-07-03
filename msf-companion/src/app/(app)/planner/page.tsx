@@ -25,6 +25,40 @@ interface GapEvent {
   }>;
 }
 
+type BadgeTone = "affordable" | "short" | "wallet-needed";
+
+interface EventBadge {
+  tone: BadgeTone;
+  label: string;
+}
+
+/** Tailwind classes for each badge tone (green / amber-red / neutral). */
+const BADGE_STYLES: Record<BadgeTone, string> = {
+  affordable: "bg-green-500/15 text-green-400 border border-green-500/40",
+  short: "bg-red-500/15 text-red-400 border border-red-500/40",
+  "wallet-needed":
+    "bg-purple-500/10 text-purple-300 border border-purple-500/40",
+};
+
+function AffordabilityBadge({
+  badge,
+  className = "",
+}: {
+  badge: EventBadge;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${BADGE_STYLES[badge.tone]} ${className}`}
+      data-testid="affordability-badge"
+      data-tone={badge.tone}
+    >
+      <span aria-hidden>💰</span>
+      <span className="line-clamp-1">{badge.label}</span>
+    </span>
+  );
+}
+
 interface PriorityEntry {
   rank: number;
   characterId: string;
@@ -48,6 +82,7 @@ function SkeletonCard() {
 
 export default function PlannerPage() {
   const [gaps, setGaps] = useState<GapEvent[] | null>(null);
+  const [badges, setBadges] = useState<Record<string, EventBadge>>({});
   const [priorities, setPriorities] = useState<PriorityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

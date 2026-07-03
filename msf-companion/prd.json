@@ -120,8 +120,8 @@
         "All TC-007.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "event-affordability.ts (aggregates CostBundle across an event's blocking characters + computeAffordability) + /api/msf/planner/affordability route + AffordabilityBadge wired into planner page (progressive, non-blocking). 11 unit tests pass. No-wallet shows 'Add wallet' invite; short shows 'short by X'. Verified during ralph-loop resume: subagent completed work but was cut off before commit; orchestrator verified tests+typecheck and committed."
     },
     {
       "id": "US-008",
