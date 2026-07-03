@@ -43,3 +43,41 @@ export function parseWalletNumber(raw: string): number | null {
 export function isValidWalletValue(raw: string): boolean {
   return parseWalletNumber(raw) !== null;
 }
+
+/**
+ * Compact display used by the wallet strip (US-004). Large balances are
+ * abbreviated to match the approved mockup — Gold `1,840,000` shows as `1.84M`
+ * while smaller values (e.g. Cores `6,120`) keep full thousands separators.
+ * Values `< 1,000,000` are never abbreviated. Trailing zeros in the decimal
+ * part are trimmed (`2,000,000` -> `2M`, `1,500,000` -> `1.5M`).
+ */
+export function formatWalletCompact(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return "0";
+  const abbreviate = (n: number, suffix: string): string => {
+    const rounded = Math.round(n * 100) / 100;
+    // Trim trailing zeros: 1.84 -> "1.84", 2.00 -> "2", 1.50 -> "1.5".
+    return `${parseFloat(rounded.toFixed(2))}${suffix}`;
+  };
+  if (value >= 1_000_000_000) return abbreviate(value / 1_000_000_000, "B");
+  if (value >= 1_000_000) return abbreviate(value / 1_000_000, "M");
+  return Math.round(value).toLocaleString("en-US");
+}
+
+/**
+ * Relative-age label for the wallet strip, derived from `confirmedAt`
+ * (US-004 / TC-004.2). Returns `confirmed today`, `confirmed 1d ago`,
+ * `confirmed 2d ago`, … Returns an empty string when there is no timestamp.
+ */
+export function formatConfirmedAgo(
+  confirmedAt: string | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!confirmedAt) return "";
+  const then = confirmedAt instanceof Date ? confirmedAt : new Date(confirmedAt);
+  const time = then.getTime();
+  if (Number.isNaN(time)) return "";
+  const days = Math.floor((now.getTime() - time) / 86_400_000);
+  if (days <= 0) return "confirmed today";
+  if (days === 1) return "confirmed 1d ago";
+  return `confirmed ${days}d ago`;
+}

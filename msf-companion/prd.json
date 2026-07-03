@@ -69,7 +69,7 @@
         "All TC-004.* pass criteria in tasks/prd-commander-wallet.md are met"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

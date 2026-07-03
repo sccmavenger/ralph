@@ -57,6 +57,7 @@ Tower endpoints:
 - DB integration tests: `import "dotenv/config"` at the top to load `DATABASE_URL` from `.env` (vitest doesn't auto-load env). Create throwaway `Commander` rows and clean up via `prisma.commander.deleteMany` (Cascade removes children) in `afterAll`.
 - Migration workflow when the dev DB has drift (`prisma migrate dev` wants to reset): hand-write `prisma/migrations/<ts>_name/migration.sql`, apply with `npx prisma db execute --file <sql>`, then `npx prisma migrate resolve --applied <migration_name>`, then `npx prisma generate`. `migrate status` then reports up to date.
 - UI (US-003+): reusable input sheet is `src/app/components/WalletInputSheet.tsx` (`onSkip`, `onSaved(wallet)`, optional `initialGold`/`initialCores`); it exports `SavedWallet`. Pure format/validate logic is in `src/lib/wallet-format.ts` (`formatWalletNumber` for display, `parseWalletNumber` for the raw API int). No React test infra in repo (no jsdom/testing-library) — put testable UI logic in a pure module and unit-test that. Wallet mockup accent colors: Gold `#f0c14b`, Cores `#5fd0e0`. Modal theme template: copy `src/app/components/EmailModal.tsx`.
+- UI (US-004+): wallet strip is `src/app/components/WalletStrip.tsx` (self-contained: fetches GET /api/msf/wallet, opens WalletInputSheet for add/edit, updates in place). GET returns `{ exists, gold, cores, confirmedAt }` — branch on `exists`, not zero-values, to tell first-run from an all-zero wallet. Pass RAW integers to `WalletInputSheet` (`initialGold={wallet.gold}`). Display helpers in `wallet-format.ts`: `formatWalletCompact` (abbreviates >=1M) and `formatConfirmedAgo` (relative "confirmed Nd ago"). Strip is rendered in `src/app/(app)/planner/page.tsx` just after the header, above the event timeline.
 
 ### Known Issues
 - planner-events.ts checks for `event.type === "tower"` but live API shows towers as `pickYourPoison`
@@ -365,4 +366,20 @@ ecomputeWithMargin only forwards opponentPowers + safetyMargin, NOT characterTag
   - Wallet accent colors from the approved mockup: Gold `#f0c14b`, Power Cores `#5fd0e0`.
   - The wallet API (`PUT /api/msf/wallet`) returns `{ exists, gold, cores, confirmedAt }`; `SavedWallet` type is exported from `WalletInputSheet.tsx` for US-004 to reuse.
   - US-004 wires this sheet: import `WalletInputSheet`, pass `initialGold`/`initialCores` from GET for the edit affordance, update the strip in place from the `onSaved` payload.
+---
+
+## 2026-07-03 05:43 - US-004
+- Implemented the "Your Wallet" strip above the planner event cards (src/app/(app)/planner/page.tsx).
+- New component src/app/components/WalletStrip.tsx: client component that GETs /api/msf/wallet on mount; when a wallet exists shows Gold + Cores (compact-formatted), a "self-reported" pill, per-balance "edit" affordance and a "confirmed Nd ago" age; when no wallet exists shows an "Add your wallet" first-run prompt (never zeros). Edit/Add both open the existing US-003 WalletInputSheet (pre-filled with raw integers on edit); onSaved updates the strip in place — no reload. Non-blocking: strip renders nothing if the wallet fetch fails, so planner readiness bars/cards are untouched.
+- Added two pure helpers to src/lib/wallet-format.ts with unit tests (wallet-format.test.ts, 15 tests pass):
+  - formatWalletCompact(n): abbreviates >=1M to "1.84M"/"2M"/"3.2B", keeps <1M in full thousands ("6,120") — matches mockup (TC-004.1).
+  - formatConfirmedAgo(confirmedAt, now?): "confirmed today" / "confirmed 1d ago" / "confirmed Nd ago"; "" for null/invalid (TC-004.2).
+- Verification: typecheck clean for all new files (only pre-existing planner-events.test.ts type errors remain — unrelated WIP); next build succeeds; planner-events + wallet route + wallet tests all pass (25) — no regression.
+- **Learnings for future iterations:**
+  - The Planner page is a single client component at src/app/(app)/planner/page.tsx. Event cards live in the "event-timeline" section; the wallet strip is rendered just after the header, before error/loading/timeline blocks.
+  - GET /api/msf/wallet returns { exists, gold, cores, confirmedAt } — use xists (not zero-check) to distinguish first-run from a real all-zero wallet.
+  - WalletInputSheet expects RAW integers for initialGold/initialCores (it formats them for display internally). Pass wallet.gold/cores directly.
+  - Reusable UI-logic pattern holds: no React test infra (no jsdom) — put testable logic in wallet-format.ts pure helpers and unit-test there; components stay thin.
+  - Pre-existing planner-events.test.ts has 2 compile-time type errors (RawRequirements null) that do NOT break 
+ext build or vitest runtime — leave them.
 ---

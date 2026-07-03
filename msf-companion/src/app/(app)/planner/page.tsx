@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import PriorityList from "@/app/components/PriorityList";
+import WalletStrip from "@/app/components/WalletStrip";
 import { CharPortrait } from "@/app/components/CharPortrait";
 
 interface GapEvent {
@@ -119,6 +120,9 @@ export default function PlannerPage() {
           )}
         </div>
       </div>
+
+      {/* Your Wallet strip (US-004) — sits above existing event cards */}
+      <WalletStrip />
 
       {/* Error state */}
       {error && (
