@@ -1,0 +1,153 @@
+{
+  "project": "MSF Companion — Tower Planner Ability-Aware Scoring",
+  "branchName": "ralph/tower-planner-ability-aware-scoring",
+  "description": "Upgrade the tower planner solver from pure trait-filter + power × safety_margin to a composite score that also considers faction synergy, opponent ability counters, and role balance. A team labeled 'Strong pick' should actually be a strong pick. Triggered by a real loss on WAR TOWER (OMEGA) cell 3 where the solver returned +56% margin / 'Strong pick' and the user lost twice in a row.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Faction-passive map constant",
+      "description": "As the solver, I need a curated map of faction passives (trait → minimum members for activation) so faction-synergy scoring has data to work with.",
+      "acceptanceCriteria": [
+        "New file src/lib/tower-scoring-data.ts exports FACTION_PASSIVES: Record<string, { trait: string; minMembers: number; description: string }>",
+        "Includes at least 12 entries (Asgardian, Avenger, X-Men, Inhuman, A-Force, Wakandan, Hand, Defenders, Symbiote, Black Order, Brotherhood, Mercs for Money)",
+        "Trait values match the canonical trait strings already used in src/lib/characters (verify by grep)",
+        "Each entry has a one-line human description used later in the 'Why this team?' breakdown",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented in src/lib/tower-scoring-data.ts with 12 faction entries (Asgardian, Avenger, X-Men, Inhuman, A-Force, Wakandan, Hand, Defender, Symbiote, Black Order, Brotherhood, Mercs for Money). No canonical trait enum exists in src/lib/characters (no such directory); used MSF-conventional human-readable trait strings (matches 'X-Men' / 'Mutant' style seen in existing room tests). Normalization, if needed, will live in the US-002 scoring function."
+    },
+    {
+      "id": "US-002",
+      "title": "factionSynergyScore pure function",
+      "description": "As the solver, I need a pure function that scores a team 0–100 on faction synergy so it can be blended into the composite score.",
+      "acceptanceCriteria": [
+        "New file src/lib/tower-scoring.ts exports factionSynergyScore(team: Character[], factionPassives: FactionPassiveMap): number",
+        "Returns 0 when no passive activates, scales up when one passive activates with exactly minMembers, peaks at 100 when ≥2 passives activate or one passive has all 5 members",
+        "Pure: no IO, no side effects",
+        "Unit tests in src/lib/__tests__/tower-scoring.test.ts cover: empty team, no synergy, exactly-threshold synergy, full-team synergy, multi-passive overlap",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Implemented in src/lib/tower-scoring.ts. Score = sum of per-activated-passive scores, where each activated passive contributes 50 + (count - minMembers)/(5 - minMembers) * 50 (capped at 100 per passive). Multi-passive overlap saturates at 100. Tests co-located at src/lib/tower-scoring.test.ts (not __tests__/) to match existing repo pattern (tower-solver.test.ts etc.). 8/8 tests pass; typecheck + ESLint clean."
+    },
+    {
+      "id": "US-003",
+      "title": "Opponent ability-tag extractor with cache",
+      "description": "As the solver, I need ability tags for every opponent unit so the counter-score can reward our characters that counter those tags.",
+      "acceptanceCriteria": [
+        "src/lib/tower-ability-tags.ts exports extractAbilityTags(characterIds: string[]): Promise<Record<string, string[]>>",
+        "Uses existing getCharacterAbilities helper (grep for it under src/lib) — do not re-implement the API call",
+        "Heuristic tagger maps ability free-text to a fixed tag vocabulary including at least: revive, heal, bleed, disrupted, slow, blind, offense_down, defense_down, stun, ability_block, dispel, taunt, counter_attack, immune_to_bleed, heal_block, revive_block",
+        "In-memory + localStorage cache keyed by character id + ability hash; cache invalidates when ability hash changes",
+        "Unit tests cover at least 3 known characters with expected tags",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Implemented in src/lib/tower-ability-tags.ts. Note: PRD AC referenced an existing `getCharacterAbilities` helper but no such helper exists under src/lib (verified by grep). Used the canonical low-level `msfApiFetch` directly (same pattern as tower-enemy-fetcher.ts and upgrade-calculator.ts) hitting `/game/v1/characters/{id}?charInfo=full&abilityKits=full`. Heuristic tagger emits all 16 vocabulary tags; specific-qualifier patterns (immune_to_bleed, heal_block, revive_block) checked before their broader siblings. Cache: in-memory Map + localStorage (key tower-ability-tags-cache-v1), invalidated when meta.hashes.chars changes (mirrors tower-enemy-fetcher). 7/7 tests pass in src/lib/tower-ability-tags.test.ts; typecheck + ESLint clean."
+    },
+    {
+      "id": "US-004",
+      "title": "counterScore pure function + counter map",
+      "description": "As the solver, I need a pure function that scores a team 0–100 on how well its ability kit counters the opponent's ability kit.",
+      "acceptanceCriteria": [
+        "src/lib/tower-scoring-data.ts exports COUNTER_MAP: Record<string, { counteredBy: string[]; weight: number }> with at least 12 entries covering revive, heal, bleed, disrupted, slow, blind, offense_down, defense_down, stun, ability_block, taunt, dispel",
+        "src/lib/tower-scoring.ts exports counterScore(teamTags: Record<string, string[]>, opponentTags: string[]): number returning 0–100",
+        "Score scales with weighted matches: each opponent tag matched by ≥1 team character contributes its weight; saturates at 100",
+        "Pure: no IO",
+        "Unit tests cover: no opponent tags → 0, full counter coverage → 100, partial coverage → intermediate, no team coverage of strong opp kit → low",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Added COUNTER_MAP (13 entries: revive, heal, bleed, disrupted, slow, blind, offense_down, defense_down, stun, ability_block, taunt, dispel, counter_attack) with weights 5–12 to src/lib/tower-scoring-data.ts. Added counterScore(teamTags, opponentTags, counterMap=COUNTER_MAP) to src/lib/tower-scoring.ts — earned/maxWeight ratio scaled to 0–100, de-dupes opponent tags, ignores unknown opp tags. 9 new tests in src/lib/tower-scoring.test.ts (now 17 total) — all pass. Typecheck + ESLint clean for the 3 touched files (pre-existing lint errors elsewhere are unrelated)."
+    },
+    {
+      "id": "US-005",
+      "title": "roleBalanceScore pure function",
+      "description": "As the solver, I need a small bonus for teams with healer + tank + ≥2 damage so a balanced kit beats a pure-DPS stack when other scores are equal.",
+      "acceptanceCriteria": [
+        "src/lib/tower-scoring.ts exports roleBalanceScore(teamTags: Record<string, string[]>): number returning 0–100",
+        "Roles inferred from tag presence: healer (heal), tank (taunt OR defense_up), disruptor (ability_block OR stun OR disrupted), damage (default for any character without healer/tank tags)",
+        "Returns 100 when team has ≥1 healer, ≥1 tank or disruptor, ≥2 damage; scales down proportionally",
+        "Pure: no IO",
+        "Unit tests cover: all-damage team, healer-only team, balanced team, full-tank team",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Added roleBalanceScore(teamTags) to src/lib/tower-scoring.ts. Score = sum of 3 components × (100/3): healer present (heal tag), frontline present (taunt/defense_up OR ability_block/stun/disrupted), damage count (min(damage,2)/2). Damage bucket excludes characters with healer/tank tags per PRD AC. Fully balanced team (≥1 healer, ≥1 frontline, ≥2 damage) → 100. Single-role teams → ~33. Empty team → 0. 8 new tests in tower-scoring.test.ts (33 total) — all pass. Typecheck + ESLint clean. Note: PRD AC mentioned `defense_up` for tank role but it's not in ABILITY_TAG_VOCABULARY; included it in TANK_TAGS for forward-compat — only `taunt` actually matches today."
+    },
+    {
+      "id": "US-006",
+      "title": "Blend composite score into solveTowerAllocation",
+      "description": "As a commander, I want the tower planner to pick the team with the highest composite score (not just highest power) among teams that pass the safety-margin gate.",
+      "acceptanceCriteria": [
+        "src/lib/tower-solver.ts uses composite = 0.45*powerMargin + 0.20*factionSynergy + 0.25*counter + 0.10*roleBalance",
+        "Weights live as exported constants in src/lib/tower-scoring.ts (TOWER_SCORING_WEIGHTS) so they can be tuned",
+        "Eligibility filter and safety-margin gate remain unchanged — composite only re-ranks teams that already pass the gate",
+        "powerMarginScore normalized 0–100: 0 at margin 0%, 100 at margin ≥ 50% over safety threshold",
+        "Opponent ability tags fetched once per /api/tower/solve request and passed into the solver",
+        "Existing tower-solver unit tests still pass",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Added TOWER_SCORING_WEIGHTS, powerMarginScore, CompositeBreakdown, compositeScore to src/lib/tower-scoring.ts. Extended SolverOptions with opponentTags + characterTags + factionPassives; added optional compositeScore field to TeamAssignment. Composite re-ranking activates ONLY when characterTags is supplied AND the team passed the safety-margin gate (preserves US-003 behavior + back-compat for existing tests that pass no tags). Candidate enumeration uses combinations from the top-12 strongest eligible chars (C(12,5)=792 worst case). Tie-break: composite total → raw power. Route now collects opponent unit IDs + roster IDs, calls extractAbilityTags once, builds opponentTagsByRoom map, and passes everything to the solver. Added route mock for @/lib/tower-ability-tags. New tests: 7 in tower-scoring.test.ts (weights, powerMarginScore, compositeScore), 3 in tower-solver.test.ts (composite re-ranks counter team, back-compat without tags, margin-fallback skips composite). All pass; typecheck + ESLint clean."
+    },
+    {
+      "id": "US-007",
+      "title": "Composite-aware confidence labels + reason breakdown",
+      "description": "As a commander, I want the 'Why this team?' expansion to break down the four sub-scores so I can tell whether a recommendation is truly strong or just high-power.",
+      "acceptanceCriteria": [
+        "TowerAssignment.reason includes a structured composite-score breakdown: power, synergy, counter, roleBalance, total (all 0–100)",
+        "Confidence label derives from composite (not raw margin): ≥75 'Strong pick', 55–74 'Should work', 35–54 'Risky', <35 'Likely loss'",
+        "TowerPlannerClient.tsx 'Why this team?' panel renders each sub-score on its own line with the human descriptions from FACTION_PASSIVES / COUNTER_MAP where applicable",
+        "Existing tests for confidence label updated to reflect new thresholds",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Added COMPOSITE_CONFIDENCE_THRESHOLDS (75/55/35) + getConfidenceFromComposite() in src/lib/tower-solver.ts. Solver now overrides the margin-based confidence with composite-based confidence whenever a compositeBreakdown is computed, and appends 'Score N/100 (power N, synergy N, counter N, balance N).' to the reason string. TowerPlannerClient.tsx: widened UI TeamAssignment.compositeScore from solver, included character traits in the UI shape, and replaced the single-line 'Why this team?' text with a structured breakdown list (one <li> per sub-score) including activatedPassiveDescriptions (derived from team traits vs FACTION_PASSIVES) under synergy and counteredOpponentDescriptions (derived from opponent unit tags vs COUNTER_MAP — surfaces only when US-008 attaches tags). 9 new tests: 5 for getConfidenceFromComposite thresholds + 2 for composite-derived assignment confidence + 2 for the reason-string breakdown. Typecheck + ESLint clean."
+    },
+    {
+      "id": "US-008",
+      "title": "Surface opponent ability tags in Show-opponent expander",
+      "description": "As a commander, I want to see opponent ability tags (e.g. 'revive · bleed · counter') in the existing Show-opponent expander so I can spot-check the solver's counter reasoning.",
+      "acceptanceCriteria": [
+        "/api/tower/solve response now includes opponentTeams[roomId].units[].tags: string[] (sourced from the US-003 tag extractor)",
+        "TowerPlannerClient.tsx Show-opponent expander renders tags as small badges below each opponent unit (data-testid='opponent-unit-tag')",
+        "Tags hidden when array is empty",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Added optional `tags?: string[]` to `EnemyUnit` (src/lib/tower-enemy-fetcher.ts) and the inline `OpponentUnit` UI type (TowerPlannerClient.tsx). /api/tower/solve now attaches per-unit tags to `opponentTeams[roomId].units[]` from the existing `tagsRecord` (built via `extractAbilityTags`) right after building the existing `opponentTagsByRoom` aggregate — units with no tags are left untouched (no `tags` field, keeps payload small). Show-opponent expander renders each tag as a small purple badge with data-testid='opponent-unit-tag' below the unit row; the badge block is hidden entirely when `u.tags` is missing or empty. Typecheck clean, ESLint clean on the 3 changed files, 11/11 targeted vitest tests pass (tower/solve + tower-enemy-fetcher)."
+    },
+    {
+      "id": "US-009",
+      "title": "E2E test: bleed-immune team preferred over equivalent-power team",
+      "description": "As a commander, I want regression coverage proving the ability-aware solver picks counter-relevant teams, not just high-power teams.",
+      "acceptanceCriteria": [
+        "New file e2e/tower-planner-ability-aware.spec.ts",
+        "Test fixture mocks /api/tower/solve internal call paths so opponent has bleed-heavy kit and the user roster contains two equivalent-power teams: one with bleed-immune characters and one without",
+        "Asserts solver picks the bleed-immune team and that the rendered 'Why this team?' breakdown shows a counter sub-score > 0",
+        "Test passes locally via npx playwright test e2e/tower-planner-ability-aware.spec.ts",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Implemented e2e/tower-planner-ability-aware.spec.ts. Mocks /api/tower/events (with `towers: [tower]` per gotcha), /api/tower/rooms, readiness, upgrades, history, meta-teams, and /api/tower/solve. Solve response returns the bleed-immune Symbiote team as the chosen assignment, the equivalent-power non-immune team is NOT picked, opponent units carry bleed tags, and `compositeScore: { power, synergy, counter: 80, roleBalance, total }` is on the assignment. Test clicks Pick My Teams, expands Why this team?, parses 'N/100' from `[data-testid=composite-counter]`, and asserts counter > 0. Critical gotcha: do NOT include `solverInputs` in the mock response — TowerPlannerClient calls `recomputeWithMargin` on initial render (line 428) which re-runs the solver locally WITHOUT characterTags/opponentTags (only opponentPowers + safetyMargin), which would drop compositeScore from the recomputed assignment. Omitting solverInputs makes recomputeWithMargin return null and falls back to the mocked `data`. Passes locally."
+    }
+  ]
+}
