@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getValidAccessTokenWithRefresh as getValidAccessToken } from "@/lib/auth";
 import { msfApiFetch } from "@/lib/msf-api";
+import { getCached, setCache } from "@/lib/planner-cache";
 
 export const dynamic = "force-dynamic";
+
+const ABILITY_KIT_CACHE_KEY = "team-builder:ability-kits";
 
 interface RawStats {
   health?: number;
@@ -107,6 +110,9 @@ function normalizeStats(stats: RawStats | undefined) {
  * The full abilityKits=full response is ~7.6MB which exceeds the API's 472KB limit.
  */
 async function fetchGameCharAbilityKits(accessToken: string): Promise<Map<string, GameAbilityKit>> {
+  const cached = getCached<Map<string, GameAbilityKit>>(ABILITY_KIT_CACHE_KEY);
+  if (cached) return cached;
+
   const GAME_PER_PAGE = 15; // ~25KB per char with ability kits; 15 * 25KB ≈ 375KB < 472KB limit
   const map = new Map<string, GameAbilityKit>();
 
@@ -122,21 +128,18 @@ async function fetchGameCharAbilityKits(accessToken: string): Promise<Map<string
   const total = page1.meta?.perTotal ?? (page1.data?.length ?? 0);
   if (total > GAME_PER_PAGE) {
     const pageCount = Math.ceil(total / GAME_PER_PAGE);
-    const extraPages = await Promise.all(
-      Array.from({ length: pageCount - 1 }, (_, i) =>
-        msfApiFetch<GameCharactersPage>({
-          path: `/game/v1/characters?abilityKits=full&page=${i + 2}&perPage=${GAME_PER_PAGE}`,
-          accessToken,
-        })
-      )
-    );
-    for (const p of extraPages) {
-      for (const gc of p.data ?? []) {
+    for (let page = 2; page <= pageCount; page++) {
+      const nextPage = await msfApiFetch<GameCharactersPage>({
+        path: `/game/v1/characters?abilityKits=full&page=${page}&perPage=${GAME_PER_PAGE}`,
+        accessToken,
+      });
+      for (const gc of nextPage.data ?? []) {
         if (gc.abilityKit) map.set(gc.id, gc.abilityKit);
       }
     }
   }
 
+  setCache(ABILITY_KIT_CACHE_KEY, map);
   return map;
 }
 
@@ -175,32 +178,29 @@ export async function GET() {
   }
 
   try {
-    const PER_PAGE = 200;
+    const PER_PAGE = 25;
 
-    // Fetch roster and game character ability kits in parallel
-    const [rosterPage1, passiveDescMap] = await Promise.all([
-      msfApiFetch<RosterPage>({
-        path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=1&perPage=${PER_PAGE}`,
-        accessToken: token,
-      }),
-      fetchGameCharAbilityKits(token),
-    ]);
+    const rosterPage1 = await msfApiFetch<RosterPage>({
+      path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=1&perPage=${PER_PAGE}`,
+      accessToken: token,
+    });
 
     const allRaw: RawRosterChar[] = [...(rosterPage1.data ?? [])];
     const total = rosterPage1.meta?.perTotal ?? allRaw.length;
 
     if (total > PER_PAGE) {
       const pageCount = Math.ceil(total / PER_PAGE);
-      const extraPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, i) =>
-          msfApiFetch<RosterPage>({
-            path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=${i + 2}&perPage=${PER_PAGE}`,
-            accessToken: token,
-          })
-        )
-      );
-      for (const p of extraPages) allRaw.push(...(p.data ?? []));
+      for (let page = 2; page <= pageCount; page++) {
+        const nextPage = await msfApiFetch<RosterPage>({
+          path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=${page}&perPage=${PER_PAGE}`,
+          accessToken: token,
+        });
+        allRaw.push(...(nextPage.data ?? []));
+      }
     }
+
+    // Ability kits are global game data and are cached for one hour.
+    const passiveDescMap = await fetchGameCharAbilityKits(token);
 
     // Filter to playable characters only
     const playable = allRaw.filter(
@@ -226,63 +226,6 @@ export async function GET() {
 
     return NextResponse.json({ data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-
-    // Handle 472 RESPONSE_TOO_LARGE for roster by retrying with smaller page size
-    if (message.includes("472")) {
-      try {
-        const SMALL_PAGE = 100;
-
-        const passiveDescMap2 = await fetchGameCharAbilityKits(token);
-
-        const page1 = await msfApiFetch<RosterPage>({
-          path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=1&perPage=${SMALL_PAGE}`,
-          accessToken: token,
-        });
-
-        const allRaw: RawRosterChar[] = [...(page1.data ?? [])];
-        const total = page1.meta?.perTotal ?? allRaw.length;
-
-        if (total > SMALL_PAGE) {
-          const pageCount = Math.ceil(total / SMALL_PAGE);
-          const extraPages = await Promise.all(
-            Array.from({ length: pageCount - 1 }, (_, i) =>
-              msfApiFetch<RosterPage>({
-                path: `/player/v1/roster?charInfo=full&traitFormat=id&statsFormat=object&page=${i + 2}&perPage=${SMALL_PAGE}`,
-                accessToken: token,
-              })
-            )
-          );
-          for (const p of extraPages) allRaw.push(...(p.data ?? []));
-        }
-
-        const playable = allRaw.filter(
-          (c) => !c.info?.status || c.info.status === "playable"
-        );
-
-        const data = playable.map((c) => {
-          const passiveDesc = resolvePassiveDescription(passiveDescMap2.get(c.id), c.passive);
-          return {
-            id: c.id,
-            name: c.info?.name ?? c.id,
-            portrait: c.info?.portrait ?? null,
-            power: c.power ?? 0,
-            level: c.level ?? 1,
-            gearTier: c.gearTier ?? 0,
-            yellowStars: c.activeYellow ?? 0,
-            redStars: c.activeRed ?? 0,
-            traits: normalizeTraits(c.info?.traits),
-            abilityKit: normalizeAbilityKit(c.passive, passiveDesc),
-            stats: normalizeStats(c.stats),
-          };
-        });
-
-        return NextResponse.json({ data });
-      } catch (retryErr) {
-        console.error("MSF team-builder roster retry failed:", retryErr);
-      }
-    }
-
     console.error("MSF team-builder roster fetch failed:", err);
     return NextResponse.json(
       {

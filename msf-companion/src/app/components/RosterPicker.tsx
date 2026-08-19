@@ -14,8 +14,19 @@ interface RosterPickerProps {
   onClose: () => void;
 }
 
-const ORIGIN_CHIPS = ["Bio", "Mutant", "Skill", "Mystic", "Tech", "Cosmic"];
+const ORIGIN_CHIPS = ["Bio", "Mutant", "Skill", "Mystic", "Tech"];
+const ALIGNMENT_CHIPS = ["Hero", "Villain"];
+const LOCATION_CHIPS = ["City", "Global", "Cosmic"];
 const ROLE_CHIPS = ["Brawler", "Blaster", "Controller", "Protector", "Support"];
+
+const TRAIT_CATEGORIES = [
+  { id: "origin", label: "Origin", options: ORIGIN_CHIPS },
+  { id: "alignment", label: "Alignment", options: ALIGNMENT_CHIPS },
+  { id: "location", label: "Location", options: LOCATION_CHIPS },
+  { id: "role", label: "Role", options: ROLE_CHIPS },
+] as const;
+
+type TraitCategory = (typeof TRAIT_CATEGORIES)[number]["id"];
 
 export default function RosterPicker({
   roster,
@@ -27,7 +38,12 @@ export default function RosterPicker({
   onClose,
 }: RosterPickerProps) {
   const [search, setSearch] = useState("");
-  const [activeTraits, setActiveTraits] = useState<Set<string>>(new Set());
+  const [activeTraits, setActiveTraits] = useState<Record<TraitCategory, Set<string>>>(() => ({
+    origin: new Set(),
+    alignment: new Set(),
+    location: new Set(),
+    role: new Set(),
+  }));
   const [pickerSelection, setPickerSelection] = useState<TeamCharacter[]>([]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -50,15 +66,15 @@ export default function RosterPicker({
     return popular;
   }, [metaData, selectedMode]);
 
-  const toggleTrait = useCallback((trait: string) => {
+  const toggleTrait = useCallback((category: TraitCategory, trait: string) => {
     setActiveTraits((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev[category]);
       if (next.has(trait)) {
         next.delete(trait);
       } else {
         next.add(trait);
       }
-      return next;
+      return { ...prev, [category]: next };
     });
   }, []);
 
@@ -80,12 +96,13 @@ export default function RosterPicker({
       chars = chars.filter((c) => c.name.toLowerCase().includes(lower));
     }
 
-    // Trait filter (multi-select, OR within selection)
-    if (activeTraits.size > 0) {
-      chars = chars.filter((c) =>
-        c.traits.some((t) => activeTraits.has(t))
-      );
-    }
+    // OR within each trait category, AND across categories.
+    chars = chars.filter((character) =>
+      TRAIT_CATEGORIES.every(({ id }) => {
+        const selected = activeTraits[id];
+        return selected.size === 0 || character.traits.some((trait) => selected.has(trait));
+      }),
+    );
 
     return chars;
   }, [roster, search, activeTraits]);
@@ -122,20 +139,29 @@ export default function RosterPicker({
       </div>
 
       {/* Trait chips */}
-      <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-        {[...ORIGIN_CHIPS, ...ROLE_CHIPS].map((trait) => (
-          <button
-            key={trait}
-            data-testid={`roster-trait-chip-${trait}`}
-            onClick={() => toggleTrait(trait)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-              activeTraits.has(trait)
-                ? "bg-[var(--color-accent)] text-white"
-                : "bg-[var(--color-surface)] text-[var(--color-muted)]"
-            }`}
-          >
-            {trait}
-          </button>
+      <div className="space-y-2 px-4 pb-2">
+        {TRAIT_CATEGORIES.map(({ id, label, options }) => (
+          <div key={id}>
+            <p className="mb-1 text-[10px] font-semibold text-[var(--color-muted)]">
+              {label}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((trait) => (
+                <button
+                  key={trait}
+                  data-testid={`roster-trait-chip-${trait}`}
+                  onClick={() => toggleTrait(id, trait)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                    activeTraits[id].has(trait)
+                      ? "bg-[var(--color-accent)] text-white"
+                      : "bg-[var(--color-surface)] text-[var(--color-muted)]"
+                  }`}
+                >
+                  {trait}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -202,6 +228,13 @@ export default function RosterPicker({
             );
           })}
         </div>
+        {filtered.length === 0 && (
+          <p className="py-10 text-center text-sm text-[var(--color-muted)]">
+            {roster.length === 0
+              ? "No roster characters are available."
+              : "No characters match your search and filters."}
+          </p>
+        )}
       </div>
 
       {/* Confirm button */}

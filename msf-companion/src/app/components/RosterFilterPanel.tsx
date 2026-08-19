@@ -4,10 +4,10 @@ import { useState } from "react";
 import type { RosterFilters } from "@/lib/roster-filters";
 import { DEFAULT_FILTERS } from "@/lib/roster-filters";
 
-const ORIGIN_TRAITS = ["BIO", "MUTANT", "SKILL", "MYSTIC", "TECH", "COSMIC"];
+const ORIGIN_TRAITS = ["BIO", "MUTANT", "SKILL", "MYSTIC", "TECH"];
+const ALIGNMENT_TRAITS = ["HERO", "VILLAIN"];
+const LOCATION_TRAITS = ["CITY", "GLOBAL", "COSMIC"];
 const ROLE_TRAITS = [
-  "HERO",
-  "VILLAIN",
   "PROTECTOR",
   "BRAWLER",
   "CONTROLLER",
@@ -145,36 +145,14 @@ export default function RosterFilterPanel({
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {/* Status */}
-        <div className="mb-4">
-          <label className="mb-2 block text-xs font-medium text-[var(--color-muted)]">
-            Status
-          </label>
-          <div className="flex rounded-lg bg-[var(--color-surface)] p-1">
-            {(["playable", "non-playable", "all"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => onChange({ ...filters, status: s })}
-                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                  filters.status === s
-                    ? "bg-[var(--color-accent)] text-white"
-                    : "text-[var(--color-muted)]"
-                }`}
-              >
-                {s === "non-playable" ? "Non-Playable" : s}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Teams */}
         <div className="mb-4">
           <label className="mb-2 block text-xs font-medium text-[var(--color-muted)]">
-            Teams
+            Teams &amp; Traits
           </label>
           <input
             type="text"
-            placeholder="Search teams..."
+            placeholder="Search teams and traits..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="mb-2 w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none focus:border-[var(--color-accent)]"
@@ -208,11 +186,37 @@ export default function RosterFilterPanel({
         <MultiSelectPills
           label="Origin"
           options={ORIGIN_TRAITS}
-          selected={filters.traits}
+          selected={filters.origins}
           onToggle={(val) =>
             onChange({
               ...filters,
-              traits: toggleArray(filters.traits, val),
+              origins: toggleArray(filters.origins, val),
+            })
+          }
+        />
+
+        {/* Alignment Traits */}
+        <MultiSelectPills
+          label="Alignment"
+          options={ALIGNMENT_TRAITS}
+          selected={filters.alignments}
+          onToggle={(val) =>
+            onChange({
+              ...filters,
+              alignments: toggleArray(filters.alignments, val),
+            })
+          }
+        />
+
+        {/* Location Traits */}
+        <MultiSelectPills
+          label="Location"
+          options={LOCATION_TRAITS}
+          selected={filters.locations}
+          onToggle={(val) =>
+            onChange({
+              ...filters,
+              locations: toggleArray(filters.locations, val),
             })
           }
         />
@@ -221,11 +225,11 @@ export default function RosterFilterPanel({
         <MultiSelectPills
           label="Role"
           options={ROLE_TRAITS}
-          selected={filters.traits}
+          selected={filters.roles}
           onToggle={(val) =>
             onChange({
               ...filters,
-              traits: toggleArray(filters.traits, val),
+              roles: toggleArray(filters.roles, val),
             })
           }
         />
@@ -329,12 +333,13 @@ export default function RosterFilterPanel({
           <div className="flex items-center gap-2">
             <input
               type="number"
+              min={0}
               placeholder="Min"
               value={filters.powerMin || ""}
               onChange={(e) =>
                 onChange({
                   ...filters,
-                  powerMin: Number(e.target.value) || 0,
+                  powerMin: Math.max(Number(e.target.value) || 0, 0),
                 })
               }
               className="w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-foreground)] outline-none focus:border-[var(--color-accent)]"
@@ -342,12 +347,15 @@ export default function RosterFilterPanel({
             <span className="text-xs text-[var(--color-muted)]">—</span>
             <input
               type="number"
+              min={0}
               placeholder="Max"
               value={filters.powerMax === Infinity ? "" : filters.powerMax}
               onChange={(e) =>
                 onChange({
                   ...filters,
-                  powerMax: Number(e.target.value) || Infinity,
+                  powerMax: e.target.value
+                    ? Math.max(Number(e.target.value) || 0, 0)
+                    : Infinity,
                 })
               }
               className="w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-foreground)] outline-none focus:border-[var(--color-accent)]"

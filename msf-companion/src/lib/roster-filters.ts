@@ -12,9 +12,11 @@ export interface RosterCharacter {
 }
 
 export interface RosterFilters {
-  status: "playable" | "non-playable" | "all";
   teams: string[];
-  traits: string[];
+  origins: string[];
+  alignments: string[];
+  locations: string[];
+  roles: string[];
   yellowStarMin: number;
   yellowStarMax: number;
   redStarMin: number;
@@ -28,9 +30,11 @@ export interface RosterFilters {
 }
 
 export const DEFAULT_FILTERS: RosterFilters = {
-  status: "playable",
   teams: [],
-  traits: [],
+  origins: [],
+  alignments: [],
+  locations: [],
+  roles: [],
   yellowStarMin: 0,
   yellowStarMax: 7,
   redStarMin: 0,
@@ -45,9 +49,11 @@ export const DEFAULT_FILTERS: RosterFilters = {
 
 export function countActiveFilters(filters: RosterFilters): number {
   let count = 0;
-  if (filters.status !== "playable") count++;
   if (filters.teams.length > 0) count++;
-  if (filters.traits.length > 0) count++;
+  if (filters.origins.length > 0) count++;
+  if (filters.alignments.length > 0) count++;
+  if (filters.locations.length > 0) count++;
+  if (filters.roles.length > 0) count++;
   if (filters.yellowStarMin > 0 || filters.yellowStarMax < 7) count++;
   if (filters.redStarMin > 0 || filters.redStarMax < 7) count++;
   if (filters.diamondMin > 0 || filters.diamondMax < 5) count++;
@@ -61,21 +67,38 @@ export function applyFilters(
   filters: RosterFilters
 ): RosterCharacter[] {
   return characters.filter((char) => {
-    // Status filter
-    if (filters.status === "playable" && char.playable === false) return false;
-    if (filters.status === "non-playable" && char.playable !== false)
-      return false;
+    const charTraits = (char.traits ?? []).map((t) => t.toUpperCase());
 
     // Team filter (AND with other filters, OR within teams - char must be in at least one selected team)
     if (filters.teams.length > 0) {
-      const charTraits = (char.traits ?? []).map((t) => t.toUpperCase());
       if (!filters.teams.some((t) => charTraits.includes(t.toUpperCase()))) return false;
     }
 
-    // Trait filter
-    if (filters.traits.length > 0) {
-      const charTraits = (char.traits ?? []).map((t) => t.toUpperCase());
-      if (!filters.traits.some((t) => charTraits.includes(t.toUpperCase()))) return false;
+    // OR within each category, AND across categories. Selecting BIO and BLASTER
+    // means "a Bio Blaster", while selecting BIO and TECH means either origin.
+    if (
+      filters.origins.length > 0 &&
+      !filters.origins.some((t) => charTraits.includes(t.toUpperCase()))
+    ) {
+      return false;
+    }
+    if (
+      filters.alignments.length > 0 &&
+      !filters.alignments.some((t) => charTraits.includes(t.toUpperCase()))
+    ) {
+      return false;
+    }
+    if (
+      filters.locations.length > 0 &&
+      !filters.locations.some((t) => charTraits.includes(t.toUpperCase()))
+    ) {
+      return false;
+    }
+    if (
+      filters.roles.length > 0 &&
+      !filters.roles.some((t) => charTraits.includes(t.toUpperCase()))
+    ) {
+      return false;
     }
 
     // Star filters — yellow stars

@@ -24,6 +24,7 @@ interface GameChar {
 
 interface GameApiResponse {
   data?: GameChar[];
+  error?: string;
 }
 
 type DashboardView = "my-roster" | "missing" | "detail";
@@ -39,6 +40,8 @@ export default function RosterDashboard({
   const [gameChars, setGameChars] = useState<GameChar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogReady, setCatalogReady] = useState(false);
   const [view, setView] = useState<DashboardView>("my-roster");
   const [previousView, setPreviousView] = useState<DashboardView>("my-roster");
   const [selectedCharacter, setSelectedCharacter] = useState<RosterCharacter | null>(null);
@@ -49,30 +52,48 @@ export default function RosterDashboard({
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setCatalogError(null);
+    setCatalogReady(false);
 
     try {
-      const [rosterRes, gameRes] = await Promise.all([
-        fetch("/api/msf/roster"),
-        fetch("/api/msf/characters"),
-      ]);
+      // Keep these sequential. The upstream MSF API is prone to transient 502s
+      // when multiple large endpoints are requested at the same time.
+      const rosterRes = await fetch("/api/msf/roster");
 
       if (!rosterRes.ok) {
-        const data = (await rosterRes.json()) as RosterApiResponse;
+        const data = (await rosterRes.json().catch(() => ({}))) as RosterApiResponse;
         throw new Error(data.error || "Failed to load roster");
       }
 
       const rosterData = (await rosterRes.json()) as RosterApiResponse;
-      const chars = (rosterData.data ?? []).sort(
+      const chars = [...(rosterData.data ?? [])].sort(
         (a, b) => (b.power ?? 0) - (a.power ?? 0)
       );
       setCharacters(chars);
 
-      if (gameRes.ok) {
+      try {
+        const gameRes = await fetch("/api/msf/characters");
+        if (!gameRes.ok) {
+          const data = (await gameRes.json().catch(() => ({}))) as GameApiResponse;
+          throw new Error(data.error || "Failed to load the character catalog");
+        }
+
         const gameData = (await gameRes.json()) as GameApiResponse;
         const playable = (gameData.data ?? []).filter(
           (c) => c.status === "playable"
         );
+        if (playable.length === 0) {
+          throw new Error("The character catalog returned no playable characters");
+        }
         setGameChars(playable);
+        setCatalogReady(true);
+      } catch (catalogErr) {
+        setGameChars([]);
+        setCatalogError(
+          catalogErr instanceof Error
+            ? catalogErr.message
+            : "Failed to load the character catalog"
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -162,18 +183,20 @@ export default function RosterDashboard({
             <p className="text-xs text-[var(--color-muted)]">
               {hasActiveFilters
                 ? `${filtered.length} of ${ownedCount} match filters`
-                : `${ownedCount} of ${totalGameChars || "?"} playable characters`}
+                : `${ownedCount} of ${catalogReady ? totalGameChars : "?"} playable characters`}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setView("missing")}
-              className="rounded-lg bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-muted)]"
+              disabled={!catalogReady}
+              className="rounded-lg bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-muted)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Missing ({missingCount})
+              Missing ({catalogReady ? missingCount : "?"})
             </button>
             <button
               onClick={() => setShowFilters(true)}
+              aria-label="Filter roster"
               className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface)]"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -187,7 +210,25 @@ export default function RosterDashboard({
             </button>
           </div>
         </div>
+        {catalogError && (
+          <div
+            role="alert"
+            className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+          >
+            <p className="text-xs text-amber-200">
+              Character catalog unavailable. Missing-character totals are hidden
+              until it can be loaded.
+            </p>
+            <button
+              onClick={fetchData}
+              className="shrink-0 text-xs font-semibold text-amber-300"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <RosterList
+          characters={characters}
           filters={filters}
           onCharacterClick={(char) => {
             setSelectedCharacter(char);
@@ -218,7 +259,8 @@ export default function RosterDashboard({
               Missing Characters
             </h2>
             <p className="text-xs text-[var(--color-muted)]">
-              {missingCount} playable characters you haven&apos;t unlocked
+              {missingCount}{" "}
+              playable characters you haven&apos;t unlocked
             </p>
           </div>
           <button

@@ -30,7 +30,9 @@ export async function GET() {
   }
 
   try {
-    const PER_PAGE = 200;
+    // Full character details can exceed the MSF API response-size limit at
+    // larger page sizes. Their documented safe size for roster data is 25.
+    const PER_PAGE = 25;
     const page1 = await msfApiFetch<{ data?: RawRosterChar[]; meta?: { perTotal?: number } }>({
       path: `/player/v1/roster?charInfo=full&traitFormat=id&page=1&perPage=${PER_PAGE}`,
       accessToken: token,
@@ -41,15 +43,14 @@ export async function GET() {
 
     if (total > PER_PAGE) {
       const pageCount = Math.ceil(total / PER_PAGE);
-      const extra = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, i) =>
-          msfApiFetch<{ data?: RawRosterChar[] }>({
-            path: `/player/v1/roster?charInfo=full&traitFormat=id&page=${i + 2}&perPage=${PER_PAGE}`,
-            accessToken: token,
-          }),
-        ),
-      );
-      for (const p of extra) allRaw.push(...(p.data ?? []));
+      // Keep pages sequential to avoid upstream throttling/transient 502s.
+      for (let page = 2; page <= pageCount; page++) {
+        const nextPage = await msfApiFetch<{ data?: RawRosterChar[] }>({
+          path: `/player/v1/roster?charInfo=full&traitFormat=id&page=${page}&perPage=${PER_PAGE}`,
+          accessToken: token,
+        });
+        allRaw.push(...(nextPage.data ?? []));
+      }
     }
 
     const data = allRaw.map((c) => ({

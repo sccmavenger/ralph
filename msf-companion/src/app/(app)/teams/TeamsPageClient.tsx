@@ -1,17 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import RosterPicker from "@/app/components/RosterPicker";
 import { CharPortrait } from "@/app/components/CharPortrait";
 import type { TeamCharacter, MetaModeData } from "@/lib/team-analysis";
 import {
   analyzeTraitOverlap,
+  calculateBuildReadiness,
   detectPassiveSynergies,
   calculateTeamStats,
   compareToMeta,
+  confidenceAdjustedRate,
   suggestCharacters,
+  isNamedTeamTrait,
+  recommendationConfidence,
 } from "@/lib/team-analysis";
-import type { TeamStatsResult, CharacterSuggestion } from "@/lib/team-analysis";
+import type {
+  TeamStatsResult,
+  CharacterSuggestion,
+  PerformanceContext,
+  TeamPerformanceEvidence,
+} from "@/lib/team-analysis";
 
 const GAME_MODES = [
   { id: "all", label: "All Modes" },
@@ -23,6 +32,37 @@ const GAME_MODES = [
   { id: "tower", label: "Tower" },
 ];
 
+const PERFORMANCE_LABELS: Record<
+  PerformanceContext,
+  { context: string; metric: string }
+> = {
+  "war-offense": { context: "War offense", metric: "win rate" },
+  "war-defense": { context: "War defense", metric: "hold rate" },
+  "crucible-defense": { context: "Crucible defense", metric: "hold rate" },
+};
+
+function mergePerformance(
+  current: TeamPerformanceEvidence[],
+  incoming: TeamPerformanceEvidence[] | undefined,
+) {
+  const byContext = new Map(current.map((entry) => [entry.context, entry]));
+  for (const entry of incoming ?? []) {
+    const existing = byContext.get(entry.context);
+    if (!existing || entry.sampleSize > existing.sampleSize) {
+      byContext.set(entry.context, entry);
+    }
+  }
+  return [...byContext.values()];
+}
+
+function strongestPerformance(evidence: TeamPerformanceEvidence[]) {
+  return [...evidence].sort(
+    (a, b) =>
+      confidenceAdjustedRate(b.rate, b.sampleSize) -
+      confidenceAdjustedRate(a.rate, a.sampleSize),
+  )[0];
+}
+
 export default function TeamsPageClient() {
   const [selectedMode, setSelectedMode] = useState("all");
   const [team, setTeam] = useState<(TeamCharacter | null)[]>([null, null, null, null, null]);
@@ -30,34 +70,86 @@ export default function TeamsPageClient() {
   const [metaData, setMetaData] = useState<MetaModeData[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [metaError, setMetaError] = useState<string | null>(null);
+  const [metaReady, setMetaReady] = useState(false);
+  const [metaGeneratedAt, setMetaGeneratedAt] = useState<string | null>(null);
+  const [performanceSources, setPerformanceSources] = useState<
+    PerformanceContext[]
+  >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showPrebuilt, setShowPrebuilt] = useState(false);
   const [teamName, setTeamName] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   // Fetch roster and meta data
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [rosterRes, metaRes] = await Promise.all([
-          fetch("/api/msf/team-builder/roster"),
-          fetch("/api/msf/team-builder/meta"),
-        ]);
-        if (rosterRes.ok) {
-          const rosterJson = await rosterRes.json();
-          setRoster(rosterJson.data ?? []);
-        }
-        if (metaRes.ok) {
-          const metaJson = await metaRes.json();
-          setMetaData(metaJson.data ?? []);
-        }
-      } catch {
-        // Silently handle — roster/meta will be empty
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setRosterError(null);
+    setMetaError(null);
+    setMetaReady(false);
+    setMetaGeneratedAt(null);
+    setPerformanceSources([]);
+
+    try {
+      // Keep large upstream-backed routes sequential to reduce MSF API 502s.
+      const rosterRes = await fetch("/api/msf/team-builder/roster");
+      const rosterJson = await rosterRes.json().catch(() => ({}));
+      if (!rosterRes.ok) {
+        throw new Error(rosterJson.error || "Failed to load your roster");
       }
+      if (!Array.isArray(rosterJson.data) || rosterJson.data.length === 0) {
+        throw new Error("No playable characters were returned for your roster");
+      }
+      setRoster(
+        [...rosterJson.data].sort(
+          (a: TeamCharacter, b: TeamCharacter) => b.power - a.power,
+        ),
+      );
+
+      try {
+        const metaRes = await fetch("/api/msf/team-builder/meta");
+        const metaJson = await metaRes.json().catch(() => ({}));
+        if (!metaRes.ok) {
+          throw new Error(metaJson.error || "Failed to load meta team data");
+        }
+        if (!Array.isArray(metaJson.data)) {
+          throw new Error("Meta team data returned an invalid response");
+        }
+        setMetaData(metaJson.data);
+        setMetaGeneratedAt(
+          typeof metaJson.generatedAt === "string" ? metaJson.generatedAt : null,
+        );
+        setPerformanceSources(
+          Array.isArray(metaJson.performanceSources)
+            ? metaJson.performanceSources
+            : [],
+        );
+        setMetaReady(true);
+      } catch (error) {
+        setMetaData([]);
+        setMetaGeneratedAt(null);
+        setPerformanceSources([]);
+        setMetaError(
+          error instanceof Error ? error.message : "Failed to load meta team data",
+        );
+      }
+    } catch (error) {
+      setRoster([]);
+      setRosterError(
+        error instanceof Error ? error.message : "Failed to load your roster",
+      );
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!fetchedRef.current) {
+      fetchedRef.current = true;
+      fetchData();
+    }
+  }, [fetchData]);
 
   const selectedIds = useMemo(
     () => team.filter((c): c is TeamCharacter => c !== null).map((c) => c.id),
@@ -100,25 +192,79 @@ export default function TeamsPageClient() {
   // Number of empty slots available
   const emptySlotCount = team.filter((c) => c === null).length;
 
-  // Top prebuilt meta teams for the selected mode (only teams where all 5 chars are in roster)
+  // Recommended teams for the selected mode (only teams where all 5 chars are in roster).
+  // Performance uses a confidence-adjusted rate; modes without performance data
+  // fall back to usage popularity.
   const prebuiltTeams = useMemo(() => {
     if (roster.length === 0 || metaData.length === 0) return [];
     const rosterMap = new Map(roster.map((c) => [c.id, c]));
     const modes = selectedMode === "all" ? metaData : metaData.filter((m) => m.mode === selectedMode);
-    const seen = new Set<string>();
-    const results: { mode: string; squad: TeamCharacter[]; total: number }[] = [];
+    const bySquad = new Map<
+      string,
+      {
+        mode: string;
+        squad: TeamCharacter[];
+        total: number;
+        performance: TeamPerformanceEvidence[];
+      }
+    >();
     for (const modeEntry of modes) {
       for (const t of modeEntry.teams) {
-        if (t.squad.length !== 5) continue;
+        if (t.squad.length !== 5 || new Set(t.squad).size !== 5) continue;
         const key = [...t.squad].sort().join(",");
-        if (seen.has(key)) continue;
         const chars = t.squad.map((id) => rosterMap.get(id)).filter((c): c is TeamCharacter => c != null);
         if (chars.length !== 5) continue; // Player doesn't own all 5
-        seen.add(key);
-        results.push({ mode: modeEntry.mode, squad: chars, total: t.total });
+        const existing = bySquad.get(key);
+        if (!existing || t.total > existing.total) {
+          bySquad.set(key, {
+            mode: modeEntry.mode,
+            squad: chars,
+            total: t.total,
+            performance: mergePerformance(
+              existing?.performance ?? [],
+              t.performance,
+            ),
+          });
+        } else if (t.performance?.length) {
+          existing.performance = mergePerformance(
+            existing.performance,
+            t.performance,
+          );
+        }
       }
     }
-    results.sort((a, b) => b.total - a.total);
+    const results = [...bySquad.values()].map((entry) => ({
+      ...entry,
+      readiness: calculateBuildReadiness(entry.squad),
+      needsWork: entry.squad
+        .filter(
+          (character) =>
+            character.gearTier < 16 ||
+            character.yellowStars < 7 ||
+            character.redStars < 5,
+        )
+        .map((character) => character.name),
+      strongestPerformance: strongestPerformance(entry.performance),
+    }));
+    results.sort((a, b) => {
+      if (selectedMode === "war" || selectedMode === "crucible") {
+        if (a.strongestPerformance && !b.strongestPerformance) return -1;
+        if (!a.strongestPerformance && b.strongestPerformance) return 1;
+        if (a.strongestPerformance && b.strongestPerformance) {
+          const performanceDifference =
+            confidenceAdjustedRate(
+              b.strongestPerformance.rate,
+              b.strongestPerformance.sampleSize,
+            ) -
+            confidenceAdjustedRate(
+              a.strongestPerformance.rate,
+              a.strongestPerformance.sampleSize,
+            );
+          if (performanceDifference !== 0) return performanceDifference;
+        }
+      }
+      return b.total - a.total;
+    });
     return results.slice(0, 20);
   }, [roster, metaData, selectedMode]);
 
@@ -127,13 +273,10 @@ export default function TeamsPageClient() {
       setTeam(chars.slice(0, 5).map((c) => c));
       setShowPrebuilt(false);
       // Derive team name from the most common shared "team" trait
-      const ORIGIN = new Set(["Bio", "Mutant", "Skill", "Mystic", "Tech", "Cosmic"]);
-      const ROLE = new Set(["Brawler", "Blaster", "Controller", "Protector", "Support"]);
-      const AFFINITY = new Set(["Hero", "Villain"]);
       const traitCounts = new Map<string, number>();
       for (const c of chars) {
         for (const t of c.traits) {
-          if (!ORIGIN.has(t) && !ROLE.has(t) && !AFFINITY.has(t)) {
+          if (isNamedTeamTrait(t)) {
             traitCounts.set(t, (traitCounts.get(t) ?? 0) + 1);
           }
         }
@@ -170,8 +313,11 @@ export default function TeamsPageClient() {
   );
 
   const metaComparison = useMemo(
-    () => (teamCount === 5 ? compareToMeta(selectedIds, metaData, selectedMode) : null),
-    [teamCount, selectedIds, metaData, selectedMode]
+    () =>
+      teamCount === 5 && metaReady
+        ? compareToMeta(selectedIds, metaData, selectedMode)
+        : null,
+    [teamCount, selectedIds, metaData, selectedMode, metaReady]
   );
 
   const suggestions = useMemo(
@@ -236,6 +382,25 @@ export default function TeamsPageClient() {
     );
   }
 
+  if (rosterError) {
+    return (
+      <div className="px-4 py-8 text-center">
+        <h2 className="text-xl font-bold text-[var(--color-foreground)]">
+          Team Builder
+        </h2>
+        <p role="alert" className="mt-4 text-sm text-[var(--color-muted)]">
+          {rosterError}
+        </p>
+        <button
+          onClick={fetchData}
+          className="mt-4 rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-semibold text-white"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-4">
       <h2 className="text-xl font-bold text-[var(--color-foreground)]">
@@ -245,18 +410,41 @@ export default function TeamsPageClient() {
         Assemble a 5-character team and see combined synergies and power.
       </p>
 
+      {metaError && (
+        <div
+          role="status"
+          className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+        >
+          <p className="text-xs text-amber-200">
+            Meta data is unavailable. Manual team building and trait analysis
+            still work, but usage and performance recommendations may not.
+          </p>
+          <button
+            onClick={fetchData}
+            className="shrink-0 text-xs font-semibold text-amber-300"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Prebuilt Teams Toggle */}
       <div className="mb-3">
         <button
           data-testid="prebuilt-toggle"
           onClick={() => setShowPrebuilt(!showPrebuilt)}
+          disabled={!metaReady}
           className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
             showPrebuilt
               ? "bg-[var(--color-accent)] text-white"
               : "bg-[var(--color-surface)] text-[var(--color-foreground)]"
-          }`}
+          } disabled:cursor-not-allowed disabled:opacity-50`}
         >
-          {showPrebuilt ? "Hide Prebuilt Teams" : "\u2B50 Load a Prebuilt Team"}
+          {showPrebuilt
+            ? "Hide Recommended Teams"
+            : metaReady
+              ? "\u2B50 Recommended Teams"
+              : "Recommendations Unavailable"}
         </button>
       </div>
 
@@ -264,11 +452,29 @@ export default function TeamsPageClient() {
       {showPrebuilt && (
         <div data-testid="prebuilt-panel" className="mb-4 rounded-xl bg-[var(--color-surface)] p-4">
           <h3 className="mb-1 text-sm font-bold text-[var(--color-foreground)]">
-            Popular Teams {selectedMode !== "all" ? `in ${GAME_MODES.find((m) => m.id === selectedMode)?.label}` : ""}
+            Recommended Teams {selectedMode !== "all" ? `in ${GAME_MODES.find((m) => m.id === selectedMode)?.label}` : ""}
           </h3>
-          <p className="mb-3 text-xs text-[var(--color-muted)]">
-            Top meta teams you own all 5 characters for. Tap to load.
-          </p>
+          <div className="mb-3 space-y-1 text-[10px] text-[var(--color-muted)]">
+            <p>
+              Teams you own, ranked by confidence-adjusted performance in War
+              and Crucible when available, then by observed usage.
+            </p>
+            <p>
+              Usage shows popularity, not wins. Build readiness uses a GT16,
+              7-yellow, 5-red benchmark.
+            </p>
+            {metaGeneratedAt && (
+              <p data-testid="recommendations-refreshed">
+                Refreshed {new Date(metaGeneratedAt).toLocaleString()}
+              </p>
+            )}
+            {performanceSources.length === 0 && (
+              <p className="text-amber-300">
+                Performance samples are unavailable; recommendations are ranked
+                by usage only.
+              </p>
+            )}
+          </div>
           {prebuiltTeams.length > 0 ? (
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {prebuiltTeams.map((pt, idx) => (
@@ -276,33 +482,78 @@ export default function TeamsPageClient() {
                   key={idx}
                   data-testid={`prebuilt-team-${idx}`}
                   onClick={() => handleLoadPrebuilt(pt.squad)}
-                  className="flex w-full items-center gap-3 rounded-lg bg-[var(--color-surface-light)] p-3 text-left active:bg-[var(--color-accent)]/10"
+                  className="w-full rounded-lg bg-[var(--color-surface-light)] p-3 text-left active:bg-[var(--color-accent)]/10"
                 >
-                  <div className="flex -space-x-1.5">
-                    {pt.squad.map((c) => (
-                      <CharPortrait
-                        key={c.id}
-                        src={c.portrait}
-                        name={c.name}
-                        imgClassName="h-9 w-9 rounded-full border-2 border-[var(--color-surface)] object-cover"
-                        fallbackClassName="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-surface)] text-[9px] font-bold text-[var(--color-muted)]"
-                      />
-                    ))}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-[var(--color-foreground)] truncate">
-                      {pt.squad.map((c) => c.name).join(", ")}
+                  <div className="flex items-center gap-3">
+                    <div className="flex -space-x-1.5">
+                      {pt.squad.map((c) => (
+                        <CharPortrait
+                          key={c.id}
+                          src={c.portrait}
+                          name={c.name}
+                          imgClassName="h-9 w-9 rounded-full border-2 border-[var(--color-surface)] object-cover"
+                          fallbackClassName="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-surface)] text-[9px] font-bold text-[var(--color-muted)]"
+                        />
+                      ))}
                     </div>
-                    <div className="text-[11px] text-[var(--color-muted)]">
-                      {pt.total.toLocaleString()} teams · {pt.mode}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs text-[var(--color-foreground)]">
+                        {pt.squad.map((c) => c.name).join(", ")}
+                      </div>
+                      <div className="text-[11px] text-[var(--color-muted)]">
+                        {pt.total.toLocaleString()} observed uses · {pt.mode}
+                      </div>
                     </div>
                   </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span
+                      data-testid={`recommendation-readiness-${idx}`}
+                      className={`rounded px-1.5 py-0.5 text-[9px] ${
+                        pt.readiness.readyCount === pt.readiness.totalCount
+                          ? "bg-green-700/50 text-green-200"
+                          : "bg-amber-700/40 text-amber-200"
+                      }`}
+                    >
+                      Build readiness {pt.readiness.percentage}% · {pt.readiness.readyCount}/
+                      {pt.readiness.totalCount} benchmark-ready
+                    </span>
+                    {pt.performance.map((evidence) => {
+                      const labels = PERFORMANCE_LABELS[evidence.context];
+                      const confidence = recommendationConfidence(
+                        evidence.sampleSize,
+                      );
+                      return (
+                        <span
+                          key={evidence.context}
+                          data-testid={`recommendation-performance-${idx}-${evidence.context}`}
+                          title={`${confidence} confidence based on ${evidence.sampleSize.toLocaleString()} observations`}
+                          className="rounded bg-blue-700/40 px-1.5 py-0.5 text-[9px] text-blue-200"
+                        >
+                          {labels.context}: {Math.round(evidence.rate * 100)}% {labels.metric}
+                          {" · "}{evidence.sampleSize.toLocaleString()} samples · {confidence}
+                        </span>
+                      );
+                    })}
+                    {pt.performance.length === 0 && (
+                      <span className="rounded bg-gray-700/50 px-1.5 py-0.5 text-[9px] text-gray-300">
+                        Popularity evidence only
+                      </span>
+                    )}
+                  </div>
+                  {pt.needsWork.length > 0 && (
+                    <p
+                      data-testid={`recommendation-needs-work-${idx}`}
+                      className="mt-1.5 truncate text-[9px] text-amber-300"
+                    >
+                      Needs work for benchmark: {pt.needsWork.join(", ")}
+                    </p>
+                  )}
                 </button>
               ))}
             </div>
           ) : (
             <p className="text-xs text-[var(--color-muted)]">
-              No prebuilt teams found{selectedMode !== "all" ? " for this mode" : ""} where you own all 5 characters.
+              No recommended teams found{selectedMode !== "all" ? " for this mode" : ""} where you own all 5 characters.
             </p>
           )}
         </div>
@@ -333,25 +584,26 @@ export default function TeamsPageClient() {
             Team ({teamCount}/5)
           </h3>
         </div>
-        <div className="flex justify-around gap-2">
+        <div className="grid grid-cols-5 gap-2">
           {team.map((char, i) => (
-            <div key={i} className="relative">
+            <div key={i} className="relative min-w-0">
               {char ? (
                 <button
                   data-testid={`team-slot-${i + 1}`}
-                  className="relative flex h-16 w-16 flex-col items-center justify-center rounded-lg bg-[var(--color-surface-light)]"
+                  aria-label={`Remove ${char.name} from team`}
+                  className="relative flex aspect-square w-full min-w-0 flex-col items-center justify-center rounded-lg bg-[var(--color-surface-light)]"
                   onClick={() => handleRemove(i)}
                 >
                   <CharPortrait
                     src={char.portrait}
                     name={char.name}
-                    imgClassName="h-12 w-12 rounded-md object-cover"
-                    fallbackClassName="flex h-12 w-12 items-center justify-center rounded-md bg-[var(--color-surface)] text-xs font-bold text-[var(--color-muted)]"
+                    imgClassName="h-7 w-7 rounded-md object-cover min-[360px]:h-9 min-[360px]:w-9"
+                    fallbackClassName="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--color-surface)] text-xs font-bold text-[var(--color-muted)] min-[360px]:h-9 min-[360px]:w-9"
                   />
-                  <span className="mt-0.5 text-[8px] text-[var(--color-foreground)] line-clamp-1">
+                  <span className="mt-0.5 max-w-full px-0.5 text-[8px] text-[var(--color-foreground)] line-clamp-1">
                     {char.name}
                   </span>
-                  <span className="text-[7px] text-[var(--color-muted)]">
+                  <span className="hidden text-[7px] text-[var(--color-muted)] min-[360px]:block">
                     {(char.power / 1000).toFixed(0)}k
                   </span>
                   {/* Remove overlay */}
@@ -365,8 +617,9 @@ export default function TeamsPageClient() {
               ) : (
                 <button
                   data-testid={`team-slot-${i + 1}`}
+                  aria-label={`Select character for slot ${i + 1}`}
                   onClick={() => openPicker()}
-                  className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-surface-light)] text-lg text-[var(--color-muted)]"
+                  className="flex aspect-square w-full min-w-0 items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-surface-light)] text-lg text-[var(--color-muted)]"
                 >
                   +
                 </button>
@@ -398,20 +651,23 @@ export default function TeamsPageClient() {
         )}
 
         {/* Suggestion Panel */}
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && (
           <div data-testid="suggest-panel" className="mt-3 rounded-lg bg-[var(--color-surface-light)] p-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--color-foreground)]">Suggestions</span>
-              <button
-                data-testid="suggest-auto-fill"
-                onClick={handleAutoFill}
-                className="rounded bg-green-600 px-2 py-1 text-[10px] font-semibold text-white"
-              >
-                Auto-Fill All
-              </button>
+              {suggestions.length > 0 && (
+                <button
+                  data-testid="suggest-auto-fill"
+                  onClick={handleAutoFill}
+                  className="rounded bg-green-600 px-2 py-1 text-[10px] font-semibold text-white"
+                >
+                  Auto-Fill All
+                </button>
+              )}
             </div>
-            <div className="space-y-1.5">
-              {suggestions.slice(0, 5).map((s) => (
+            {suggestions.length > 0 ? (
+              <div className="space-y-1.5">
+                {suggestions.slice(0, 5).map((s) => (
                 <button
                   key={s.characterId}
                   data-testid={`suggest-char-${s.characterId}`}
@@ -434,8 +690,13 @@ export default function TeamsPageClient() {
                     {s.score.toFixed(1)}
                   </span>
                 </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--color-muted)]">
+                No meaningful roster matches were found for the current picks.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -464,6 +725,7 @@ export default function TeamsPageClient() {
                     st.category === "origin" ? "text-blue-400" :
                     st.category === "role" ? "text-green-400" :
                     st.category === "affinity" ? "text-yellow-400" :
+                    st.category === "location" ? "text-cyan-400" :
                     "text-purple-400";
                   return (
                     <div
@@ -570,7 +832,7 @@ export default function TeamsPageClient() {
           </div>
 
           {/* Meta Comparison (US-062) */}
-          {metaComparison && (
+          {metaComparison ? (
             <div data-testid="analysis-meta" className="rounded-xl bg-[var(--color-surface)] p-4">
               <h3 className="mb-2 text-sm font-bold text-[var(--color-foreground)]">
                 Meta Comparison
@@ -592,24 +854,57 @@ export default function TeamsPageClient() {
                 </span>
               </div>
               {metaComparison.exactMatch ? (
-                <p className="text-xs text-[var(--color-foreground)]">
-                  This team appears {metaComparison.exactMatch.total.toLocaleString()} times in{" "}
-                  {metaComparison.exactMatch.mode}
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-[var(--color-foreground)]">
+                    Observed {metaComparison.exactMatch.total.toLocaleString()} times in{" "}
+                    {metaComparison.exactMatch.mode}. This measures popularity,
+                    not wins.
+                  </p>
+                  {metaComparison.exactMatch.performance.map((evidence) => {
+                    const labels = PERFORMANCE_LABELS[evidence.context];
+                    const confidence = recommendationConfidence(
+                      evidence.sampleSize,
+                    );
+                    return (
+                      <p
+                        key={evidence.context}
+                        data-testid={`meta-performance-${evidence.context}`}
+                        className="text-[10px] text-blue-300"
+                      >
+                        {labels.context}: {Math.round(evidence.rate * 100)}% {labels.metric}
+                        {" · "}{evidence.sampleSize.toLocaleString()} samples · {confidence} confidence
+                      </p>
+                    );
+                  })}
+                  {metaComparison.exactMatch.performance.length === 0 && (
+                    <p className="text-[10px] text-[var(--color-muted)]">
+                      No exact performance sample is available for this squad.
+                    </p>
+                  )}
+                </div>
               ) : metaComparison.partialMatches.length > 0 ? (
                 <div className="space-y-1">
                   <p className="text-xs text-[var(--color-muted)]">Closest meta teams:</p>
                   {metaComparison.partialMatches.slice(0, 5).map((m, i) => (
                     <div key={i} data-testid={`meta-match-${i}`} className="text-[10px] text-[var(--color-foreground)]">
-                      {m.matchedIds.length}/5 match in {m.mode} ({m.total.toLocaleString()} teams)
+                      {m.matchedIds.length}/5 match in {m.mode} ({m.total.toLocaleString()} uses)
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-xs text-[var(--color-muted)]">
-                  Unique Team — no meta matches found. You&apos;re pioneering!
+                  Unique Team — no match was observed in the current usage dataset.
                 </p>
               )}
+            </div>
+          ) : (
+            <div data-testid="analysis-meta" className="rounded-xl bg-[var(--color-surface)] p-4">
+              <h3 className="mb-2 text-sm font-bold text-[var(--color-foreground)]">
+                Meta Comparison
+              </h3>
+              <p className="text-xs text-[var(--color-muted)]">
+                Meta comparison is unavailable until current usage data loads.
+              </p>
             </div>
           )}
         </div>

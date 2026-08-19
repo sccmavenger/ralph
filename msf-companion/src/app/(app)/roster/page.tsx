@@ -14,6 +14,24 @@ interface TraitData {
   data?: (TraitObj | string)[];
 }
 
+const CATEGORIZED_TRAITS = new Set([
+  "BIO",
+  "MUTANT",
+  "SKILL",
+  "MYSTIC",
+  "TECH",
+  "HERO",
+  "VILLAIN",
+  "CITY",
+  "GLOBAL",
+  "COSMIC",
+  "PROTECTOR",
+  "BRAWLER",
+  "CONTROLLER",
+  "BLASTER",
+  "SUPPORT",
+]);
+
 export default async function RosterPage() {
   let teams: string[] = [];
   const tier = await getSubscriptionTier();
@@ -29,6 +47,7 @@ export default async function RosterPage() {
         .map((t) => (typeof t === "string" ? { id: t } : t))
         .filter((t) => !t.alwaysInvisible && !t.isEvent)
         .map((t) => t.id)
+        .filter((id) => !CATEGORIZED_TRAITS.has(id.toUpperCase()))
         .sort();
     }
   } catch {

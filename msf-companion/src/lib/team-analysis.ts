@@ -49,11 +49,12 @@ export interface CharacterStats {
 
 // --- Trait Overlap Analysis (US-052) ---
 
-type TraitCategory = "origin" | "role" | "affinity" | "team";
+type TraitCategory = "origin" | "role" | "affinity" | "location" | "team";
 
-const ORIGIN_TRAITS = new Set(["Bio", "Mutant", "Skill", "Mystic", "Tech", "Cosmic"]);
-const ROLE_TRAITS = new Set(["Brawler", "Blaster", "Controller", "Protector", "Support"]);
-const AFFINITY_TRAITS = new Set(["Hero", "Villain"]);
+const ORIGIN_TRAITS = new Set(["bio", "mutant", "skill", "mystic", "tech"]);
+const ROLE_TRAITS = new Set(["brawler", "blaster", "controller", "protector", "support"]);
+const AFFINITY_TRAITS = new Set(["hero", "villain"]);
+const LOCATION_TRAITS = new Set(["city", "global", "cosmic"]);
 
 export interface SharedTrait {
   trait: string;
@@ -67,10 +68,16 @@ export interface TraitOverlapResult {
 }
 
 function categorize(trait: string): TraitCategory {
-  if (ORIGIN_TRAITS.has(trait)) return "origin";
-  if (ROLE_TRAITS.has(trait)) return "role";
-  if (AFFINITY_TRAITS.has(trait)) return "affinity";
+  const normalized = trait.toLowerCase();
+  if (ORIGIN_TRAITS.has(normalized)) return "origin";
+  if (ROLE_TRAITS.has(normalized)) return "role";
+  if (AFFINITY_TRAITS.has(normalized)) return "affinity";
+  if (LOCATION_TRAITS.has(normalized)) return "location";
   return "team";
+}
+
+export function isNamedTeamTrait(trait: string): boolean {
+  return categorize(trait) === "team" && trait.toLowerCase() !== "minion";
 }
 
 export function analyzeTraitOverlap(characters: TeamCharacter[]): TraitOverlapResult {
@@ -108,14 +115,18 @@ export function analyzeTraitOverlap(characters: TeamCharacter[]): TraitOverlapRe
 // --- Passive Synergy Detection (US-053) ---
 
 const MODE_PATTERNS: { pattern: RegExp; mode: string }[] = [
-  { pattern: /\bIn War\b/i, mode: "war" },
-  { pattern: /\bDuring Alliance War\b/i, mode: "war" },
-  { pattern: /\bIn Crucible\b/i, mode: "crucible" },
-  { pattern: /\bDuring Crucible\b/i, mode: "crucible" },
-  { pattern: /\bIn Raids?\b/i, mode: "raids" },
-  { pattern: /\bIn Arena\b/i, mode: "arena" },
-  { pattern: /\bIn Blitz\b/i, mode: "blitz" },
-  { pattern: /\bIn Tower\b/i, mode: "tower" },
+  {
+    pattern: /\b(?:in|during|on)\s+(?:alliance\s+)?war(?:\s+(?:offense|defense))?\b/i,
+    mode: "war",
+  },
+  {
+    pattern: /\b(?:in|during|on)\s+(?:cosmic\s+)?crucible(?:\s+(?:offense|defense))?\b/i,
+    mode: "crucible",
+  },
+  { pattern: /\b(?:in|during|on)\s+raids?\b/i, mode: "raids" },
+  { pattern: /\b(?:in|during|on)\s+arena\b/i, mode: "arena" },
+  { pattern: /\b(?:in|during|on)\s+blitz\b/i, mode: "blitz" },
+  { pattern: /\b(?:in|during|on)\s+tower\b/i, mode: "tower" },
 ];
 
 export interface PassiveSynergy {
@@ -164,6 +175,13 @@ function traitIdToDisplayForms(traitId: string): string[] {
   return forms;
 }
 
+function containsTraitReference(description: string, form: string): boolean {
+  const escaped = form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(
+    description,
+  );
+}
+
 export function detectPassiveSynergies(
   characters: TeamCharacter[],
   selectedMode?: string | null
@@ -207,14 +225,16 @@ export function detectPassiveSynergies(
     for (const [form, traitId] of displayFormToTraitId) {
       // Skip generic/non-team traits that would produce false positives
       if (SKIP_TRAITS.has(traitId.toLowerCase())) continue;
-      if (descLower.includes(form)) {
+      if (containsTraitReference(descLower, form)) {
         matchedTraits.add(traitId);
       }
     }
 
     for (const traitId of matchedTraits) {
       const lowerTrait = traitId.toLowerCase();
-      const matchingOwners = traitOwners.get(lowerTrait) ?? [];
+      const matchingOwners = (traitOwners.get(lowerTrait) ?? []).filter(
+        (characterId) => characterId !== char.id,
+      );
       const beneficiaryCount = matchingOwners.length;
       const isTraitActive = beneficiaryCount > 0;
 
@@ -229,7 +249,7 @@ export function detectPassiveSynergies(
         sourceCharacterId: char.id,
         sourceCharacterName: char.name,
         abilityName: passive.id ?? "Passive",
-        description: description.split(".")[0] + ".",
+        description,
         targetTrait: traitId,
         isActive,
         beneficiaryCount,
@@ -300,9 +320,27 @@ export function calculateTeamStats(characters: TeamCharacter[]): TeamStatsResult
 
 // --- Meta Comparison (US-055) ---
 
+export type PerformanceContext =
+  | "war-offense"
+  | "war-defense"
+  | "crucible-defense";
+
+export interface TeamPerformanceEvidence {
+  context: PerformanceContext;
+  sampleSize: number;
+  successes: number;
+  rate: number;
+}
+
+export interface MetaTeamEntry {
+  squad: string[];
+  total: number;
+  performance?: TeamPerformanceEvidence[];
+}
+
 export interface MetaModeData {
   mode: string;
-  teams: { squad: string[]; total: number }[];
+  teams: MetaTeamEntry[];
 }
 
 export interface MetaMatch {
@@ -310,10 +348,15 @@ export interface MetaMatch {
   matchedIds: string[];
   total: number;
   metaSquad: string[];
+  performance: TeamPerformanceEvidence[];
 }
 
 export interface MetaComparisonResult {
-  exactMatch: { mode: string; total: number } | null;
+  exactMatch: {
+    mode: string;
+    total: number;
+    performance: TeamPerformanceEvidence[];
+  } | null;
   partialMatches: MetaMatch[];
   popularityRank: "Meta Team" | "Common Variant" | "Uncommon" | "Unique";
 }
@@ -330,6 +373,90 @@ function countOverlap(team: string[], squad: string[]): string[] {
   return team.filter((id) => squadSet.has(id));
 }
 
+export type RecommendationConfidence = "High" | "Medium" | "Low";
+
+export function recommendationConfidence(
+  sampleSize: number,
+): RecommendationConfidence {
+  if (sampleSize >= 1_000) return "High";
+  if (sampleSize >= 100) return "Medium";
+  return "Low";
+}
+
+/**
+ * Lower bound of a 95% Wilson score interval. Ranking by this value prevents a
+ * tiny 1/1 sample from outranking a well-established 9,000/10,000 result.
+ */
+export function confidenceAdjustedRate(rate: number, sampleSize: number): number {
+  if (sampleSize <= 0 || !Number.isFinite(rate)) return 0;
+  const boundedRate = Math.min(1, Math.max(0, rate));
+  const z = 1.96;
+  const zSquared = z * z;
+  const denominator = 1 + zSquared / sampleSize;
+  const center = boundedRate + zSquared / (2 * sampleSize);
+  const margin =
+    z *
+    Math.sqrt(
+      (boundedRate * (1 - boundedRate) + zSquared / (4 * sampleSize)) /
+        sampleSize,
+    );
+  return (center - margin) / denominator;
+}
+
+export interface BuildReadiness {
+  readyCount: number;
+  totalCount: number;
+  percentage: number;
+}
+
+/**
+ * A transparent roster-build benchmark, not a claim that a team can clear a
+ * particular game mode. A fully ready character is GT16, 7 yellow and 5 red.
+ */
+export function calculateBuildReadiness(
+  characters: TeamCharacter[],
+): BuildReadiness {
+  if (characters.length === 0) {
+    return { readyCount: 0, totalCount: 0, percentage: 0 };
+  }
+
+  let readyCount = 0;
+  let progressTotal = 0;
+  for (const character of characters) {
+    const gearProgress = Math.min(1, Math.max(0, character.gearTier) / 16);
+    const yellowProgress = Math.min(1, Math.max(0, character.yellowStars) / 7);
+    const redProgress = Math.min(1, Math.max(0, character.redStars) / 5);
+    progressTotal += gearProgress * 0.5 + yellowProgress * 0.25 + redProgress * 0.25;
+    if (
+      character.gearTier >= 16 &&
+      character.yellowStars >= 7 &&
+      character.redStars >= 5
+    ) {
+      readyCount += 1;
+    }
+  }
+
+  return {
+    readyCount,
+    totalCount: characters.length,
+    percentage: Math.round((progressTotal / characters.length) * 100),
+  };
+}
+
+function mergePerformanceEvidence(
+  current: TeamPerformanceEvidence[],
+  incoming: TeamPerformanceEvidence[] | undefined,
+): TeamPerformanceEvidence[] {
+  const byContext = new Map(current.map((entry) => [entry.context, entry]));
+  for (const entry of incoming ?? []) {
+    const existing = byContext.get(entry.context);
+    if (!existing || entry.sampleSize > existing.sampleSize) {
+      byContext.set(entry.context, entry);
+    }
+  }
+  return [...byContext.values()];
+}
+
 export function compareToMeta(
   teamIds: string[],
   metaData: MetaModeData[],
@@ -339,7 +466,7 @@ export function compareToMeta(
     ? metaData.filter((m) => m.mode === selectedMode)
     : metaData;
 
-  let exactMatch: { mode: string; total: number } | null = null;
+  let exactMatch: MetaComparisonResult["exactMatch"] = null;
   const partialMatches: MetaMatch[] = [];
 
   for (const modeEntry of modesData) {
@@ -347,8 +474,18 @@ export function compareToMeta(
       if (!team.squad || team.squad.length !== 5) continue;
 
       if (arraysMatchUnordered(teamIds, team.squad)) {
+        const mergedPerformance = mergePerformanceEvidence(
+          exactMatch?.performance ?? [],
+          team.performance,
+        );
         if (!exactMatch || team.total > exactMatch.total) {
-          exactMatch = { mode: modeEntry.mode, total: team.total };
+          exactMatch = {
+            mode: modeEntry.mode,
+            total: team.total,
+            performance: mergedPerformance,
+          };
+        } else {
+          exactMatch.performance = mergedPerformance;
         }
       } else {
         const overlap = countOverlap(teamIds, team.squad);
@@ -358,6 +495,7 @@ export function compareToMeta(
             matchedIds: overlap,
             total: team.total,
             metaSquad: team.squad,
+            performance: team.performance ?? [],
           });
         }
       }
@@ -445,6 +583,7 @@ export function suggestCharacters(
     let sharedTraitCount = 0;
     const sharedTraitNames: string[] = [];
     for (const trait of candidate.traits) {
+      if (SKIP_TRAITS.has(trait.toLowerCase())) continue;
       const teamCount = teamTraitCounts.get(trait);
       if (teamCount && teamCount > 0) {
         sharedTraitCount++;
@@ -453,7 +592,10 @@ export function suggestCharacters(
       }
     }
     if (sharedTraitCount > 0) {
-      reasons.push(`Shares ${sharedTraitNames.slice(0, 3).join(", ")} trait${sharedTraitCount > 1 ? "s" : ""} with ${sharedTraitCount} team member${sharedTraitCount > 1 ? "s" : ""}`);
+      reasons.push(
+        `Shares ${sharedTraitNames.slice(0, 3).join(", ")} team ` +
+          `trait${sharedTraitCount > 1 ? "s" : ""}`,
+      );
     }
 
     // (b) Passive synergies (simplified — check if passive mentions team traits)
@@ -464,7 +606,7 @@ export function suggestCharacters(
       for (const trait of teamTraitCounts.keys()) {
         if (SKIP_TRAITS.has(trait.toLowerCase())) continue;
         for (const form of traitIdToDisplayForms(trait)) {
-          if (descLower.includes(form)) {
+          if (containsTraitReference(descLower, form)) {
             matchingRefs.push(trait);
             break;
           }
@@ -497,5 +639,5 @@ export function suggestCharacters(
 
   // Sort by score descending, return top 10
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 10);
+  return scored.filter((candidate) => candidate.score > 0).slice(0, 10);
 }

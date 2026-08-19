@@ -56,16 +56,18 @@ function CharTile({ char }: { char: RosterCharacter }) {
 }
 
 export default function RosterList({
+  characters: providedCharacters,
   onCharacterClick,
   onCharactersLoaded,
   filters,
 }: {
+  characters?: RosterCharacter[];
   onCharacterClick?: (char: RosterCharacter) => void;
   onCharactersLoaded?: (chars: RosterCharacter[]) => void;
   filters?: RosterFilters;
 }) {
-  const [characters, setCharacters] = useState<RosterCharacter[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetchedCharacters, setFetchedCharacters] = useState<RosterCharacter[]>([]);
+  const [loading, setLoading] = useState(providedCharacters === undefined);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
@@ -84,7 +86,7 @@ export default function RosterList({
       const chars = (data.data ?? []).sort(
         (a, b) => (b.power ?? 0) - (a.power ?? 0)
       );
-      setCharacters(chars);
+      setFetchedCharacters(chars);
       onCharactersLoaded?.(chars);
     } catch (err) {
       setError(
@@ -96,18 +98,19 @@ export default function RosterList({
   }, [onCharactersLoaded]);
 
   useEffect(() => {
-    if (!fetchedRef.current) {
+    if (providedCharacters === undefined && !fetchedRef.current) {
       fetchedRef.current = true;
       fetchRoster();
     }
-  }, [fetchRoster]);
+  }, [fetchRoster, providedCharacters]);
 
+  const characters = providedCharacters ?? fetchedCharacters;
   const activeFilters = filters ?? DEFAULT_FILTERS;
   const filtered = applyFilters(characters, activeFilters);
 
-  if (loading) return <RosterSkeleton />;
+  if (loading && providedCharacters === undefined) return <RosterSkeleton />;
 
-  if (error) {
+  if (error && providedCharacters === undefined) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <p className="mb-4 text-sm text-[var(--color-muted)]">{error}</p>

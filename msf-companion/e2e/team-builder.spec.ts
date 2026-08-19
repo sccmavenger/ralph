@@ -167,14 +167,21 @@ const mockMetaData = [
   {
     mode: "arena",
     teams: [
-      { squad: ["char-wolverine", "char-cyclops", "char-phoenix", "char-storm", "char-colossus"], total: 2500 },
+      { squad: ["char-wolverine", "char-cyclops", "char-phoenix", "char-storm", "char-colossus"], total: 1500 },
       { squad: ["char-wolverine", "char-cyclops", "char-beast", "char-storm", "char-colossus"], total: 800 },
     ],
   },
   {
     mode: "war",
     teams: [
-      { squad: ["char-wolverine", "char-cyclops", "char-phoenix", "char-storm", "char-colossus"], total: 1500 },
+      {
+        squad: ["char-wolverine", "char-cyclops", "char-phoenix", "char-storm", "char-colossus"],
+        total: 2500,
+        performance: [
+          { context: "war-offense", sampleSize: 1000, successes: 900, rate: 0.9 },
+          { context: "war-defense", sampleSize: 500, successes: 200, rate: 0.4 },
+        ],
+      },
     ],
   },
   {
@@ -199,7 +206,11 @@ async function mockTeamBuilderRoutes(page: Page) {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: mockMetaData }),
+      body: JSON.stringify({
+        data: mockMetaData,
+        generatedAt: "2026-08-19T12:00:00.000Z",
+        performanceSources: ["war-offense", "war-defense", "crucible-defense"],
+      }),
     })
   );
 }
@@ -222,6 +233,13 @@ async function selectMultipleCharacters(page: Page, charIds: string[]) {
 test.describe("Team Builder", () => {
   test.beforeEach(async ({ page }) => {
     await mockTeamBuilderRoutes(page);
+    await page.route("**/api/commander/onboarding", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+    );
+    await page.addLocatorHandler(
+      page.getByRole("button", { name: "Skip Tour" }),
+      async (button) => button.click(),
+    );
     // Prevent install app modal from showing by faking standalone mode
     await page.addInitScript(() => {
       Object.defineProperty(window.navigator, "standalone", { value: true });
@@ -414,7 +432,7 @@ test.describe("Team Builder", () => {
     // Cyclops has a War-specific synergy — check for war mode badge
     const warBadges = page.locator("[data-testid^='synergy-mode-badge-']");
     const count = await warBadges.count();
-    expect(count).toBeGreaterThanOrEqual(0); // May or may not have mode badges depending on detection
+    expect(count).toBeGreaterThan(0);
   });
 
   // TC-017: Roster picker shows popularity badges
@@ -429,5 +447,51 @@ test.describe("Team Builder", () => {
 
     // Wolverine appears in arena meta with total >= 100, so should have popular badge
     await expect(page.getByTestId("roster-char-popular-char-wolverine")).toBeVisible();
+  });
+
+  test("TC-018: picker uses AND across origin and role filters", async ({ page }) => {
+    await page.goto("/teams");
+    await page.getByTestId("team-slot-1").click();
+    await page.getByTestId("roster-trait-chip-Mutant").click();
+    await page.getByTestId("roster-trait-chip-Support").click();
+
+    await expect(page.getByTestId("roster-char-char-beast")).toBeVisible();
+    await expect(page.getByTestId("roster-char-char-wolverine")).not.toBeVisible();
+    await expect(page.getByTestId("roster-char-char-spiderman")).not.toBeVisible();
+  });
+
+  test("TC-019: suggestion panel explains when no meaningful matches exist", async ({ page }) => {
+    await page.goto("/teams");
+    await page.getByTestId("team-slot-1").click();
+    await selectCharacterFromPicker(page, "char-spiderman");
+    await page.getByTestId("suggest-btn").click();
+
+    await expect(page.getByTestId("suggest-panel")).toContainText(
+      "No meaningful roster matches",
+    );
+    await expect(page.getByTestId("suggest-auto-fill")).toHaveCount(0);
+  });
+
+  test("TC-020: duplicate prebuilt squads keep their strongest mode result", async ({ page }) => {
+    await page.goto("/teams");
+    await page.getByTestId("prebuilt-toggle").click();
+
+    await expect(page.getByTestId("prebuilt-team-0")).toContainText("2,500 observed uses");
+    await expect(page.getByTestId("prebuilt-team-0")).toContainText("war");
+  });
+
+  test("TC-021: recommendations separate performance, confidence, and build readiness", async ({
+    page,
+  }) => {
+    await page.goto("/teams");
+    await page.getByTestId("mode-chip-war").click();
+    await page.getByTestId("prebuilt-toggle").click();
+
+    const recommendation = page.getByTestId("prebuilt-team-0");
+    await expect(recommendation).toContainText("War offense: 90% win rate");
+    await expect(recommendation).toContainText("1,000 samples · High");
+    await expect(recommendation).toContainText("Build readiness");
+    await expect(recommendation).toContainText("4/5 benchmark-ready");
+    await expect(recommendation).toContainText("Needs work for benchmark: Storm");
   });
 });
