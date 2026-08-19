@@ -1,8 +1,19 @@
-# Ralph — Autonomous Coding Agent for GitHub Copilot
+# The MSF Toolkit — Repository Guidance
 
 ## Overview
 
-Ralph is an autonomous coding agent for VS Code with GitHub Copilot. It implements user stories from a `prd.json` file one at a time, with fresh context per invocation. Memory persists via git history, `progress.txt`, and `prd.json`.
+This repository contains The MSF Toolkit, a mobile-first Marvel Strike Force companion application. The production code lives in `msf-companion/`; `msf-api/` contains the API specification archive and verified endpoint research.
+
+Ralph is the repository's internal autonomous development workflow for VS Code and GitHub Copilot. It implements user stories from a `prd.json` file one at a time, with fresh context per invocation. Memory persists via git history, `progress.txt`, and `prd.json`. Ralph is development infrastructure, not the product represented by the repository.
+
+## Product Layout
+
+| Path | Purpose |
+|------|---------|
+| `msf-companion/` | Next.js PWA, server APIs, Prisma data layer, Azure Functions, tests, scripts, and infrastructure |
+| `msf-api/` | Official OpenAPI snapshots and undocumented/live-probed MSF API behavior |
+| `tasks/` | Product requirements for toolkit features |
+| `.github/` | Ralph agents plus deployment and knowledge-refresh automation |
 
 ## Workflow
 

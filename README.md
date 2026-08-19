@@ -1,156 +1,137 @@
-# Ralph
+# The MSF Toolkit
 
-![Ralph](ralph.webp)
+<p align="center">
+  <img src="msf-companion/public/icons/icon-512.svg" alt="The MSF Toolkit" width="112" height="112">
+</p>
 
-Ralph is an autonomous coding agent for VS Code with GitHub Copilot. It implements user stories from a `prd.json` file one at a time, with fresh context per invocation. Memory persists via git history, `progress.txt`, and `prd.json`.
+<p align="center">
+  A mobile-first command center for Marvel Strike Force players.
+</p>
 
-Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
+<p align="center">
+  <a href="https://themsftoolkit.com"><strong>Open The MSF Toolkit</strong></a>
+  ·
+  <a href="msf-companion/README.md">Developer setup</a>
+  ·
+  <a href="msf-api/msf-api-undocumented.md">MSF API research</a>
+</p>
 
-## Prerequisites
+The MSF Toolkit turns a commander's live Marvel Strike Force account data into useful, personalized planning tools. Sign in with Scopely to inspect your roster, decide what to build next, prepare for events and endgame modes, compare teams against the current meta, and get advice grounded in both official game data and current community knowledge.
 
-- [VS Code](https://code.visualstudio.com/) with [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) installed and active
-- A git repository for your project
+This repository contains the production application, its Azure infrastructure, an MSF API reference archive, and the internal automation used to develop and operate the toolkit.
 
-## Setup
+> The MSF Toolkit is an independent community project. It is not affiliated with, endorsed by, or sponsored by Scopely or Marvel.
 
-### Option 1: Copy to your project
+## What the toolkit does
 
-Copy the `.github/` folder into your project:
+### Command Center
 
-```bash
-# From your project root
-cp -r /path/to/ralph/.github .github/
+- Personalized dashboard with roster progress, farming priorities, active events, offers, and meta snapshots
+- Daily briefing that brings the most useful actions into one view
+- Installable mobile PWA with notifications and a compact, touch-first interface
+
+### Roster and team planning
+
+- Live roster browser with power, gear, stars, traits, ISO-8, and character details
+- Team builder with roster-aware composition and synergy information
+- Progress snapshots for tracking account growth over time
+
+### Investment planning
+
+- Upcoming-event readiness and roster-gap analysis
+- Upgrade cost calculations using live MSF game data
+- Commander Wallet for manually tracking Gold and Power Cores
+- Cost-versus-wallet answers that show whether an upgrade path is affordable and what is missing
+- Farming recommendations tied to roster and event needs
+
+### Fight analysis
+
+- Dark Dimension planning and team recommendations
+- Tower event detection, room requirements, opponent-aware scoring, safety margins, and team allocation
+- Time Heist and Upgrade Token build guides
+- War and Cosmic Crucible meta comparisons against the commander's actual roster
+
+### AI roster advisor
+
+- Personalized answers based on roster snapshots
+- Knowledge drawn from official game data, official blogs, and monitored community creators
+- Source citations, confidence scoring, conversation history, and feedback
+- Automated knowledge-gap detection and refresh workflows
+
+## How it fits together
+
+```text
+Scopely OAuth + MSF API
+          │
+          ▼
+Next.js application and route handlers ─────► PostgreSQL / Prisma
+          │                                      account state,
+          │                                      snapshots, plans
+          ▼
+Azure AI Search ◄──── Cosmos DB ◄──── Azure Functions
+          │              ▲             game data, blogs,
+          ▼              │             Reddit, YouTube
+   Azure OpenAI ──────────┘
+   personalized advisor
 ```
 
-This gives you:
-- `.github/agents/ralph.agent.md` — the `@ralph` custom agent
-- `.github/skills/prd/SKILL.md` — the `/prd` slash command
-- `.github/skills/ralph/SKILL.md` — the `/ralph` slash command
+The browser never receives the MSF API key or Scopely client secret. Player-specific requests use the commander's OAuth session on the server, while game-wide ingestion jobs use server credentials.
 
-### Option 2: Install skills globally
+## Repository map
 
-Copy the skills and agent to your user profile for use across all projects:
+| Path | Purpose |
+|---|---|
+| [`msf-companion/`](msf-companion/) | The production Next.js PWA, route handlers, domain logic, tests, Prisma schema, Azure Functions, and infrastructure |
+| [`msf-api/`](msf-api/) | Official OpenAPI snapshots plus live-probed and community-discovered MSF API behavior |
+| [`tasks/`](tasks/) | Product requirements and feature research used to plan toolkit improvements |
+| [`.github/`](.github/) | Deployment, knowledge-refresh, and story-development automation |
+| [`AGENTS.md`](AGENTS.md) | Repository guidance for coding agents and contributors |
 
-```bash
-# Agent (user-level)
-mkdir -p ~/.config/Code/User/prompts
-cp .github/agents/ralph.agent.md ~/.config/Code/User/prompts/
+## Technology
 
-# Skills (user-level)
-cp -r .github/skills/prd ~/.agents/skills/
-cp -r .github/skills/ralph ~/.agents/skills/
+| Layer | Technology |
+|---|---|
+| Application | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Authentication | Scopely OAuth 2.0, PKCE, encrypted `iron-session` cookies |
+| Data | PostgreSQL, Prisma, Azure Cosmos DB |
+| Intelligence | Azure OpenAI, Azure AI Search, YouTube/community ingestion |
+| Payments and messaging | Stripe, Resend, Discord, web push |
+| Hosting | Azure Container Apps, Azure Functions, Bicep, Azure Developer CLI |
+| Testing | Vitest and Playwright |
+
+## Local development
+
+The application lives in `msf-companion/`.
+
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL
+- A Scopely OAuth application and MSF API key
+- Optional Azure, Stripe, Resend, Discord, and YouTube credentials for the features that use them
+
+### Start the app
+
+```powershell
+cd msf-companion
+npm install
+Copy-Item .env.example .env
+npx prisma generate
+npx prisma migrate dev
+npm run dev
 ```
 
-## Workflow
+Open [http://localhost:3000](http://localhost:3000). Configure `.env` before attempting Scopely login or any integration-backed feature. See the [application README](msf-companion/README.md) for the environment-variable map, validation commands, and deployment notes.
 
-### 1. Create a PRD
+## Development workflow
 
-Type `/prd` in Copilot chat and describe your feature:
+Product work is organized as small, testable user stories. This repository still contains the Ralph/Copilot automation it originally grew from, but that automation is development infrastructure—not the product.
 
-```
-/prd Add a task priority system with high/medium/low levels
-```
+- PRDs live under `tasks/`
+- `prd.json` records the active implementation plan
+- `progress.txt` preserves codebase patterns between automated iterations
+- `.github/agents/` and `.github/skills/` contain the internal agent workflows
 
-Answer the clarifying questions. The skill saves output to `tasks/prd-[feature-name].md`.
+## License
 
-### 2. Convert PRD to Ralph format
-
-Type `/ralph` in Copilot chat:
-
-```
-/ralph Convert tasks/prd-task-priority.md to prd.json
-```
-
-This creates `prd.json` with user stories structured for autonomous execution.
-
-### 3. Run Ralph
-
-Start a new chat and invoke the `@ralph` agent:
-
-```
-@ralph
-```
-
-Ralph will:
-1. Read `prd.json` and `progress.txt`
-2. Check out or create the feature branch (from PRD `branchName`)
-3. Pick the highest priority story where `passes: false`
-4. Implement that single story
-5. Run quality checks (typecheck, lint, test)
-6. Commit if checks pass
-7. Update `prd.json` to mark story as `passes: true`
-8. Append learnings to `progress.txt`
-
-### 4. Repeat
-
-Start a **new chat** and invoke `@ralph` again. Each new chat gives fresh context, preventing quality degradation on large PRDs. Repeat until `@ralph` reports all stories complete.
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `.github/agents/ralph.agent.md` | The `@ralph` custom agent — implements one story per invocation |
-| `.github/skills/prd/SKILL.md` | `/prd` slash command — generates PRDs |
-| `.github/skills/ralph/SKILL.md` | `/ralph` slash command — converts PRDs to `prd.json` |
-| `prd.json` | User stories with `passes` status (created per-project) |
-| `prd.json.example` | Example PRD format for reference |
-| `progress.txt` | Append-only learnings for future iterations (created per-project) |
-
-## Critical Concepts
-
-### Each Invocation = Fresh Context
-
-Each `@ralph` chat is a **new conversation** with clean context. The only memory between invocations is:
-- Git history (commits from previous invocations)
-- `progress.txt` (learnings and context)
-- `prd.json` (which stories are done)
-
-### Small Tasks
-
-Each PRD item should be small enough to complete in one context window. If a task is too big, the agent runs out of context before finishing and produces poor code.
-
-Right-sized stories:
-- Add a database column and migration
-- Add a UI component to an existing page
-- Update a server action with new logic
-- Add a filter dropdown to a list
-
-Too big (split these):
-- "Build the entire dashboard"
-- "Add authentication"
-- "Refactor the API"
-
-### AGENTS.md Updates Are Critical
-
-After each invocation, Ralph updates the relevant `AGENTS.md` files with learnings. This is key because GitHub Copilot automatically reads these files, so future invocations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
-
-Examples of what to add to AGENTS.md:
-- Patterns discovered ("this codebase uses X for Y")
-- Gotchas ("do not forget to update Z when changing W")
-- Useful context ("the settings panel is in component X")
-
-### Feedback Loops
-
-Ralph only works if there are feedback loops:
-- Typecheck catches type errors
-- Tests verify behavior
-- CI must stay green (broken code compounds across iterations)
-
-## Debugging
-
-Check current state:
-
-```bash
-# See which stories are done
-cat prd.json | jq '.userStories[] | {id, title, passes}'
-
-# See learnings from previous iterations
-cat progress.txt
-
-# Check git history
-git log --oneline -10
-```
-
-## References
-
-- [Geoffrey Huntley's Ralph article](https://ghuntley.com/ralph/)
+The repository is available under the [MIT License](LICENSE).
