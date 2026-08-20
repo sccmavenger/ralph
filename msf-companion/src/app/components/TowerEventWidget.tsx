@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 interface TowerEventData {
@@ -15,13 +15,50 @@ interface TowerEventData {
 
 export default function TowerEventWidget() {
   const [data, setData] = useState<TowerEventData | null>(null);
+  const [error, setError] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setError(false);
+    try {
+      const response = await fetch("/api/tower/events", { cache: "no-store" });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body || typeof body.active !== "boolean") {
+        throw new Error("Tower status is unavailable.");
+      }
+      setData(body);
+    } catch {
+      setData(null);
+      setError(true);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/tower/events")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((d) => setData(d))
-      .catch(() => {});
-  }, []);
+    const timer = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
+
+  if (error) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-purple-700/40 bg-purple-900/10 p-4"
+        data-testid="tower-event-error"
+      >
+        <p className="text-xs text-[var(--color-muted)]">
+          Tower event status is temporarily unavailable.
+        </p>
+        <button
+          type="button"
+          onClick={fetchData}
+          className="mt-2 text-xs font-semibold text-purple-400"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (!data?.active || !data.tower) return null;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 
 interface BriefingReward {
@@ -47,6 +47,8 @@ interface DailyBriefingData {
   freeOffers: FreeOffer[];
   milestones: Milestone[];
   summary: BriefingSummary;
+  offersError?: string;
+  milestonesError?: string;
 }
 
 function formatCountdown(expiration: number | null): string {
@@ -132,28 +134,55 @@ export default function DailyBriefingWidget() {
   const [data, setData] = useState<DailyBriefingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewItems, setPreviewItems] = useState<PreviewItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/msf/daily-briefing");
-        if (res.ok) {
-          const json = (await res.json()) as DailyBriefingData;
-          setData(json);
-          setPreviewItems(buildPreviewItems(json));
-        }
-      } catch {
-        // Non-critical widget
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/msf/daily-briefing", { cache: "no-store" });
+      const json = (await res.json().catch(() => null)) as
+        | DailyBriefingData
+        | { error?: string }
+        | null;
+      if (!res.ok) {
+        throw new Error(
+          json && "error" in json && json.error
+            ? json.error
+            : "Daily briefing is temporarily unavailable.",
+        );
       }
+      if (!json || !("summary" in json) || !json.summary) {
+        throw new Error("Daily briefing returned an invalid response.");
+      }
+
+      setData(json);
+      setPreviewItems(buildPreviewItems(json));
+      if (json.offersError || json.milestonesError) {
+        setError("Some briefing sources are temporarily unavailable.");
+      }
+    } catch (reason) {
+      setData(null);
+      setPreviewItems([]);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Daily briefing is temporarily unavailable.",
+      );
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
 
   // Live countdown timer
   useEffect(() => {
@@ -166,7 +195,35 @@ export default function DailyBriefingWidget() {
 
   if (loading) return <SkeletonWidget />;
 
-  const totalItems = data?.summary.totalActionItems ?? 0;
+  if (!data) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4"
+        data-testid="daily-briefing-widget"
+      >
+        <h3 className="text-sm font-bold text-[var(--color-foreground)]">
+          📋 Daily Briefing
+        </h3>
+        <p
+          className="mt-2 text-xs text-[var(--color-muted)]"
+          data-testid="daily-briefing-widget-error"
+        >
+          {error || "Daily briefing is temporarily unavailable."}
+        </p>
+        <button
+          type="button"
+          onClick={fetchData}
+          className="mt-3 text-xs font-semibold text-[var(--color-accent)]"
+          data-testid="daily-briefing-widget-retry"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  const totalItems = data.summary.totalActionItems ?? 0;
 
   return (
     <div
@@ -187,6 +244,23 @@ export default function DailyBriefingWidget() {
         </Link>
       </div>
 
+      {error && (
+        <div
+          className="mb-3"
+          role="status"
+          data-testid="daily-briefing-widget-warning"
+        >
+          <p className="text-xs text-amber-300">{error}</p>
+          <button
+            type="button"
+            onClick={fetchData}
+            className="mt-1 text-xs font-semibold text-[var(--color-accent)]"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* Summary count */}
       {totalItems > 0 && (
         <p className="text-2xl font-bold text-[var(--color-accent)] mb-3">
@@ -198,11 +272,11 @@ export default function DailyBriefingWidget() {
       )}
 
       {/* Preview items or empty state */}
-      {totalItems === 0 ? (
+      {totalItems === 0 && !error ? (
         <p className="text-sm text-[var(--color-muted)]">
           You&apos;re all caught up! ✅
         </p>
-      ) : (
+      ) : totalItems > 0 ? (
         <div className="space-y-2">
           {previewItems.map((item) => (
             <div key={item.key} className="flex items-center gap-2">
@@ -224,6 +298,10 @@ export default function DailyBriefingWidget() {
             </div>
           ))}
         </div>
+      ) : (
+        <p className="text-sm text-[var(--color-muted)]">
+          Action-item status will return when all briefing sources are available.
+        </p>
       )}
     </div>
   );

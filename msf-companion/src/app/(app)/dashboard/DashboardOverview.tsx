@@ -39,6 +39,28 @@ interface GameChar {
   status?: string;
 }
 
+type LoadStatus = "loading" | "ready" | "error";
+
+interface ApiEnvelope<T> {
+  data?: T;
+  error?: string;
+}
+
+async function fetchDashboardResource<T>(url: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store" });
+  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+
+  if (!response.ok) {
+    throw new Error(body?.error || "The MSF service did not return data.");
+  }
+
+  if (!body || !Array.isArray(body.data)) {
+    throw new Error("The MSF service returned an invalid response.");
+  }
+
+  return body.data;
+}
+
 function formatStat(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -55,7 +77,10 @@ function StatBox({
   valueColor?: string;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] py-3">
+    <div
+      className="flex flex-1 flex-col items-center rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] py-3"
+      data-testid={`dashboard-stat-${label.toLowerCase().replace(/\s+/g, "-")}`}
+    >
       <span
         className="text-lg font-bold"
         style={{ color: valueColor ?? "var(--color-foreground)" }}
@@ -82,6 +107,7 @@ function NavCard({
     <Link
       href={href}
       className="flex items-start gap-3 rounded-xl bg-[var(--color-surface)] p-4 transition-colors active:bg-[var(--color-surface-light)]"
+      data-testid={`dashboard-nav-${title.toLowerCase().replace(/\s+/g, "-")}`}
     >
       <span className="text-2xl">{icon}</span>
       <div>
@@ -172,52 +198,66 @@ export default function DashboardOverview({
 }) {
   const [rosterChars, setRosterChars] = useState<RosterChar[]>([]);
   const [playableCount, setPlayableCount] = useState(0);
+  const [rosterStatus, setRosterStatus] = useState<LoadStatus>("loading");
+  const [catalogStatus, setCatalogStatus] = useState<LoadStatus>("loading");
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const fetchedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    try {
-      const [rosterRes, gameRes] = await Promise.all([
-        fetch("/api/msf/roster"),
-        fetch("/api/msf/characters"),
-      ]);
+    setRosterStatus("loading");
+    setCatalogStatus("loading");
+    setRosterError(null);
+    setCatalogError(null);
 
-      if (rosterRes.ok) {
-        const rosterData = (await rosterRes.json()) as { data?: RosterChar[] };
-        setRosterChars(
-          (rosterData.data ?? []).sort((a, b) => (b.power ?? 0) - (a.power ?? 0))
-        );
-      }
+    const [rosterResult, catalogResult] = await Promise.allSettled([
+      fetchDashboardResource<RosterChar[]>("/api/msf/roster"),
+      fetchDashboardResource<GameChar[]>("/api/msf/characters"),
+    ]);
 
-      if (gameRes.ok) {
-        const gameData = (await gameRes.json()) as { data?: GameChar[] };
-        const playable = (gameData.data ?? []).filter(
-          (c) => c.status === "playable"
-        );
-        setPlayableCount(playable.length);
-      }
-    } catch {
-      // Non-critical — dashboard still renders
-    } finally {
-      setLoading(false);
+    if (rosterResult.status === "fulfilled") {
+      setRosterChars(
+        [...rosterResult.value].sort((a, b) => (b.power ?? 0) - (a.power ?? 0)),
+      );
+      setRosterStatus("ready");
+    } else {
+      setRosterChars([]);
+      setRosterStatus("error");
+      setRosterError(rosterResult.reason instanceof Error ? rosterResult.reason.message : "Roster data is unavailable.");
     }
+
+    if (catalogResult.status === "fulfilled") {
+      const playable = catalogResult.value.filter(
+        (character) => character.status?.toLowerCase() === "playable",
+      );
+      setPlayableCount(playable.length);
+      setCatalogStatus("ready");
+    } else {
+      setPlayableCount(0);
+      setCatalogStatus("error");
+      setCatalogError(catalogResult.reason instanceof Error ? catalogResult.reason.message : "Character catalog data is unavailable.");
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (!fetchedRef.current) {
+    const timer = window.setTimeout(() => {
+      if (fetchedRef.current) return;
       fetchedRef.current = true;
-      fetchData();
-    }
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchData]);
 
   const tcp = rosterChars.reduce((sum, c) => sum + (c.power ?? 0), 0);
   const ownedCount = rosterChars.length;
   const avgPower = ownedCount > 0 ? Math.round(tcp / ownedCount) : 0;
-  const completion = playableCount > 0 ? Math.round((ownedCount / playableCount) * 100) : 0;
-  const sevenStarCount = rosterChars.filter(
-    (c) => (c.yellowStars ?? c.activeYellow ?? 0) >= 7
-  ).length;
+  const completion = rosterStatus === "ready" && catalogStatus === "ready" && playableCount > 0
+    ? Math.min(100, Math.round((ownedCount / playableCount) * 100))
+    : null;
 
   if (loading) {
     return (
@@ -245,9 +285,9 @@ export default function DashboardOverview({
           fallbackClassName="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-red-500 text-lg font-bold text-white"
         />
         <div className="flex-1">
-          <h2 className="text-base font-bold text-[var(--color-foreground)]">
+          <h1 className="text-base font-bold text-[var(--color-foreground)]">
             Welcome back, {displayName}
-          </h2>
+          </h1>
           <p className="text-xs text-[var(--color-muted)]">
             Your MSF Companion dashboard
           </p>
@@ -257,31 +297,70 @@ export default function DashboardOverview({
       {/* AI Tip of the Day */}
       <DailyTipWidget />
 
+      {(rosterStatus === "error" || catalogStatus === "error") && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
+          data-testid="dashboard-data-error"
+        >
+          <p className="text-sm font-semibold text-amber-300">
+            Some commander stats could not be refreshed
+          </p>
+          <div className="mt-1 space-y-1 text-xs text-[var(--color-muted)]">
+            {rosterStatus === "error" && <p>Roster: {rosterError}</p>}
+            {catalogStatus === "error" && <p>Character catalog: {catalogError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={fetchData}
+            className="mt-3 rounded-lg border border-amber-400/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/10"
+            data-testid="dashboard-data-retry"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
-        <StatBox value={formatStat(tcp)} label="TCP" valueColor="#22c55e" />
         <StatBox
-          value={`${ownedCount} / ${playableCount || "?"}`}
+          value={rosterStatus === "ready" ? formatStat(tcp) : "—"}
+          label="TCP"
+          valueColor="#22c55e"
+        />
+        <StatBox
+          value={`${rosterStatus === "ready" ? ownedCount : "—"} / ${catalogStatus === "ready" && playableCount > 0 ? playableCount : "—"}`}
           label="Roster"
           valueColor="#3b82f6"
         />
         <StatBox
-          value={formatStat(avgPower)}
+          value={rosterStatus === "ready" ? formatStat(avgPower) : "—"}
           label="Avg Power"
           valueColor="#f59e0b"
         />
         <StatBox
-          value={`${completion}%`}
+          value={completion === null ? "—" : `${completion}%`}
           label="Completion"
           valueColor="#22c55e"
         />
       </div>
 
-      {/* Star Distribution */}
-      <StarDistribution characters={rosterChars} />
+      {rosterStatus === "ready" ? (
+        <>
+          {/* Star Distribution */}
+          <StarDistribution characters={rosterChars} />
 
-      {/* Origin Breakdown */}
-      <OriginBreakdown characters={rosterChars} />
+          {/* Origin Breakdown */}
+          <OriginBreakdown characters={rosterChars} />
+        </>
+      ) : (
+        <div
+          className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-muted)]"
+          data-testid="roster-breakdown-unavailable"
+        >
+          Star and origin breakdowns will return when roster data is available.
+        </div>
+      )}
 
       {/* Tower Event Widget */}
       <TowerEventWidget />
@@ -315,7 +394,9 @@ export default function DashboardOverview({
         <NavCard
           icon="🦸"
           title="Character Database"
-          description={`Explore all ${playableCount || ""} playable characters with portraits, traits, and abilities.`}
+          description={catalogStatus === "ready" && playableCount > 0
+            ? `Explore all ${playableCount} playable characters with portraits, traits, and abilities.`
+            : "Explore playable characters with portraits, traits, and abilities."}
           href="/heroes"
         />
         <NavCard

@@ -22,6 +22,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
   (for example, BIO + TECH means either origin, while BIO + BLASTER requires
   both an origin and a role match).
 
+## Dashboard patterns
+
+- Distinguish unavailable data from a valid empty result. API failures must not
+  render as zero progress, a maxed roster, "all caught up," or "no events."
+- Fetch independent dashboard resources with `Promise.allSettled` so one failed
+  service does not discard valid data from another service. Show partial values
+  with an unavailable marker and provide an in-place retry action.
+- Dashboard navigation E2E tests must suppress or dismiss the install-app prompt
+  before clicking page content; the modal intentionally blocks background
+  pointer events while it is open.
+
 ## Teams page patterns
 
 - Treat the player roster as required Teams data and meta usage as optional.

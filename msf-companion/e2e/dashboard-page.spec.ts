@@ -1,5 +1,31 @@
 import { test, expect } from "@playwright/test";
 
+async function suppressInstallModal(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(window.navigator, "standalone", { value: true });
+    const originalMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => {
+      if (query === "(display-mode: standalone)") {
+        return {
+          matches: true,
+          media: query,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => true,
+          onchange: null,
+        } as MediaQueryList;
+      }
+      return originalMatchMedia(query);
+    };
+  });
+}
+
+test.beforeEach(async ({ page }) => {
+  await suppressInstallModal(page);
+});
+
 test.describe("Dashboard Page", () => {
   test("navigate to /dashboard — page loads with welcome heading", async ({
     page,
@@ -15,10 +41,11 @@ test.describe("Dashboard Page", () => {
     await page.goto("/dashboard");
     await expect(page.getByText("Welcome back")).toBeVisible();
     // Nav cards contain emoji + text. Use first to avoid conflict with bottom tab bar.
-    await expect(page.getByText("My Roster")).toBeVisible();
-    await expect(page.getByText("Character Database")).toBeVisible();
-    await expect(page.getByText("Fight Analyzer")).toBeVisible();
-    await expect(page.getByText("Settings")).toBeVisible();
+    await expect(page.getByTestId("dashboard-nav-my-roster")).toBeVisible();
+    await expect(page.getByTestId("dashboard-nav-character-database")).toBeVisible();
+    await expect(page.getByTestId("dashboard-nav-team-builder")).toBeVisible();
+    await expect(page.getByTestId("dashboard-nav-fight-analyzer")).toBeVisible();
+    await expect(page.getByTestId("dashboard-nav-commander-profile")).toBeVisible();
   });
 
   test("clicking Roster nav card navigates to /roster", async ({ page }) => {

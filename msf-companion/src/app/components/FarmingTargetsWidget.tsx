@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { CompactStars } from "@/app/components/StarDisplay";
 import { CharPortrait } from "@/app/components/CharPortrait";
@@ -58,31 +58,67 @@ export default function FarmingTargetsWidget() {
   const [targets, setTargets] = useState<FarmingTarget[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/msf/farming/targets");
-        if (res.ok) {
-          const data = await res.json();
-          setTargets(data.targets ?? []);
-          setTotalCount(data.totalCount ?? 0);
-        }
-      } catch {
-        // fail silently
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/msf/farming/targets", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Farming targets are temporarily unavailable.");
       }
+      if (!Array.isArray(data?.targets)) {
+        throw new Error("Farming targets returned an invalid response.");
+      }
+      setTargets(data.targets);
+      setTotalCount(typeof data.totalCount === "number" ? data.totalCount : data.targets.length);
+    } catch (reason) {
+      setTargets([]);
+      setTotalCount(0);
+      setError(reason instanceof Error ? reason.message : "Farming targets are temporarily unavailable.");
+    } finally {
+      setLoading(false);
     }
-
-    fetchData();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
+
   if (loading) return <SkeletonWidget />;
+
+  if (error) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4"
+        data-testid="farming-targets-widget"
+      >
+        <h3 className="text-sm font-bold text-[var(--color-foreground)]">
+          Daily Farming Targets
+        </h3>
+        <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="farming-widget-error">
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={fetchData}
+          className="mt-3 text-xs font-semibold text-[var(--color-accent)]"
+          data-testid="farming-widget-retry"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (targets.length === 0) {
     return (

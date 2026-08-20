@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 
 interface OfferChoice {
@@ -66,36 +66,73 @@ export default function OffersWidget() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [scopeRequired, setScopeRequired] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/msf/offers");
-        if (res.status === 403) {
-          const data = await res.json();
-          if (data.code === "SCOPE_REQUIRED") {
-            setScopeRequired(true);
-            return;
-          }
-        }
-        if (res.ok) {
-          const data = (await res.json()) as { data: Offer[] };
-          setOffers(data.data ?? []);
-        }
-      } catch {
-        // Non-critical widget
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setScopeRequired(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/msf/offers", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (res.status === 403 && data?.code === "SCOPE_REQUIRED") {
+        setScopeRequired(true);
+        setOffers([]);
+        return;
       }
+      if (!res.ok) {
+        throw new Error(data?.error || "Active offers are temporarily unavailable.");
+      }
+      if (!Array.isArray(data?.data)) {
+        throw new Error("Active offers returned an invalid response.");
+      }
+      setOffers(data.data);
+    } catch (reason) {
+      setOffers([]);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Active offers are temporarily unavailable.",
+      );
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
+
   if (loading) return <SkeletonWidget />;
+
+  if (error) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4"
+        data-testid="offers-widget"
+      >
+        <h3 className="text-sm font-bold text-[var(--color-foreground)]">🎁 Active Offers</h3>
+        <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="offers-widget-error">
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={fetchData}
+          className="mt-3 text-xs font-semibold text-[var(--color-accent)]"
+          data-testid="offers-widget-retry"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (scopeRequired) {
     return (

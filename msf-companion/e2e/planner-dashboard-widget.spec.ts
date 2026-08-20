@@ -2,6 +2,16 @@ import { test, expect } from "@playwright/test";
 import { mockPlannerApiRoutes } from "./fixtures/planner-mock-data";
 
 test.describe("Planner Dashboard Summary Widget", () => {
+  test.beforeEach(async ({ page }) => {
+    // Keep the install prompt from obscuring dashboard links during navigation tests.
+    await page.addInitScript(() => {
+      Object.defineProperty(window.navigator, "standalone", {
+        configurable: true,
+        value: true,
+      });
+    });
+  });
+
   test("navigate to /dashboard — PlannerSummary widget is visible below the existing dashboard overview", async ({
     page,
   }) => {

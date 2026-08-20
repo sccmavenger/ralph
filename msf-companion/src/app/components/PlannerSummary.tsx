@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { CharPortrait } from "@/app/components/CharPortrait";
 
@@ -59,42 +59,97 @@ function getReadinessDot(
   return { color: "bg-red-500", label: "Significant gap" };
 }
 
+async function fetchArray<T>(url: string): Promise<T[]> {
+  const response = await fetch(url, { cache: "no-store" });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(body?.error || "Planner data is temporarily unavailable.");
+  }
+  if (!Array.isArray(body)) {
+    throw new Error("The planner returned an invalid response.");
+  }
+  return body as T[];
+}
+
 export default function PlannerSummary() {
   const [gaps, setGaps] = useState<GapEvent[] | null>(null);
   const [priorities, setPriorities] = useState<PriorityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gapsError, setGapsError] = useState<string | null>(null);
+  const [prioritiesError, setPrioritiesError] = useState(false);
   const fetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setGapsError(null);
+    setPrioritiesError(false);
 
-    async function fetchData() {
-      try {
-        const [gapsRes, priRes] = await Promise.all([
-          fetch("/api/msf/planner/gaps"),
-          fetch("/api/msf/planner/priorities"),
-        ]);
+    const [gapsResult, prioritiesResult] = await Promise.allSettled([
+      fetchArray<GapEvent>("/api/msf/planner/gaps"),
+      fetchArray<PriorityEntry>("/api/msf/planner/priorities"),
+    ]);
 
-        if (gapsRes.ok) {
-          const gapsData = await gapsRes.json();
-          setGaps(gapsData);
-        }
-        if (priRes.ok) {
-          const priData = await priRes.json();
-          setPriorities(priData);
-        }
-      } catch {
-        // Non-critical widget — fail silently
-      } finally {
-        setLoading(false);
-      }
+    if (gapsResult.status === "fulfilled") {
+      setGaps(gapsResult.value);
+    } else {
+      setGaps(null);
+      setGapsError(
+        gapsResult.reason instanceof Error
+          ? gapsResult.reason.message
+          : "Investment planner is temporarily unavailable.",
+      );
     }
 
-    fetchData();
+    if (prioritiesResult.status === "fulfilled") {
+      setPriorities(prioritiesResult.value);
+    } else {
+      setPriorities(null);
+      setPrioritiesError(true);
+    }
+
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
+
   if (loading) return <SkeletonWidget />;
+
+  if (gapsError) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4"
+        data-testid="planner-summary"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[var(--color-foreground)]">
+            Investment Planner
+          </h3>
+          <Link href="/planner" className="text-xs font-semibold text-[var(--color-accent)]">
+            View All →
+          </Link>
+        </div>
+        <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="planner-summary-error">
+          {gapsError}
+        </p>
+        <button
+          type="button"
+          onClick={fetchData}
+          className="mt-3 text-xs font-semibold text-[var(--color-accent)]"
+          data-testid="planner-summary-retry"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const eventsWithRequirements = gaps?.filter(
     (e) => e.characters && e.characters.length > 0,
@@ -131,6 +186,12 @@ export default function PlannerSummary() {
           View All →
         </Link>
       </div>
+
+      {prioritiesError && hasEvents && (
+        <p className="mb-3 text-xs text-amber-300" role="status">
+          Character priorities are temporarily unavailable.
+        </p>
+      )}
 
       {!hasEvents ? (
         <p
