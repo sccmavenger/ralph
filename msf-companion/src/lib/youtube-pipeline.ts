@@ -334,26 +334,30 @@ export async function getExistingVideoIds(): Promise<Set<string>> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return new Set();
 
   const ids = new Set<string>();
-  const url = `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs?api-version=2024-07-01&$select=id,validUntil&$top=5000&search=yt-*&queryType=full&searchFields=id`;
-
-  const resp = await fetch(url, {
-    headers: { "api-key": SEARCH_KEY },
-  });
-
-  if (!resp.ok) return ids;
-
-  const data = await resp.json() as { value: Array<{ id: string; validUntil?: string }> };
-  for (const doc of data.value) {
-    // id format: yt-{videoId}-{chunkIndex}
-    const parts = doc.id.split("-");
-    if (parts.length >= 3 && parts[0] === "yt") {
-      const isRetryMarker = parts.at(-1) === "skip";
-      const retryAt = doc.validUntil ? new Date(doc.validUntil).getTime() : Number.POSITIVE_INFINITY;
-      if (isRetryMarker && retryAt <= Date.now()) continue;
-      // videoId is the middle part(s) — everything between first "yt-" and last suffix
-      const videoId = parts.slice(1, -1).join("-");
-      if (videoId) ids.add(videoId);
+  for (let offset = 0; ; offset += 1000) {
+    const resp = await fetch(
+      `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs/search?api-version=2024-07-01`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "api-key": SEARCH_KEY },
+        body: JSON.stringify({ search: "*", top: 1000, skip: offset, select: "id,validUntil" }),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+    if (!resp.ok) return ids;
+    const data = await resp.json() as { value: Array<{ id: string; validUntil?: string }> };
+    for (const doc of data.value) {
+      // id format: yt-{videoId}-{chunkIndex|skip}
+      const parts = doc.id.split("-");
+      if (parts.length >= 3 && parts[0] === "yt") {
+        const isRetryMarker = parts.at(-1) === "skip";
+        const retryAt = doc.validUntil ? new Date(doc.validUntil).getTime() : Number.POSITIVE_INFINITY;
+        if (isRetryMarker && retryAt <= Date.now()) continue;
+        const videoId = parts.slice(1, -1).join("-");
+        if (videoId) ids.add(videoId);
+      }
     }
+    if (data.value.length < 1000) break;
   }
 
   return ids;
