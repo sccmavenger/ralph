@@ -25,24 +25,23 @@ export async function GET() {
   return NextResponse.json(getDefaultFallback());
 }
 
-function getDefaultFallback() {
+export function getDefaultFallback() {
   return {
     topTeams: [
-      { name: "Eternals", reason: "Top raid team across all game modes", priority: 1 },
-      { name: "Gamma Team", reason: "Essential for Gamma raids", priority: 2 },
-      { name: "Darkhold", reason: "Strong in Cosmic Crucible and War", priority: 3 },
-      { name: "Unlimited X-Men", reason: "Top Arena and War offense", priority: 4 },
-      { name: "Bifrost", reason: "Strong in multiple game modes", priority: 5 },
+      { name: "Finish one raid squad", reason: "Concentrate gear instead of spreading resources across unfinished teams.", priority: 1 },
+      { name: "Protect your Arena core", reason: "Avoid replacing invested characters until you can compare the full replacement team.", priority: 2 },
+      { name: "Build Crucible depth", reason: "Keep enough complete teams for offense before adding luxury defenses.", priority: 3 },
     ],
     farmingPriorities: [
-      { character: "Cosmic Ghost Rider", location: "Doom Campaign 3-9", reason: "Meta team member" },
-      { character: "Gladiator", location: "Nexus Campaign 8-6", reason: "Raid essential" },
-      { character: "Kestrel", location: "Nexus Campaign 7-3", reason: "Versatile plug-and-play" },
+      { character: "Your next unlock requirement", location: "Use the in-game Find button", reason: "Verify the current source before spending campaign energy or currency." },
+      { character: "Your next Dark Dimension team", location: "Check your Planner", reason: "Farm the largest roster gaps first and avoid speculative upgrades." },
     ],
     eventRecommendations: [
       { event: "Blitz", recommendation: "Rotate your top 8 teams for maximum milestone rewards" },
       { event: "Cosmic Crucible", recommendation: "Focus defense setup before attacking" },
     ],
     generatedAt: new Date().toISOString(),
+    isDefault: true,
+    notice: "Live and cached meta data are unavailable, so these are general planning guardrails—not current team or farming claims.",
   };
 }

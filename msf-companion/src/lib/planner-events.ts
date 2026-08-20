@@ -55,7 +55,7 @@ interface EpisodicChapter {
 
 interface EpisodicDetailWrapper {
   data?: {
-    requirements?: RawRequirements;
+    requirements?: RawRequirements | null;
     nodes?: Record<string, EpisodicNode>;
     chapters?: Record<string, EpisodicChapter>;
   };

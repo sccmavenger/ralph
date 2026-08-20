@@ -43,11 +43,20 @@ interface IngestResult {
 }
 
 interface KBHealth {
+  overallStatus: "healthy" | "degraded";
   totalDocuments: number;
   documentsBySourceType: Record<string, number>;
   documentsByTier: Record<string, number>;
-  lastSyncTimestamps: Record<string, string | null>;
+  metadataCoverage: number;
+  sources: Record<string, {
+    count: number;
+    newestSourceDate: string | null;
+    status: "healthy" | "stale" | "missing";
+    ageHours: number | null;
+    maxAgeHours: number;
+  }>;
   staleDocuments: number;
+  warnings: string[];
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -403,13 +412,24 @@ export default function AIDashboardClient() {
 
         {/* KB Health Section */}
         <div className="rounded-xl bg-[var(--color-surface)] p-4 shadow-sm mb-6" data-testid="kb-health">
-          <h3 className="text-sm font-semibold text-[var(--color-foreground)] mb-3">Knowledge Base Health</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--color-foreground)]">Knowledge Base Health</h3>
+            {kbHealth && (
+              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${kbHealth.overallStatus === "healthy" ? "bg-green-500/15 text-green-400" : "bg-yellow-500/15 text-yellow-400"}`}>
+                {kbHealth.overallStatus}
+              </span>
+            )}
+          </div>
           {kbHealth ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg bg-[var(--color-background)] p-3">
                   <p className="text-xs text-[var(--color-muted)]">Total Documents</p>
                   <p className="text-lg font-bold text-[var(--color-foreground)]" data-testid="kb-total-docs">{kbHealth.totalDocuments}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--color-background)] p-3">
+                  <p className="text-xs text-[var(--color-muted)]">Metadata</p>
+                  <p className={`text-lg font-bold ${kbHealth.metadataCoverage === 100 ? "text-green-400" : "text-yellow-400"}`}>{kbHealth.metadataCoverage}%</p>
                 </div>
                 <div className="rounded-lg bg-[var(--color-background)] p-3">
                   <p className="text-xs text-[var(--color-muted)]">Stale Documents</p>
@@ -442,18 +462,24 @@ export default function AIDashboardClient() {
               </div>
 
               <div>
-                <p className="text-xs text-[var(--color-muted)] mb-1">Last Sync</p>
+                <p className="text-xs text-[var(--color-muted)] mb-1">Source Freshness</p>
                 <div className="space-y-1" data-testid="kb-last-sync">
-                  {Object.entries(kbHealth.lastSyncTimestamps).map(([type, ts]) => (
+                  {Object.entries(kbHealth.sources).map(([type, source]) => (
                     <div key={type} className="flex justify-between text-xs">
                       <span className="text-[var(--color-foreground)]">{type}</span>
-                      <span className={ts ? "text-[var(--color-muted)]" : "text-red-400"}>
-                        {ts ? formatRelativeTime(ts) : "Never"}
+                      <span className={source.status === "healthy" ? "text-green-400" : source.status === "stale" ? "text-yellow-400" : "text-red-400"}>
+                        {source.newestSourceDate ? `${formatRelativeTime(source.newestSourceDate)} · ${source.count}` : "Missing"}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {kbHealth.warnings.length > 0 && (
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-xs text-yellow-300">
+                  {kbHealth.warnings.map((warning) => <p key={warning}>• {warning}</p>)}
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-xs text-[var(--color-muted)]">Loading KB health...</p>

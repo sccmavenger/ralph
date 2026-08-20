@@ -25,7 +25,7 @@ test.describe("Cumulative Regression — Chat UI", () => {
   test("advisor page loads with welcome message and suggestion chips", async ({ page }) => {
     await page.goto("/advisor");
     await expect(page.getByTestId("welcome-message")).toBeVisible();
-    await expect(page.getByText("AI Roster Advisor")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Roster Advisor" })).toBeVisible();
     await expect(page.getByTestId("suggestion-chips")).toBeVisible();
 
     const chips = page.getByTestId("suggestion-chips").locator("button");
@@ -140,7 +140,9 @@ test.describe("Cumulative Regression — Chat UI", () => {
     await page.getByTestId("chat-input").fill("What should I build?");
     await page.getByTestId("send-button").click();
 
-    await expect(page.getByText("Based on your roster")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="chat-message"][data-role="assistant"]').getByText("Based on your roster")
+    ).toBeVisible();
   });
 
   test("thumbs up/down feedback buttons work", async ({ page }) => {

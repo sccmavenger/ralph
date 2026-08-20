@@ -1,143 +1,96 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { getKnowledgeSearchConfig } from "@/lib/kb-search";
+import { getSourceFreshness, KB_SOURCE_TYPES, type KBSourceType } from "@/lib/kb-contract";
 
-const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
-const SEARCH_KEY = process.env.AZURE_AI_SEARCH_KEY || "";
+interface SearchPayload {
+  "@odata.count"?: number;
+  "@search.facets"?: Record<string, Array<{ value: string | number; count: number }>>;
+  value?: Array<Record<string, unknown>>;
+}
 
-interface KBHealthResponse {
-  totalDocuments: number;
-  documentsBySourceType: Record<string, number>;
-  documentsByTier: Record<string, number>;
-  lastSyncTimestamps: Record<string, string | null>;
-  staleDocuments: number;
+interface SourceHealth {
+  count: number;
+  newestSourceDate: string | null;
+  status: "healthy" | "stale" | "missing";
+  ageHours: number | null;
+  maxAgeHours: number;
+}
+
+async function search(body: Record<string, unknown>): Promise<SearchPayload> {
+  const { endpoint, key, indexName, apiVersion } = getKnowledgeSearchConfig();
+  const response = await fetch(`${endpoint}/indexes/${encodeURIComponent(indexName)}/docs/search?api-version=${apiVersion}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "api-key": key },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Search returned ${response.status}`);
+  return response.json() as Promise<SearchPayload>;
 }
 
 export async function GET() {
   const authError = await requireAdminSession();
   if (authError) return authError;
-
-  if (!SEARCH_ENDPOINT || !SEARCH_KEY) {
-    return NextResponse.json({ error: "Azure AI Search not configured" }, { status: 500 });
-  }
+  const { endpoint, key } = getKnowledgeSearchConfig();
+  if (!endpoint || !key) return NextResponse.json({ error: "Azure AI Search is not configured" }, { status: 500 });
 
   try {
-    // Facet query for sourceType and sourceTier counts
-    const facetResponse = await fetch(
-      `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs/search?api-version=2024-07-01`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "api-key": SEARCH_KEY },
-        body: JSON.stringify({
-          search: "*",
-          top: 0,
-          count: true,
-          facets: ["sourceType,count:20", "sourceTier,count:10"],
-        }),
-      }
-    );
+    const facets = await search({
+      search: "*",
+      filter: "category ne 'system'",
+      top: 0,
+      count: true,
+      facets: ["sourceType,count:20", "sourceTier,count:10", "lifecycleStatus,count:10", "pipelineVersion,count:10"],
+    });
+    const totalDocuments = facets["@odata.count"] || 0;
+    const facetMap = (name: string) => Object.fromEntries((facets["@search.facets"]?.[name] || []).map((item) => [String(item.value), item.count]));
 
-    if (!facetResponse.ok) {
-      return NextResponse.json({ error: "Failed to query search index" }, { status: 500 });
-    }
+    const sourceEntries: Array<[KBSourceType, SourceHealth]> = await Promise.all(KB_SOURCE_TYPES.map(async (sourceType): Promise<[KBSourceType, SourceHealth]> => {
+      const newest = await search({
+        search: "*",
+        filter: `category ne 'system' and sourceType eq '${sourceType}' and lifecycleStatus eq 'active'`,
+        orderby: "sourcePublishedAt desc",
+        top: 1,
+        count: true,
+        select: "sourcePublishedAt",
+      });
+      const newestDate = typeof newest.value?.[0]?.sourcePublishedAt === "string" ? newest.value[0].sourcePublishedAt : null;
+      return [sourceType, {
+        count: newest["@odata.count"] || 0,
+        newestSourceDate: newestDate,
+        ...getSourceFreshness(sourceType as KBSourceType, newestDate),
+      }];
+    }));
+    const sources: Record<KBSourceType, SourceHealth> = Object.fromEntries(sourceEntries) as Record<KBSourceType, SourceHealth>;
 
-    const facetData = (await facetResponse.json()) as {
-      "@odata.count"?: number;
-      "@search.facets"?: {
-        sourceType?: Array<{ value: string; count: number }>;
-        sourceTier?: Array<{ value: number; count: number }>;
-      };
-    };
-
-    const totalDocuments = facetData["@odata.count"] || 0;
-
-    const documentsBySourceType: Record<string, number> = {};
-    for (const f of facetData["@search.facets"]?.sourceType || []) {
-      documentsBySourceType[f.value] = f.count;
-    }
-
-    const documentsByTier: Record<string, number> = {};
-    for (const f of facetData["@search.facets"]?.sourceTier || []) {
-      documentsByTier[String(f.value)] = f.count;
-    }
-
-    // Get last sync timestamps per source type
-    const sourceTypes = ["api-game-data", "official-blog", "youtube-transcript", "reddit-post", "ai-generated"];
-    const lastSyncTimestamps: Record<string, string | null> = {};
-
-    for (const st of sourceTypes) {
-      try {
-        const tsResponse = await fetch(
-          `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs/search?api-version=2024-07-01`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "api-key": SEARCH_KEY },
-            body: JSON.stringify({
-              filter: `sourceType eq '${st}'`,
-              orderby: "sourceDate desc",
-              top: 1,
-              select: "sourceDate",
-            }),
-          }
-        );
-
-        if (tsResponse.ok) {
-          const tsData = (await tsResponse.json()) as { value?: Array<{ sourceDate?: string }> };
-          lastSyncTimestamps[st] = tsData.value?.[0]?.sourceDate || null;
-        } else {
-          lastSyncTimestamps[st] = null;
-        }
-      } catch {
-        lastSyncTimestamps[st] = null;
-      }
-    }
-
-    // Count stale documents using the same rules as kbStaleSweep
-    let staleDocuments = 0;
-    const stalenessRules = [
-      { sourceType: "reddit-post", maxAgeDays: 30 },
-      { sourceType: "official-blog", maxAgeDays: 90 },
-      { sourceType: "ai-generated", maxAgeDays: 14 },
+    const metadata = await search({
+      search: "*",
+      filter: "category ne 'system' and sourcePublishedAt ne null and ingestedAt ne null and contentHash ne null and lifecycleStatus ne null",
+      top: 0,
+      count: true,
+    });
+    const completeMetadata = metadata["@odata.count"] || 0;
+    const staleSources = Object.entries(sources).filter(([, source]) => source.status !== "healthy").map(([name]) => name);
+    const metadataCoverage = totalDocuments ? Math.round(completeMetadata / totalDocuments * 100) : 0;
+    const warnings = [
+      ...staleSources.map((source) => `${source} is stale or missing`),
+      ...(metadataCoverage < 100 ? [`${totalDocuments - completeMetadata} documents are missing canonical metadata`] : []),
     ];
 
-    for (const rule of stalenessRules) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - rule.maxAgeDays);
-      try {
-        const staleResponse = await fetch(
-          `${SEARCH_ENDPOINT}/indexes/msf-knowledge/docs/search?api-version=2024-07-01`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "api-key": SEARCH_KEY },
-            body: JSON.stringify({
-              filter: `sourceType eq '${rule.sourceType}' and sourceDate lt ${cutoff.toISOString()}`,
-              top: 0,
-              count: true,
-            }),
-          }
-        );
-
-        if (staleResponse.ok) {
-          const staleData = (await staleResponse.json()) as { "@odata.count"?: number };
-          staleDocuments += staleData["@odata.count"] || 0;
-        }
-      } catch {
-        // Skip — non-blocking
-      }
-    }
-
-    const health: KBHealthResponse = {
+    return NextResponse.json({
+      overallStatus: warnings.length ? "degraded" : "healthy",
       totalDocuments,
-      documentsBySourceType,
-      documentsByTier,
-      lastSyncTimestamps,
-      staleDocuments,
-    };
-
-    return NextResponse.json(health);
-  } catch (err) {
-    return NextResponse.json(
-      { error: `Search index unreachable: ${err instanceof Error ? err.message : String(err)}` },
-      { status: 500 }
-    );
+      documentsBySourceType: facetMap("sourceType"),
+      documentsByTier: facetMap("sourceTier"),
+      documentsByLifecycle: facetMap("lifecycleStatus"),
+      documentsByPipelineVersion: facetMap("pipelineVersion"),
+      metadataCoverage,
+      sources,
+      staleDocuments: Object.values(sources).filter((source) => source.status === "stale").reduce((total, source) => total + source.count, 0),
+      warnings,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: `Search index unreachable: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 });
   }
 }

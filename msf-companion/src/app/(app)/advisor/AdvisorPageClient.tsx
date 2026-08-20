@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { SseDataParser } from "@/lib/sse-data-parser";
 
 interface Message {
   id: string;
@@ -10,6 +11,7 @@ interface Message {
   serverMessageId?: string;
   feedback?: "positive" | "negative" | null;
   feedbackComment?: string;
+  knowledgeDate?: string;
 }
 
 interface Conversation {
@@ -24,6 +26,8 @@ interface FallbackData {
   farmingPriorities: Array<{ character: string; location: string; reason: string }>;
   eventRecommendations: Array<{ event: string; recommendation: string }>;
   generatedAt: string;
+  isDefault?: boolean;
+  notice?: string;
 }
 
 // Fallback suggestions used before API response arrives
@@ -59,8 +63,11 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
   const [feedbackInputId, setFeedbackInputId] = useState<string | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isConversationLoading, setIsConversationLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const conversationLoadRef = useRef(0);
 
   // Fetch personalized, randomized suggestions on mount
   useEffect(() => {
@@ -97,15 +104,27 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
   }, [loadConversations, isPremium]);
 
   const loadConversation = async (convId: string) => {
+    const requestId = ++conversationLoadRef.current;
+    setIsConversationLoading(true);
+    setStatusMessage(null);
     try {
       const res = await fetch(`/api/advisor/conversations/${convId}`);
       if (res.ok) {
         const data = (await res.json()) as {
           conversation: {
             id: string;
-            messages: Array<{ id: string; role: "user" | "assistant"; content: string; feedback?: string | null; feedbackComment?: string | null }>;
+            messages: Array<{
+              id: string;
+              role: "user" | "assistant";
+              content: string;
+              confidenceScore?: number | null;
+              sourceCitations?: unknown;
+              feedback?: string | null;
+              feedbackComment?: string | null;
+            }>;
           };
         };
+        if (requestId !== conversationLoadRef.current) return;
         setActiveConversationId(data.conversation.id);
         setMessages(
           data.conversation.messages.map((m) => ({
@@ -113,21 +132,36 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
             role: m.role,
             content: m.content,
             serverMessageId: m.role === "assistant" ? m.id : undefined,
+            confidence: m.confidenceScore ?? undefined,
+            knowledgeDate: getNewestCitationDate(m.sourceCitations),
             feedback: (m.feedback as "positive" | "negative") || undefined,
             feedbackComment: m.feedbackComment || undefined,
           }))
         );
         setSidebarOpen(false);
+      } else if (requestId === conversationLoadRef.current) {
+        setStatusMessage("I couldn't load that conversation. Please try again.");
       }
     } catch {
-      // Non-blocking
+      if (requestId === conversationLoadRef.current) {
+        setStatusMessage("I couldn't load that conversation. Please try again.");
+      }
+    } finally {
+      if (requestId === conversationLoadRef.current) setIsConversationLoading(false);
     }
   };
 
   const startNewConversation = () => {
+    conversationLoadRef.current++;
     setActiveConversationId(null);
     setMessages([]);
     setSidebarOpen(false);
+    setRateLimited(false);
+    setFallbackData(null);
+    setFeedbackInputId(null);
+    setFeedbackText("");
+    setStatusMessage(null);
+    setIsConversationLoading(false);
   };
 
   const handleSend = async (text?: string) => {
@@ -143,6 +177,11 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
+    setRateLimited(false);
+    setFallbackData(null);
+    setStatusMessage(null);
+
+    let assistantId: string | null = null;
 
     try {
       const response = await fetch("/api/advisor/chat", {
@@ -192,76 +231,109 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
         throw new Error("No response body");
       }
 
-      const assistantId = `assistant-${Date.now()}`;
+      const currentAssistantId = `assistant-${Date.now()}`;
+      assistantId = currentAssistantId;
       setMessages((prev) => [
         ...prev,
-        { id: assistantId, role: "assistant", content: "" },
+        { id: currentAssistantId, role: "assistant", content: "" },
       ]);
 
       const decoder = new TextDecoder();
+      const parser = new SseDataParser();
       let accumulatedContent = "";
+      let streamCompleted = false;
 
-      while (true) {
+      readStream: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") {
-              // Refresh conversation list after message completes
-              loadConversations();
-              break;
-            }
-            try {
-              const parsed = JSON.parse(data) as { content?: string; conversationId?: string; confidence?: number; messageId?: string };
-              if (parsed.conversationId && !activeConversationId) {
-                setActiveConversationId(parsed.conversationId);
-              }
-              if (parsed.messageId) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, serverMessageId: parsed.messageId }
-                      : m
-                  )
-                );
-              }
-              if (parsed.confidence !== undefined) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, confidence: parsed.confidence }
-                      : m
-                  )
-                );
-              }
-              if (parsed.content) {
-                accumulatedContent += parsed.content;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: accumulatedContent }
-                      : m
-                  )
-                );
-              }
-            } catch {
-              // Skip malformed SSE data
-            }
+        for (const data of parser.push(decoder.decode(value, { stream: true }))) {
+          if (processSseData(data)) {
+            streamCompleted = true;
+            break readStream;
           }
         }
       }
-    } catch {
+
+      if (!streamCompleted) {
+        const tailEvents = [...parser.push(decoder.decode()), ...parser.finish()];
+        for (const data of tailEvents) {
+          if (processSseData(data)) streamCompleted = true;
+        }
+      }
+
+      if (!streamCompleted || !accumulatedContent.trim()) {
+        throw new Error("The Advisor response ended before it completed.");
+      }
+
+      loadConversations();
+
+      function processSseData(data: string): boolean {
+        if (data.trim() === "[DONE]") return true;
+
+        let parsed: {
+          content?: string;
+          conversationId?: string;
+          confidence?: number;
+          knowledgeDate?: string;
+          messageId?: string;
+          error?: string;
+        };
+        try {
+          parsed = JSON.parse(data) as typeof parsed;
+        } catch {
+          // Ignore one malformed event without discarding adjacent valid frames.
+          return false;
+        }
+
+        if (parsed.error) throw new Error(parsed.error);
+        if (parsed.conversationId && !activeConversationId) {
+          setActiveConversationId(parsed.conversationId);
+        }
+        if (parsed.messageId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, serverMessageId: parsed.messageId }
+                : m
+            )
+          );
+        }
+        if (parsed.confidence !== undefined || parsed.knowledgeDate) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    confidence: parsed.confidence ?? m.confidence,
+                    knowledgeDate: parsed.knowledgeDate ?? m.knowledgeDate,
+                  }
+                : m
+            )
+          );
+        }
+        if (parsed.content) {
+          accumulatedContent += parsed.content;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: accumulatedContent }
+                : m
+            )
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : "Sorry, I had trouble connecting. Please try again.";
       setMessages((prev) => [
-        ...prev,
+        ...prev.filter((item) => item.id !== assistantId),
         {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: "Sorry, I had trouble connecting. Please try again.",
+          content: message,
         },
       ]);
     } finally {
@@ -270,6 +342,8 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
   };
 
   const handleFeedback = async (msgId: string, serverMsgId: string, rating: "positive" | "negative") => {
+    const previousFeedback = messages.find((message) => message.id === msgId)?.feedback;
+    setStatusMessage(null);
     // Optimistic update
     setMessages((prev) =>
       prev.map((m) =>
@@ -285,34 +359,54 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
     }
 
     try {
-      await fetch("/api/advisor/feedback", {
+      const response = await fetch("/api/advisor/feedback", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messageId: serverMsgId, rating }),
       });
+      if (!response.ok) throw new Error("Feedback was not saved");
     } catch {
-      // Non-blocking
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === msgId ? { ...message, feedback: previousFeedback } : message
+        )
+      );
+      setFeedbackInputId(null);
+      setStatusMessage("Your feedback wasn't saved. Please try again.");
     }
   };
 
   const submitFeedbackComment = async (msgId: string, serverMsgId: string) => {
     if (!feedbackText.trim()) return;
 
+    const previousComment = messages.find((message) => message.id === msgId)?.feedbackComment;
+    const comment = feedbackText.trim();
+    setStatusMessage(null);
     setMessages((prev) =>
       prev.map((m) =>
-        m.id === msgId ? { ...m, feedbackComment: feedbackText.trim() } : m
+        m.id === msgId ? { ...m, feedbackComment: comment } : m
       )
     );
     setFeedbackInputId(null);
 
     try {
-      await fetch("/api/advisor/feedback", {
+      const response = await fetch("/api/advisor/feedback", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId: serverMsgId, rating: "negative", comment: feedbackText.trim() }),
+        body: JSON.stringify({ messageId: serverMsgId, rating: "negative", comment }),
       });
+      if (!response.ok) throw new Error("Feedback comment was not saved");
     } catch {
-      // Non-blocking
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === msgId
+            ? { ...message, feedbackComment: previousComment }
+            : message
+        )
+      );
+      setFeedbackInputId(msgId);
+      setFeedbackText(comment);
+      setStatusMessage("Your feedback comment wasn't saved. Please try again.");
     }
   };
 
@@ -374,6 +468,11 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
             {conversations.length === 0 && (
               <p className="px-4 py-6 text-center text-xs text-[var(--color-muted)]">
                 No conversations yet
+              </p>
+            )}
+            {isConversationLoading && (
+              <p className="px-4 py-3 text-center text-xs text-[var(--color-muted)]" role="status">
+                Loading conversation…
               </p>
             )}
           </div>
@@ -451,6 +550,8 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
           <div
             key={msg.id}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            data-testid="chat-message"
+            data-role={msg.role}
           >
             <div
               className={`relative max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
@@ -487,15 +588,19 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
                       I don&apos;t have enough data to answer this confidently. I&apos;ve logged this question — check back in a day or two.
                     </p>
                   )}
-                  <p className="text-[10px] text-[var(--color-muted)] mt-2" data-testid="freshness-indicator">
-                    Meta data last refreshed: recently
-                  </p>
+                  {msg.confidence !== undefined && (
+                    <p className="text-[10px] text-[var(--color-muted)] mt-2" data-testid="freshness-indicator">
+                      {msg.knowledgeDate
+                        ? `Newest supporting source: ${new Date(msg.knowledgeDate).toLocaleDateString()}`
+                        : "No dated supporting source was available for this answer"}
+                    </p>
+                  )}
                   {/* Feedback buttons */}
                   {msg.serverMessageId && (
                     <div className="mt-2 flex items-center gap-2" data-testid="feedback-buttons">
                       <button
                         onClick={() => handleFeedback(msg.id, msg.serverMessageId!, "positive")}
-                        disabled={msg.feedback === "positive"}
+                        disabled={Boolean(msg.feedback)}
                         className={`rounded p-1.5 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${
                           msg.feedback === "positive"
                             ? "bg-green-500/20 text-green-400"
@@ -510,7 +615,7 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
                       </button>
                       <button
                         onClick={() => handleFeedback(msg.id, msg.serverMessageId!, "negative")}
-                        disabled={msg.feedback === "negative"}
+                        disabled={Boolean(msg.feedback)}
                         className={`rounded p-1.5 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${
                           msg.feedback === "negative"
                             ? "bg-red-500/20 text-red-400"
@@ -539,6 +644,7 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
                           }
                         }}
                         placeholder="What was wrong?"
+                        maxLength={1000}
                         className="w-full rounded border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-foreground)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-accent)]"
                         data-testid="feedback-text-input"
                       />
@@ -582,12 +688,14 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
               Live AI Advisor is temporarily unavailable
             </p>
             <p className="text-xs text-[var(--color-muted)] mt-1">
-              Here are today&apos;s pre-generated recommendations.
+              {fallbackData.notice || "Showing the most recently cached recommendations."}
             </p>
           </div>
 
           <div className="rounded-xl bg-[var(--color-surface)] p-4">
-            <h3 className="text-sm font-semibold text-[var(--color-foreground)] mb-2">Top Teams to Build</h3>
+            <h3 className="text-sm font-semibold text-[var(--color-foreground)] mb-2">
+              {fallbackData.isDefault ? "Safe Planning Checklist" : "Top Teams to Build"}
+            </h3>
             <div className="space-y-2">
               {fallbackData.topTeams.map((team, i) => (
                 <div key={i} className="flex items-start gap-2">
@@ -635,6 +743,16 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
         </div>
       )}
 
+      {statusMessage && (
+        <div
+          className="mx-4 mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+          role="status"
+          data-testid="advisor-status"
+        >
+          {statusMessage}
+        </div>
+      )}
+
       {/* Input bar */}
       <div className="sticky bottom-0 border-t border-[var(--color-surface-light)] bg-[var(--color-background)] px-4 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <div className="flex items-center gap-2">
@@ -645,6 +763,7 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about your roster..."
+            maxLength={2000}
             className="flex-1 rounded-full border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-accent)]"
             disabled={isLoading}
             data-testid="chat-input"
@@ -676,10 +795,29 @@ function formatMarkdown(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/^- (.+)$/gm, "<li>$1</li>")
     .replace(/(<li>[\s\S]*<\/li>)/, "<ul>$1</ul>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] underline">$1</a>')
     .replace(/\n/g, "<br>");
+}
+
+function getNewestCitationDate(citations: unknown): string | undefined {
+  if (!Array.isArray(citations)) return undefined;
+
+  const timestamps = citations
+    .map((citation) => {
+      if (typeof citation !== "object" || citation === null || !("date" in citation)) {
+        return Number.NaN;
+      }
+      const date = (citation as { date?: unknown }).date;
+      return typeof date === "string" ? new Date(date).getTime() : Number.NaN;
+    })
+    .filter((timestamp) => Number.isFinite(timestamp));
+
+  if (timestamps.length === 0) return undefined;
+  return new Date(Math.max(...timestamps)).toISOString();
 }

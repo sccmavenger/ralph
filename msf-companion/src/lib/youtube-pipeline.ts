@@ -6,20 +6,18 @@
  */
 
 import { YoutubeTranscript } from "youtube-transcript";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { createKnowledgeDocument, type KnowledgeDocument } from "@/lib/kb-contract";
+import { getEnabledMSFCreators, isRelevantCreatorVideo, MSF_CREATORS } from "@/lib/kb-creators";
+import { uploadKnowledgeDocuments } from "@/lib/kb-search";
 
-// MSF Creator Channels
-export const MSF_CREATORS = [
-  { name: "ValleyFlyin", channelId: "UCS-lJoP-GG2g0-nZMQCn_cQ", handle: "@ValleyFlyin" },
-  { name: "Boilon", channelId: "UC7lNaBgwLVbXIwUTy9tRg3w", handle: "@Boilon" },
-  { name: "Rayge Gaming", channelId: "UChjcK7ujFYVlOINJGHv-Miw", handle: "@RaygeGaming" },
-  { name: "MobileGamer365", channelId: "UCKjqnZEvjlf4TPtt9dmqhYw", handle: "@MobileGamer365" },
-  { name: "Remanx", channelId: "UCuHM3BHONp2T8BEhunLfRDw", handle: "@remanx" },
-  { name: "OhEmGee", channelId: "UCWnlPyy93myHvmFmD533BGg", handle: "@OhEmGee" },
-  { name: "Tauna", channelId: "UCe6wGQOkrFSIhMhbqLkNPLA", handle: "@Tauna" },
-  { name: "Philosopher", channelId: "UCwFMp3bGEZq94uBq0RJdN9w", handle: "@Philosopher" },
-  { name: "Hartgrave", channelId: "UCtEIl3mUBbWkS0E7vFMz08Q", handle: "@Hartgrave" },
-  { name: "Tony Scungili", channelId: "UCf0cMB1ycCyiZYa_Z-DxH2Q", handle: "@TonyScungili" },
-];
+export { MSF_CREATORS } from "@/lib/kb-creators";
+
+const execFileAsync = promisify(execFile);
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
 const SEARCH_KEY = process.env.AZURE_AI_SEARCH_KEY || "";
@@ -31,18 +29,6 @@ export interface VideoInfo {
   creator: string;
   published: string;
   url: string;
-}
-
-export interface KnowledgeDocument {
-  id: string;
-  content: string;
-  sourceCreatorName: string;
-  sourceVideoTitle: string;
-  sourceUrl: string;
-  sourceDate: string;
-  category: string;
-  sourceTier: number;
-  sourceType: string;
 }
 
 export interface IngestResult {
@@ -57,42 +43,58 @@ export interface IngestResult {
  * Fetch recent videos from a YouTube channel via RSS feed
  */
 export async function fetchChannelVideos(channelId: string, creatorName: string, maxVideos = 15): Promise<VideoInfo[]> {
-  const resp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
-  if (!resp.ok) return [];
-
-  const xml = await resp.text();
-  const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
-  const videos: VideoInfo[] = [];
-
-  for (const entry of entries.slice(0, maxVideos)) {
-    const content = entry[1];
-    const videoId = content.match(/<yt:videoId>([^<]+)/)?.[1];
-    const title = content.match(/<title>([^<]+)/)?.[1];
-    const published = content.match(/<published>([^<]+)/)?.[1];
-
-    if (!videoId || !title) continue;
-
-    // Filter for MSF-related content
-    const t = title.toLowerCase();
-    if (
-      t.includes("msf") ||
-      t.includes("strike force") ||
-      t.includes("marvel") ||
-      t.includes("crucible") ||
-      t.includes("dark dimension") ||
-      t.includes("tier list")
-    ) {
-      videos.push({
-        videoId,
-        title: decodeHtmlEntities(title),
-        creator: creatorName,
-        published: published?.substring(0, 10) || "",
-        url: `https://www.youtube.com/watch?v=${videoId}`,
+  const creator = MSF_CREATORS.find((item) => item.channelId === channelId) || { msfOnly: false };
+  const apiKey = process.env.YOUTUBE_API_KEY || "";
+  if (apiKey) {
+    try {
+      // Every channel's uploads playlist is the channel ID with UC changed to UU.
+      // playlistItems.list is substantially cheaper than search.list and provides
+      // a wider, deterministic discovery window than the 15-item RSS feed.
+      const uploadsPlaylist = channelId.startsWith("UC") ? `UU${channelId.slice(2)}` : channelId;
+      const params = new URLSearchParams({
+        part: "snippet,contentDetails",
+        playlistId: uploadsPlaylist,
+        maxResults: String(Math.min(50, Math.max(1, maxVideos))),
+        key: apiKey,
       });
+      const response = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          items?: Array<{ snippet?: { title?: string; publishedAt?: string }; contentDetails?: { videoId?: string } }>;
+        };
+        return (payload.items || []).flatMap((item) => {
+          const videoId = item.contentDetails?.videoId || "";
+          const title = item.snippet?.title || "";
+          if (!videoId || !title || !isRelevantCreatorVideo(title, creator)) return [];
+          return [{
+            videoId,
+            title,
+            creator: creatorName,
+            published: item.snippet?.publishedAt || new Date().toISOString(),
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+          }];
+        });
+      }
+    } catch (error) {
+      console.warn(`[YouTube discovery] API fallback for ${creatorName}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  return videos;
+  const resp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!resp.ok) throw new Error(`YouTube feed returned ${resp.status}`);
+  const entries = [...(await resp.text()).matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+  return entries.slice(0, maxVideos).flatMap((entry) => {
+    const content = entry[1];
+    const videoId = content.match(/<yt:videoId>([^<]+)/)?.[1] || "";
+    const title = decodeHtmlEntities(content.match(/<title>([^<]+)/)?.[1] || "");
+    const published = content.match(/<published>([^<]+)/)?.[1] || "";
+    if (!videoId || !title || !isRelevantCreatorVideo(title, creator)) return [];
+    return [{ videoId, title, creator: creatorName, published, url: `https://www.youtube.com/watch?v=${videoId}` }];
+  });
 }
 
 /**
@@ -103,6 +105,38 @@ export async function fetchChannelVideos(channelId: string, creatorName: string,
 export async function fetchTranscript(videoId: string): Promise<string | null> {
   // Validate videoId format (YouTube IDs are 11 chars of [A-Za-z0-9_-])
   if (!/^[A-Za-z0-9_-]{10,12}$/.test(videoId)) return null;
+
+  let tempDirectory = "";
+  try {
+    tempDirectory = await mkdtemp(join(tmpdir(), "msf-kb-"));
+    await execFileAsync("yt-dlp", [
+      "--skip-download",
+      "--write-subs",
+      "--write-auto-subs",
+      "--sub-langs", "en-orig,en",
+      "--sub-format", "json3",
+      "--no-warnings",
+      "-o", join(tempDirectory, "%(id)s.%(ext)s"),
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ], { timeout: 90_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
+    const subtitleFile = (await readdir(tempDirectory)).find((file) => file.endsWith(".json3"));
+    if (subtitleFile) {
+      const payload = JSON.parse(await readFile(join(tempDirectory, subtitleFile), "utf8")) as {
+        events?: Array<{ segs?: Array<{ utf8?: string }> }>;
+      };
+      const transcript = (payload.events || [])
+        .flatMap((event) => event.segs || [])
+        .map((segment) => segment.utf8 || "")
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (transcript) return transcript;
+    }
+  } catch (error) {
+    console.warn(`[fetchTranscript] yt-dlp fallback for ${videoId}: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    if (tempDirectory) await rm(tempDirectory, { recursive: true, force: true }).catch(() => {});
+  }
 
   try {
     const items = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
@@ -153,17 +187,17 @@ function chunkTranscript(
   // If content is short enough, keep as one document
   if (words.length <= 1200) {
     return [
-      {
+      createKnowledgeDocument({
         id: `yt-${video.videoId}-0`,
         content: cleanTranscript(transcript),
-        sourceCreatorName: video.creator,
-        sourceVideoTitle: video.title,
-        sourceUrl: video.url,
-        sourceDate: video.published,
         category,
-        sourceTier: 3,
-        sourceType: 'youtube-transcript',
-      },
+        sourceCreatorName: video.creator,
+        sourceTitle: video.title,
+        sourceUrl: video.url,
+        sourcePublishedAt: video.published || new Date().toISOString(),
+        sourceType: "youtube-transcript",
+        sourceId: video.videoId,
+      }),
     ];
   }
 
@@ -192,17 +226,17 @@ function chunkTranscript(
     }
 
     const chunkText = words.slice(startWord, endWord).join(" ");
-    chunks.push({
+    chunks.push(createKnowledgeDocument({
       id: `yt-${video.videoId}-${chunkIndex}`,
       content: cleanTranscript(chunkText),
-      sourceCreatorName: video.creator,
-      sourceVideoTitle: video.title + (chunks.length > 0 ? ` (Part ${chunkIndex + 1})` : ""),
-      sourceUrl: video.url,
-      sourceDate: video.published,
       category,
-      sourceTier: 3,
-      sourceType: 'youtube-transcript',
-    });
+      sourceCreatorName: video.creator,
+      sourceTitle: video.title + (chunks.length > 0 ? ` (Part ${chunkIndex + 1})` : ""),
+      sourceUrl: video.url,
+      sourcePublishedAt: video.published || new Date().toISOString(),
+      sourceType: "youtube-transcript",
+      sourceId: video.videoId,
+    }));
 
     chunkIndex++;
     startWord = endWord;
@@ -227,44 +261,9 @@ function cleanTranscript(text: string): string {
  * Upload documents to Azure AI Search index
  */
 export async function uploadDocuments(documents: KnowledgeDocument[]): Promise<{ succeeded: number; failed: number }> {
-  if (!SEARCH_ENDPOINT || !SEARCH_KEY) {
-    throw new Error("Azure AI Search not configured");
-  }
-
-  let succeeded = 0;
-  let failed = 0;
-
-  // Upload in batches of 100 (Azure Search limit is 1000 per batch)
-  const batchSize = 100;
-  for (let i = 0; i < documents.length; i += batchSize) {
-    const batch = documents.slice(i, i + batchSize);
-    const resp = await fetch(
-      `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs/index?api-version=2024-07-01`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-key": SEARCH_KEY,
-        },
-        body: JSON.stringify({
-          value: batch.map((doc) => ({
-            "@search.action": "mergeOrUpload",
-            ...doc,
-          })),
-        }),
-      }
-    );
-
-    if (resp.ok) {
-      const result = await resp.json() as { value: Array<{ status: boolean }> };
-      succeeded += result.value.filter((r) => r.status).length;
-      failed += result.value.filter((r) => !r.status).length;
-    } else {
-      failed += batch.length;
-    }
-  }
-
-  return { succeeded, failed };
+  const result = await uploadKnowledgeDocuments(documents);
+  for (const error of result.errors) console.warn(`[KB upload] ${error}`);
+  return { succeeded: result.succeeded, failed: result.failed };
 }
 
 /**
@@ -329,7 +328,7 @@ export async function getExistingVideoIds(): Promise<Set<string>> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return new Set();
 
   const ids = new Set<string>();
-  let url = `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs?api-version=2024-07-01&$select=id&$top=5000&search=yt-*&queryType=full&searchFields=id`;
+  const url = `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs?api-version=2024-07-01&$select=id&$top=5000&search=yt-*&queryType=full&searchFields=id`;
 
   const resp = await fetch(url, {
     headers: { "api-key": SEARCH_KEY },
@@ -376,7 +375,7 @@ export async function runIngestionPipeline(
   log("Discovering videos from MSF creators...");
   const allVideos: VideoInfo[] = [];
 
-  for (const creator of MSF_CREATORS) {
+  for (const creator of getEnabledMSFCreators()) {
     try {
       const videos = await fetchChannelVideos(creator.channelId, creator.name, maxVideosPerChannel);
       allVideos.push(...videos);
@@ -407,7 +406,7 @@ export async function runIngestionPipeline(
   }
 
   // Step 2: Fetch transcripts and chunk
-  const allDocuments: KnowledgeDocument[] = [];
+  let documentsPrepared = 0;
 
   for (const video of videosToProcess) {
     try {
@@ -420,9 +419,15 @@ export async function runIngestionPipeline(
       }
 
       const chunks = chunkTranscript(transcript, video);
-      allDocuments.push(...chunks);
+      documentsPrepared += chunks.length;
+      // Commit each completed video immediately. A timeout or machine restart
+      // no longer discards every transcript collected earlier in the run, and
+      // the next incremental pass naturally resumes from indexed video IDs.
+      const upload = await uploadDocuments(chunks);
+      result.documentsUploaded += upload.succeeded;
+      if (upload.failed) result.errors.push(`${video.videoId}: ${upload.failed} chunks failed to upload`);
       result.videosProcessed++;
-      log(`    → ${chunks.length} chunks (${transcript.length} chars)`);
+      log(`    → ${upload.succeeded}/${chunks.length} chunks uploaded (${transcript.length} chars)`);
 
       // Rate limit: small delay between videos to avoid YouTube throttling
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -431,18 +436,7 @@ export async function runIngestionPipeline(
     }
   }
 
-  log(`Total: ${allDocuments.length} documents to upload`);
-
-  // Step 3: Upload to Azure AI Search
-  if (allDocuments.length > 0) {
-    log("Uploading to Azure AI Search...");
-    const { succeeded, failed } = await uploadDocuments(allDocuments);
-    result.documentsUploaded = succeeded;
-    if (failed > 0) {
-      result.errors.push(`${failed} documents failed to upload`);
-    }
-    log(`Uploaded: ${succeeded} succeeded, ${failed} failed`);
-  }
+  log(`Total: ${result.documentsUploaded}/${documentsPrepared} prepared documents uploaded`);
 
   return result;
 }
@@ -471,17 +465,10 @@ export async function checkCreatorStaleness(): Promise<CreatorStaleness[]> {
   const results: CreatorStaleness[] = [];
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-  for (const creator of MSF_CREATORS) {
+  for (const creator of getEnabledMSFCreators()) {
     try {
-      const resp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${creator.channelId}`);
-      if (!resp.ok) {
-        results.push({ name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true });
-        continue;
-      }
-
-      const xml = await resp.text();
-      const firstPublished = xml.match(/<entry>[\s\S]*?<published>([^<]+)/)?.[1] || null;
-
+      const videos = await fetchChannelVideos(creator.channelId, creator.name, 1);
+      const firstPublished = videos[0]?.published || null;
       if (!firstPublished) {
         results.push({ name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true });
         continue;

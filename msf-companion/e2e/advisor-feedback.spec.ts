@@ -174,6 +174,36 @@ test.describe("AI Advisor Feedback Buttons", () => {
     expect((feedbackPayload as unknown as Record<string, unknown>).rating).toBe("negative");
   });
 
+  test("failed feedback is rolled back and explained to the user", async ({ page }) => {
+    await page.route("**/api/advisor/chat", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: [
+          `data: ${JSON.stringify({ confidence: 80 })}\n\n`,
+          `data: ${JSON.stringify({ content: "Advice that can be rated." })}\n\n`,
+          `data: ${JSON.stringify({ messageId: "msg-feedback-failure" })}\n\n`,
+          "data: [DONE]\n\n",
+        ].join(""),
+      });
+    });
+    await page.route("**/api/advisor/feedback", (route) =>
+      route.fulfill({ status: 500, contentType: "application/json", body: "{}" })
+    );
+
+    await page.goto("/advisor");
+    await page.getByTestId("chat-input").fill("Rate this");
+    await page.getByTestId("send-button").click();
+    await expect(page.getByText("Advice that can be rated.")).toBeVisible();
+
+    const thumbsUp = page.getByTestId("thumbs-up-btn");
+    await thumbsUp.click();
+
+    await expect(page.getByTestId("advisor-status")).toContainText("wasn't saved");
+    await expect(thumbsUp).not.toBeDisabled();
+    await expect(thumbsUp).not.toHaveClass(/\bbg-green-500\/20\b/);
+  });
+
   test("feedback buttons have minimum 44px touch target", async ({ page }) => {
     await page.route("**/api/advisor/chat", async (route) => {
       const body = [

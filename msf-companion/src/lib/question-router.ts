@@ -44,6 +44,7 @@ Respond with: {"complexity": "simple"|"medium"|"complex", "reasoning": "brief re
           ],
           max_completion_tokens: 100,
         }),
+        signal: AbortSignal.timeout(10_000),
       }
     );
 

@@ -1,6 +1,6 @@
 /**
  * Persist and retrieve the last auto-refresh state via Azure AI Search.
- * Stored as a document with id '_meta-refresh-state' in the msf-knowledge index.
+ * Stored as a system document excluded from Advisor retrieval.
  */
 
 const SEARCH_ENDPOINT = process.env.AZURE_AI_SEARCH_ENDPOINT || "";
@@ -22,7 +22,7 @@ export interface RefreshState {
   }>;
 }
 
-const META_DOC_ID = "_meta-refresh-state";
+const META_DOC_ID = "meta-refresh-state";
 
 export async function getRefreshState(): Promise<RefreshState | null> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return null;
@@ -48,24 +48,17 @@ export async function getRefreshState(): Promise<RefreshState | null> {
 
 export async function setRefreshState(state: RefreshState): Promise<void> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return;
-
-  await fetch(
-    `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs/index?api-version=2024-07-01`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": SEARCH_KEY,
-      },
-      body: JSON.stringify({
-        value: [
-          {
-            "@search.action": "mergeOrUpload",
-            id: META_DOC_ID,
-            content: JSON.stringify(state),
-          },
-        ],
-      }),
-    }
-  );
+  const { createKnowledgeDocument } = await import("@/lib/kb-contract");
+  const { uploadKnowledgeDocuments } = await import("@/lib/kb-search");
+  await uploadKnowledgeDocuments([createKnowledgeDocument({
+    id: META_DOC_ID,
+    content: JSON.stringify(state),
+    category: "system",
+    sourceCreatorName: "MSF Toolkit",
+    sourceTitle: "Knowledge refresh state",
+    sourceUrl: "",
+    sourcePublishedAt: state.lastRefreshAt,
+    sourceType: "ai-generated",
+    sourceId: META_DOC_ID,
+  })]);
 }

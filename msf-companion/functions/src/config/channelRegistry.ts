@@ -1,158 +1,38 @@
-/**
- * YouTube Channel Registry for MSF Intelligence Pipeline.
- *
- * Each entry represents a monitored MSF content creator.
- * To add or remove a channel, edit this array — no code changes required.
- */
-
+/** Verified YouTube channels monitored by the MSF intelligence pipeline. */
 export interface ChannelEntry {
-  /** YouTube channel ID (UC...) */
   channelId: string;
-  /** YouTube handle (e.g., @DorkyDadMSF) */
   handle: string;
-  /** Human-readable display name */
   displayName: string;
-  /** True if this channel covers MSF exclusively (no other games) */
   msfOnly: boolean;
-  /** True if this channel should be actively monitored */
   enabled: boolean;
 }
 
+/**
+ * IDs were resolved through YouTube's channels API on 2026-08-20. Inactive
+ * creators remain documented but disabled so stale feeds are not polled.
+ */
 export const channelRegistry: ChannelEntry[] = [
-  {
-    channelId: "UCVkBn-MiOJEGRmGkCRSFXaA",
-    handle: "@DorkyDadMSF",
-    displayName: "DorkyDad",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCjS-wVbMRO8ynQ0LZESqR3A",
-    handle: "@OhEmGee",
-    displayName: "MobileGamer",
-    msfOnly: false,
-    enabled: true,
-  },
-  {
-    channelId: "UCH5qI5ZnPbQd7MnrlJVlrwQ",
-    handle: "@valleyflyin",
-    displayName: "ValleyFlyin",
-    msfOnly: false,
-    enabled: true,
-  },
-  {
-    channelId: "UCrWtqNq5yXn6kPp1igp8dbQ",
-    handle: "@BendableStraws",
-    displayName: "BendableStraws",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UC8bGCkndEBKsFvtJQxo-g2w",
-    handle: "@BoilonMSF",
-    displayName: "Boilon",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCi0e4Ix36g8MbyD8NP9m4jQ",
-    handle: "@OGDiamondDave",
-    displayName: "OGDiamondDave",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCw8B6IxYt9DYqcIZ9DnPJqw",
-    handle: "@dulomishere",
-    displayName: "Dulom",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UC3t3KMJV-54GZsjmGLkYJzw",
-    handle: "@PhilosopherMSF",
-    displayName: "Philosopher",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCIqj7FDrJkGPq6MEhPb5DOQ",
-    handle: "@DacierGaming",
-    displayName: "Dacier",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCbF1OqZ18DNGKiFm_bS3msg",
-    handle: "@updog",
-    displayName: "Updog",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCEh5F6fXLpx8suKfcUqXILQ",
-    handle: "@ZerokoolGamer",
-    displayName: "ZeroKoolGamer",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCzPb1Jh6r6q0nXaGiZOGY1Q",
-    handle: "@vynora897",
-    displayName: "Vynora",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UC32x9e6eMpNR3J20C_17CbA",
-    handle: "@CanekGaming",
-    displayName: "Canek",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCykGGnKJO1F4bQ4v3jUqVeQ",
-    handle: "@gideonxl660",
-    displayName: "Gideon",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCfJBmq5rC8p-dEPnb4c7P3A",
-    handle: "@NOOCH2GUD",
-    displayName: "NOOCH2GUD",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCXP59aPm-h3oM3er1FGh-gA",
-    handle: "@Challenger5050",
-    displayName: "Challenger5050",
-    msfOnly: true,
-    enabled: true,
-  },
-  {
-    channelId: "UCi_NLQZ4sCJpBsUlE4P_83g",
-    handle: "@Remanx",
-    displayName: "Remanx",
-    msfOnly: false,
-    enabled: true,
-  },
-  {
-    channelId: "UCqnH_82QA6cFiJtO1X-Jh_Q",
-    handle: "@SSBadger",
-    displayName: "SSBadger",
-    msfOnly: true,
-    enabled: true,
-  },
+  { channelId: "UCS-lJoP-GG2g0-nZMQCn_cQ", handle: "@ValleyFlyin", displayName: "ValleyFlyin", msfOnly: true, enabled: true },
+  { channelId: "UC7lNaBgwLVbXIwUTy9tRg3w", handle: "@Boilon", displayName: "Boilon", msfOnly: true, enabled: true },
+  { channelId: "UCWnlPyy93myHvmFmD533BGg", handle: "@OhEmGee", displayName: "MobileGamer365", msfOnly: false, enabled: true },
+  { channelId: "UC8euToXgUPWnGf1vr8tGrSg", handle: "@DorkyDadMSF", displayName: "Dorky Dad", msfOnly: true, enabled: true },
+  { channelId: "UCo15CZ9KB4LScjewK1i9qRA", handle: "@BendableStraws", displayName: "Bendable Straws", msfOnly: true, enabled: true },
+  { channelId: "UCgxjUmfQES2AQuJfOWC8n6w", handle: "@OGDiamondDave", displayName: "OGDiamondDave", msfOnly: true, enabled: true },
+  { channelId: "UCZC6Ktr3VbvA2vcsQ2ZGtsg", handle: "@ZerokoolGamer", displayName: "ZeroKoolGamer", msfOnly: true, enabled: true },
+  { channelId: "UCiE8MZbg-N86vNTUWSh9nnA", handle: "@gideonxl660", displayName: "GideonXL", msfOnly: true, enabled: true },
+  { channelId: "UCCvr7HICGSsXQUHztHyVq9g", handle: "@dulomishere", displayName: "DulomIsHere", msfOnly: false, enabled: true },
+  { channelId: "UCDOMZQ_j7k2Mp8KZkGqnwaw", handle: "@DacierGaming", displayName: "DacierGaming", msfOnly: false, enabled: true },
+  { channelId: "UCxGkB3brWRiw4ZGF1NOYfcA", handle: "@CanekGaming", displayName: "Canek Gaming", msfOnly: true, enabled: true },
+  { channelId: "UCuHM3BHONp2T8BEhunLfRDw", handle: "@remanx", displayName: "Remanx", msfOnly: true, enabled: false },
+  { channelId: "UCIVkaRV4NzHTbvSLBf8JOYg", handle: "@vynora897", displayName: "Vynora", msfOnly: true, enabled: false },
+  { channelId: "UCzZGUeIz4SiJS3NIYUQ9A6w", handle: "@PhilosopherMSF", displayName: "Philosopher", msfOnly: true, enabled: false },
+  { channelId: "UCL0TW4o82JHYWRDHbgFAqFw", handle: "@TonyScungili", displayName: "Tony Scungili", msfOnly: true, enabled: false },
 ];
 
-/** Returns only channels that are currently enabled for monitoring. */
 export function getEnabledChannels(): ChannelEntry[] {
-  return channelRegistry.filter((ch) => ch.enabled);
+  return channelRegistry.filter((channel) => channel.enabled);
 }
 
-/** Returns only channels that cover MSF exclusively. */
 export function getMsfOnlyChannels(): ChannelEntry[] {
-  return channelRegistry.filter((ch) => ch.msfOnly);
+  return channelRegistry.filter((channel) => channel.msfOnly);
 }

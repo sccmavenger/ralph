@@ -3,20 +3,18 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getScopelyId } from "@/lib/scopely-id";
 import { getValidAccessTokenWithRefresh as getValidAccessToken } from "@/lib/auth";
-import { msfApiFetch } from "@/lib/msf-api";
+import {
+  fetchAdvisorRoster,
+  normalizeAdvisorRosterSnapshot,
+  type AdvisorRosterCharacter,
+} from "@/lib/advisor-roster";
 
 /**
  * Returns 4 randomized, roster-personalized suggestion chips for the Advisor landing page.
  * Picks from a pool of ~30 templates and personalizes based on the commander's roster.
  */
 
-interface RosterChar {
-  name?: string;
-  power?: number;
-  gearTier?: number;
-  yellowStars?: number;
-  redStars?: number;
-}
+type RosterChar = AdvisorRosterCharacter;
 
 // Templates with optional roster-aware personalization
 const SUGGESTION_TEMPLATES = [
@@ -130,56 +128,14 @@ export async function GET() {
     });
 
     if (snapshots.length > 0 && snapshots[0].snapshotData) {
-      const raw = snapshots[0].snapshotData;
-      // Handle both formats:
-      // Old: { data: [{ id, power, gearTier, activeYellow, info?: { name } }], meta: {...} }
-      // New: [{ id, name, power, gearTier, yellowStars, ... }]
-      if (Array.isArray(raw)) {
-        chars = raw as RosterChar[];
-      } else if (typeof raw === "object" && raw !== null && "data" in raw && Array.isArray((raw as { data?: unknown }).data)) {
-        const rawChars = (raw as { data: Array<{
-          power?: number;
-          gearTier?: number;
-          activeYellow?: number;
-          activeRed?: number;
-          info?: { name?: string };
-        }> }).data;
-        chars = rawChars.map((c) => ({
-          name: c.info?.name,
-          power: c.power,
-          gearTier: c.gearTier,
-          yellowStars: c.activeYellow,
-          redStars: c.activeRed,
-        }));
-      }
+      chars = normalizeAdvisorRosterSnapshot(snapshots[0].snapshotData);
     }
-
-    // Filter to chars with names
-    chars = chars.filter((c) => c.name);
 
     // If snapshot had no usable names, fall back to live MSF API
     if (chars.length === 0) {
       const token = await getValidAccessToken();
       if (token) {
-        const liveRoster = await msfApiFetch<{ data?: Array<{
-          power?: number;
-          gearTier?: number;
-          activeYellow?: number;
-          activeRed?: number;
-          info?: { name?: string };
-        }> }>({
-          path: "/player/v1/roster?charInfo=full&traitFormat=id&page=1&perPage=200",
-          accessToken: token,
-        });
-        if (liveRoster.data) {
-          chars = liveRoster.data.map((c) => ({
-            name: c.info?.name,
-            power: c.power,
-            gearTier: c.gearTier,
-            yellowStars: c.activeYellow,
-            redStars: c.activeRed,
-          })).filter((c) => c.name);
-        }
+        chars = await fetchAdvisorRoster(token);
       }
     }
 

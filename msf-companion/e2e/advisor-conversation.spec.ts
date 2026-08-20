@@ -112,6 +112,8 @@ test.describe("Advisor Conversation Memory", () => {
                 role: "assistant",
                 content:
                   "For DD7 node 10, I recommend using **Eternals** with Ikaris and Sersi.",
+                confidenceScore: 82,
+                sourceCitations: [{ date: "2026-04-05T00:00:00Z" }],
               },
             ],
           },
@@ -133,6 +135,8 @@ test.describe("Advisor Conversation Memory", () => {
       page.getByText("What team for DD7 node 10?")
     ).toBeVisible();
     await expect(page.getByText("Eternals")).toBeVisible();
+    await expect(page.getByTestId("confidence-badge")).toContainText("High");
+    await expect(page.getByTestId("freshness-indicator")).toContainText("Newest supporting source");
   });
 
   test("New conversation button creates a fresh session", async ({
@@ -264,9 +268,10 @@ test.describe("Advisor Conversation Memory", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/advisor");
 
-    // Sidebar should be hidden (translated off-screen)
+    // Sidebar should be positioned outside the mobile viewport. Tailwind v4
+    // uses the individual `translate` property, so `transform` may be `none`.
     const sidebar = page.getByTestId("conversation-sidebar");
-    await expect(sidebar).toHaveCSS("transform", "matrix(1, 0, 0, 1, -288, 0)");
+    await expect.poll(async () => (await sidebar.boundingBox())?.x ?? 0).toBeLessThan(0);
 
     // Toggle should be visible
     const toggle = page.getByTestId("sidebar-toggle");
@@ -274,11 +279,11 @@ test.describe("Advisor Conversation Memory", () => {
 
     // Click toggle opens sidebar
     await toggle.click();
-    await expect(sidebar).toHaveCSS("transform", "none");
+    await expect.poll(async () => (await sidebar.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(0);
 
     // Click overlay closes sidebar
-    await page.getByTestId("sidebar-overlay").click();
-    await expect(sidebar).toHaveCSS("transform", "matrix(1, 0, 0, 1, -288, 0)");
+    await page.getByTestId("sidebar-overlay").click({ position: { x: 350, y: 400 } });
+    await expect.poll(async () => (await sidebar.boundingBox())?.x ?? 0).toBeLessThan(0);
   });
 
   test("active conversation is visually highlighted in sidebar", async ({

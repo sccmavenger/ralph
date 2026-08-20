@@ -4,6 +4,8 @@ import { getScopelyId } from "@/lib/scopely-id";
 import { prisma } from "@/lib/prisma";
 import { processNegativeFeedback } from "@/lib/gap-resolver";
 
+const MAX_FEEDBACK_COMMENT_LENGTH = 1000;
+
 export async function PATCH(request: NextRequest) {
   const session = await getSession();
   if (!session.accessToken) {
@@ -23,12 +25,34 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json() as { messageId?: string; rating?: string; comment?: string };
+  let body: { messageId?: unknown; rating?: unknown; comment?: unknown };
+  try {
+    const parsed: unknown = await request.json();
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "JSON body must be an object" }, { status: 400 });
+    }
+    body = parsed as { messageId?: unknown; rating?: unknown; comment?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const { messageId, rating, comment } = body;
 
-  if (!messageId || !rating || !["positive", "negative"].includes(rating)) {
+  if (
+    typeof messageId !== "string" ||
+    typeof rating !== "string" ||
+    !["positive", "negative"].includes(rating)
+  ) {
     return NextResponse.json({ error: "Invalid request. Provide messageId and rating (positive|negative)." }, { status: 400 });
   }
+
+  if (comment !== undefined && typeof comment !== "string") {
+    return NextResponse.json({ error: "Comment must be a string" }, { status: 400 });
+  }
+
+  const normalizedComment =
+    typeof comment === "string"
+      ? comment.trim().slice(0, MAX_FEEDBACK_COMMENT_LENGTH)
+      : undefined;
 
   // Verify the message belongs to a conversation owned by this commander
   const message = await prisma.advisorMessage.findUnique({
@@ -48,7 +72,7 @@ export async function PATCH(request: NextRequest) {
     where: { id: messageId },
     data: {
       feedback: rating,
-      ...(comment !== undefined ? { feedbackComment: comment } : {}),
+      ...(normalizedComment !== undefined ? { feedbackComment: normalizedComment } : {}),
     },
   });
 

@@ -20,8 +20,10 @@ interface RawRosterChar {
  * Fetches the full roster from the MSF API with character info (paginated).
  * Returns a normalized array of characters.
  */
-async function fetchFullRoster(accessToken: string): Promise<object[]> {
-  const PER_PAGE = 200;
+export async function fetchFullRoster(accessToken: string): Promise<object[]> {
+  // Full character details exceed the upstream response limit at large page
+  // sizes. Keep this aligned with the live roster and Advisor fetch paths.
+  const PER_PAGE = 25;
   const page1 = await msfApiFetch<{ data?: RawRosterChar[]; meta?: { perTotal?: number } }>({
     path: `/player/v1/roster?charInfo=full&traitFormat=id&page=1&perPage=${PER_PAGE}`,
     accessToken,
@@ -32,15 +34,14 @@ async function fetchFullRoster(accessToken: string): Promise<object[]> {
 
   if (total > PER_PAGE) {
     const pageCount = Math.ceil(total / PER_PAGE);
-    const extra = await Promise.all(
-      Array.from({ length: pageCount - 1 }, (_, i) =>
-        msfApiFetch<{ data?: RawRosterChar[] }>({
-          path: `/player/v1/roster?charInfo=full&traitFormat=id&page=${i + 2}&perPage=${PER_PAGE}`,
-          accessToken,
-        }),
-      ),
-    );
-    for (const p of extra) allRaw.push(...(p.data ?? []));
+    // Sequential requests avoid upstream throttling during login snapshots.
+    for (let page = 2; page <= pageCount; page++) {
+      const nextPage = await msfApiFetch<{ data?: RawRosterChar[] }>({
+        path: `/player/v1/roster?charInfo=full&traitFormat=id&page=${page}&perPage=${PER_PAGE}`,
+        accessToken,
+      });
+      allRaw.push(...(nextPage.data ?? []));
+    }
   }
 
   // Normalize to a consistent format with top-level name, yellowStars, etc.

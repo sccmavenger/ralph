@@ -57,7 +57,7 @@ async function main() {
 
   const result = await runIngestionPipeline({
     clearExisting: isFull,
-    maxVideosPerChannel: 15,
+    maxVideosPerChannel: 50,
     incremental: !isFull,
     onProgress: (msg) => console.log(msg),
   });

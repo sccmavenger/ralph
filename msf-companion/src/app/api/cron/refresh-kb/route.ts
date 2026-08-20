@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runIngestionPipeline({ incremental: true });
+  const result = await runIngestionPipeline({ incremental: true, maxVideosPerChannel: 50 });
   const staleness = await checkCreatorStaleness();
   const refreshedAt = new Date().toISOString();
 

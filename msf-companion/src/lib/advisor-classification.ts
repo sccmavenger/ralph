@@ -63,6 +63,7 @@ Return: {"category": "...", "confidenceScore": N}`,
           temperature: 0,
           response_format: { type: "json_object" },
         }),
+        signal: AbortSignal.timeout(10_000),
       }
     );
 

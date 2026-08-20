@@ -11,6 +11,8 @@
     "kb:refresh": "npx tsx scripts/refresh-kb.ts",
     "kb:refresh:full": "npx tsx scripts/refresh-kb.ts --full",
     "kb:status": "npx tsx scripts/refresh-kb.ts --status",
+    "kb:migrate-index": "npx tsx scripts/migrate-kb-index.ts",
+    "kb:sync-official": "npx tsx scripts/sync-official-kb.ts",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui"
   },

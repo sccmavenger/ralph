@@ -18,7 +18,7 @@ test.describe("AI Advisor Chat", () => {
   test("advisor page loads with welcome message visible", async ({ page }) => {
     await page.goto("/advisor");
     await expect(page.getByTestId("welcome-message")).toBeVisible();
-    await expect(page.getByText("AI Roster Advisor")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Roster Advisor" })).toBeVisible();
   });
 
   test("suggestion chips are visible and clickable", async ({ page }) => {
@@ -29,11 +29,10 @@ test.describe("AI Advisor Chat", () => {
     const chipButtons = chips.locator("button");
     await expect(chipButtons).toHaveCount(4);
 
-    // Verify chip text
-    await expect(chipButtons.nth(0)).toContainText("What team should I build next?");
-    await expect(chipButtons.nth(1)).toContainText("Who should I farm for DD7?");
-    await expect(chipButtons.nth(2)).toContainText("Best Crucible defense with my roster?");
-    await expect(chipButtons.nth(3)).toContainText("Is Apocalypse worth investing in?");
+    // Suggestions are intentionally randomized and may be roster-personalized.
+    for (let index = 0; index < 4; index++) {
+      await expect(chipButtons.nth(index)).not.toHaveText("");
+    }
   });
 
   test("chat input bar is visible at the bottom", async ({ page }) => {
@@ -83,14 +82,6 @@ test.describe("AI Advisor Chat", () => {
       ];
 
       const body = chunks.map((c) => encoder.encode(c));
-      const stream = new ReadableStream({
-        start(controller) {
-          for (const chunk of body) {
-            controller.enqueue(chunk);
-          }
-          controller.close();
-        },
-      });
 
       await route.fulfill({
         status: 200,
@@ -158,7 +149,7 @@ test.describe("AI Advisor Chat", () => {
     // First question fails
     await page.getByTestId("chat-input").fill("first question");
     await page.getByTestId("send-button").click();
-    await expect(page.getByText(/trouble connecting|went wrong/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Server error")).toBeVisible({ timeout: 10000 });
 
     // Second question succeeds
     await page.getByTestId("chat-input").fill("second question");
@@ -166,8 +157,32 @@ test.describe("AI Advisor Chat", () => {
     await expect(page.getByText("Recovery response")).toBeVisible({ timeout: 10000 });
   });
 
+  test("stream errors remove partial output and show a retryable message", async ({ page }) => {
+    await page.route("/api/advisor/chat", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: [
+          `data: ${JSON.stringify({ confidence: 35 })}\n\n`,
+          `data: ${JSON.stringify({ content: "Partial unsafe output" })}\n\n`,
+          `data: ${JSON.stringify({ error: "The response was blocked by the safety filter." })}\n\n`,
+          "data: [DONE]\n\n",
+        ].join(""),
+      })
+    );
+
+    await page.goto("/advisor");
+    await page.getByTestId("chat-input").fill("Test filtered stream");
+    await page.getByTestId("send-button").click();
+
+    await expect(page.getByText("The response was blocked by the safety filter.")).toBeVisible();
+    await expect(page.getByText("Partial unsafe output")).toHaveCount(0);
+  });
+
   test("unauthenticated user is redirected to login", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
     const page = await context.newPage();
     await page.addInitScript(() => {
       Object.defineProperty(window.navigator, "standalone", { value: true });

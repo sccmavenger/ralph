@@ -43,3 +43,44 @@ This version has breaking changes — APIs, conventions, and file structure may 
   perfect record as conclusive.
 - Teams build readiness is an explicit toolkit benchmark (GT16, 7 yellow,
   5 red), not a guarantee that the team can clear a particular mode.
+
+## Advisor patterns
+
+- Treat every client-supplied conversation ID as tenant-scoped input. Verify
+  both Premium entitlement and `commanderId` ownership before reading history
+  or writing messages; the conversation detail/list APIs enforce the same rule.
+- SSE reads can split a JSON event at any byte. Use `SseDataParser` on both the
+  Azure OpenAI upstream and browser downstream, and retain unfinished tails
+  between chunks.
+- Load the newest conversation messages with a descending query plus an
+  in-memory reverse. A Prisma child's insert does not refresh its parent's
+  `updatedAt`, so explicitly update the conversation when adding messages.
+- Shared response-cache entries are allowed only when there is no roster or
+  conversation context. Never reuse commander-personalized answers across
+  accounts.
+- Missing, timed-out, or unhealthy AI configuration returns HTTP 503 so the UI
+  shows the honest fallback. Do not turn provider failures into synthetic 200
+  "coming soon" answers or consume a free question before provider acceptance.
+- Advisor roster fallbacks and login snapshots use sequential pages of 25.
+  Reuse `advisor-roster.ts` to normalize both legacy and current snapshots.
+- Show source freshness only when a real dated source exists. Default offline
+  guidance must identify itself as general guardrails rather than current meta.
+- Build all new Advisor evidence with `createKnowledgeDocument`; every document
+  needs a stable source ID, publication/ingestion timestamps, content hash,
+  pipeline version, lifecycle status, and explicit source type/tier.
+- The current MSF character contract uses `abilityKit` (request
+  `abilityKits=full`), `traits` (request `traitFormat=id`), and
+  `iso8ClassAdoption` (request `charAdoption=full`). Page full kits in groups of
+  10 because some 25-row pages exceed the upstream response limit.
+- Analysis endpoints return a `squad` array. War performance is `wins / total`;
+  Crucible defensive holds are `(defends - defeats) / defends`. Usage volume is
+  popularity evidence, not success evidence.
+- The official updates HTML page is client rendered. Ingest the Twill services
+  at `/services/twill/getArticles` and `/services/twill/getArticle`, retaining
+  the article's actual publication date.
+- Creator discovery uses the verified registry in `kb-creators.ts`, the uploads
+  playlist API when a YouTube key is available, and RSS only as a fallback.
+  Fetch captions with `yt-dlp` first and `youtube-transcript` second.
+- Advisor retrieval is hybrid only when an embedding deployment is configured;
+  keyword retrieval is the availability fallback. Search must exclude system
+  and non-active lifecycle documents and infer legacy provenance accurately.

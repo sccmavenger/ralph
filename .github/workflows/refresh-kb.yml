@@ -6,25 +6,29 @@ on:
     - cron: "0 6,18 * * *"
   workflow_dispatch: # Allow manual trigger
 
+concurrency:
+  group: refresh-knowledge-base
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Trigger KB Refresh
+      - name: Refresh official game, meta, blog, and community data
         run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          curl --fail-with-body --show-error --silent -X POST \
+            "https://themsftoolkit.com/api/cron/sync-gamedata" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 600 | tee official-sync.json
+          jq -e '.summary.failed == 0' official-sync.json
+
+      - name: Discover and ingest creator videos
+        run: |
+          curl --fail-with-body --show-error --silent -X POST \
             "https://themsftoolkit.com/api/cron/refresh-kb" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            --max-time 300)
-          
-          http_code=$(echo "$response" | tail -1)
-          body=$(echo "$response" | head -n -1)
-          
-          echo "HTTP Status: $http_code"
-          echo "Response: $body"
-          
-          if [ "$http_code" -ne 200 ]; then
-            echo "::error::KB refresh failed with status $http_code"
-            exit 1
-          fi
+            --max-time 600 | tee creator-sync.json
+          jq -e '.result.errors | length == 0' creator-sync.json
