@@ -44,8 +44,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: msf-companion/package-lock.json
 
       - name: Install dependencies
         working-directory: msf-companion
@@ -53,4 +51,6 @@ jobs:
 
       - name: Discover and ingest creator transcripts
         working-directory: msf-companion
-        run: npm run kb:refresh -- --max=10
+        # Small steady-state batches reduce YouTube throttling; indexed video IDs
+        # make this incremental, so each run naturally catches up from its checkpoint.
+        run: npm run kb:refresh -- --max=5
