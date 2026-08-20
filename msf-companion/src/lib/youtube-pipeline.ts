@@ -330,7 +330,7 @@ export async function getDocumentCount(): Promise<number> {
 /**
  * Query Azure AI Search for all existing video IDs (from yt-{videoId}-{chunk} format)
  */
-export async function getExistingVideoIds(): Promise<Set<string>> {
+export async function getExistingVideoIds(respectRetryMarkers = true): Promise<Set<string>> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return new Set();
 
   const ids = new Set<string>();
@@ -351,6 +351,7 @@ export async function getExistingVideoIds(): Promise<Set<string>> {
       const parts = doc.id.split("-");
       if (parts.length >= 3 && parts[0] === "yt") {
         const isRetryMarker = parts.at(-1) === "skip";
+        if (isRetryMarker && !respectRetryMarkers) continue;
         const retryAt = doc.validUntil ? new Date(doc.validUntil).getTime() : Number.POSITIVE_INFINITY;
         if (isRetryMarker && retryAt <= Date.now()) continue;
         const videoId = parts.slice(1, -1).join("-");
@@ -391,6 +392,7 @@ export async function runIngestionPipeline(
     incremental?: boolean;
     maxRuntimeMs?: number;
     transcriptTimeoutMs?: number;
+    respectRetryMarkers?: boolean;
   } = {}
 ): Promise<IngestResult> {
   const {
@@ -400,6 +402,7 @@ export async function runIngestionPipeline(
     incremental = false,
     maxRuntimeMs,
     transcriptTimeoutMs = 90_000,
+    respectRetryMarkers = true,
   } = options;
   const startedAt = Date.now();
   const log = onProgress || console.log;
@@ -439,7 +442,7 @@ export async function runIngestionPipeline(
   let videosToProcess = allVideos;
   if (incremental) {
     log("Checking for already-indexed videos...");
-    const existingIds = await getExistingVideoIds();
+    const existingIds = await getExistingVideoIds(respectRetryMarkers);
     videosToProcess = allVideos.filter((v) => !existingIds.has(v.videoId));
     const skippedCount = allVideos.length - videosToProcess.length;
     for (const v of allVideos) {

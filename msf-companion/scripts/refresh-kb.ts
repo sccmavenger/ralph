@@ -31,6 +31,10 @@ async function main() {
   const args = process.argv.slice(2);
   const isFull = args.includes("--full");
   const isStatus = args.includes("--status");
+  const requestedMax = Number(args.find((arg) => arg.startsWith("--max="))?.split("=")[1]);
+  const maxVideosPerChannel = Number.isInteger(requestedMax) && requestedMax > 0
+    ? Math.min(50, requestedMax)
+    : 50;
 
   if (!process.env.AZURE_AI_SEARCH_ENDPOINT || !process.env.AZURE_AI_SEARCH_KEY) {
     console.error("ERROR: Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_KEY in .env");
@@ -57,8 +61,12 @@ async function main() {
 
   const result = await runIngestionPipeline({
     clearExisting: isFull,
-    maxVideosPerChannel: 50,
+    maxVideosPerChannel,
     incremental: !isFull,
+    // Azure retry markers protect the scheduled cloud worker. A trusted local
+    // run can retrieve captions that YouTube denies to Azure, so ignore only
+    // those temporary markers while still honoring successfully indexed IDs.
+    respectRetryMarkers: false,
     onProgress: (msg) => console.log(msg),
   });
 
