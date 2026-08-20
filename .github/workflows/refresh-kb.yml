@@ -31,5 +31,6 @@ jobs:
             "https://themsftoolkit.com/api/cron/refresh-kb" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            --max-time 600 | tee creator-sync.json
+            --max-time 600 | tee creator-sync.json > /dev/null
           jq -e '.result.errors | length == 0' creator-sync.json
+          jq '{videosProcessed: .result.videosProcessed, documentsUploaded: .result.documentsUploaded, skipped: (.result.skippedVideos | length), deadlineReached: .result.deadlineReached, deferredVideos: .result.deferredVideos}' creator-sync.json

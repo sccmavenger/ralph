@@ -334,7 +334,7 @@ export async function getExistingVideoIds(): Promise<Set<string>> {
   if (!SEARCH_ENDPOINT || !SEARCH_KEY) return new Set();
 
   const ids = new Set<string>();
-  const url = `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs?api-version=2024-07-01&$select=id&$top=5000&search=yt-*&queryType=full&searchFields=id`;
+  const url = `${SEARCH_ENDPOINT}/indexes/${INDEX_NAME}/docs?api-version=2024-07-01&$select=id,validUntil&$top=5000&search=yt-*&queryType=full&searchFields=id`;
 
   const resp = await fetch(url, {
     headers: { "api-key": SEARCH_KEY },
@@ -342,18 +342,38 @@ export async function getExistingVideoIds(): Promise<Set<string>> {
 
   if (!resp.ok) return ids;
 
-  const data = await resp.json() as { value: Array<{ id: string }> };
+  const data = await resp.json() as { value: Array<{ id: string; validUntil?: string }> };
   for (const doc of data.value) {
     // id format: yt-{videoId}-{chunkIndex}
     const parts = doc.id.split("-");
     if (parts.length >= 3 && parts[0] === "yt") {
-      // videoId is the middle part(s) — everything between first "yt-" and last "-chunkIndex"
+      const isRetryMarker = parts.at(-1) === "skip";
+      const retryAt = doc.validUntil ? new Date(doc.validUntil).getTime() : Number.POSITIVE_INFINITY;
+      if (isRetryMarker && retryAt <= Date.now()) continue;
+      // videoId is the middle part(s) — everything between first "yt-" and last suffix
       const videoId = parts.slice(1, -1).join("-");
       if (videoId) ids.add(videoId);
     }
   }
 
   return ids;
+}
+
+async function markTranscriptUnavailable(video: VideoInfo): Promise<void> {
+  const marker = createKnowledgeDocument({
+    id: `yt-${video.videoId}-skip`,
+    content: `Transcript unavailable for ${video.title}. Retry after the temporary caption cooldown expires.`,
+    category: "system",
+    sourceCreatorName: video.creator,
+    sourceTitle: video.title,
+    sourceUrl: video.url,
+    sourcePublishedAt: video.published || new Date().toISOString(),
+    sourceType: "youtube-transcript",
+    sourceId: video.videoId,
+    validUntil: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  });
+  const upload = await uploadDocuments([marker]);
+  if (upload.failed) throw new Error("Unable to persist transcript retry marker");
 }
 
 /**
@@ -446,6 +466,7 @@ export async function runIngestionPipeline(
 
       if (!transcript || transcript.length < 200) {
         result.skippedVideos.push(`${video.videoId}: No transcript available`);
+        await markTranscriptUnavailable(video);
         continue;
       }
 
