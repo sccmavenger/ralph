@@ -81,7 +81,6 @@ export function sanitizeKnowledgeId(value: string): string {
   const sanitized = value
     .normalize("NFKD")
     .replace(/[^A-Za-z0-9_\-=]+/g, "-")
-    .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 1024);
   if (!sanitized) throw new Error("Knowledge document ID is empty after sanitization");

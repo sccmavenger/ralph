@@ -58,5 +58,7 @@ describe("knowledge document contract", () => {
   it("cleans markup and produces Azure Search-safe IDs", () => {
     expect(cleanKnowledgeText("A&nbsp;B <color=#fff>C</color>\n\n\nD")).toBe("A B C\n\nD");
     expect(sanitizeKnowledgeId("a/b:c d")).toBe("a-b-c-d");
+    expect(sanitizeKnowledgeId("yt--8POFK5Ihow-0")).toBe("yt--8POFK5Ihow-0");
+    expect(sanitizeKnowledgeId("yt-qc79A--Pm4I-0")).toBe("yt-qc79A--Pm4I-0");
   });
 });
