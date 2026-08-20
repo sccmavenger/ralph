@@ -13,7 +13,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runIngestionPipeline({ incremental: true, maxVideosPerChannel: 50 });
+  // Container Apps ingress terminates requests near four minutes. Work in a
+  // bounded slice and rely on per-video checkpoints for the next invocation.
+  const result = await runIngestionPipeline({
+    incremental: true,
+    maxVideosPerChannel: 50,
+    maxRuntimeMs: 180_000,
+    transcriptTimeoutMs: 45_000,
+  });
   const staleness = await checkCreatorStaleness();
   const refreshedAt = new Date().toISOString();
 

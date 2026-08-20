@@ -37,6 +37,8 @@ export interface IngestResult {
   errors: string[];
   skippedVideos: string[];
   newVideosFound: number;
+  deadlineReached: boolean;
+  deferredVideos: number;
 }
 
 /**
@@ -102,10 +104,11 @@ export async function fetchChannelVideos(channelId: string, creatorName: string,
  * Note: YouTube blocks transcript access from Azure/cloud datacenter IPs.
  * Use scripts/refresh-kb.ts locally to populate the knowledge base.
  */
-export async function fetchTranscript(videoId: string): Promise<string | null> {
+export async function fetchTranscript(videoId: string, timeoutMs = 90_000): Promise<string | null> {
   // Validate videoId format (YouTube IDs are 11 chars of [A-Za-z0-9_-])
   if (!/^[A-Za-z0-9_-]{10,12}$/.test(videoId)) return null;
 
+  const phaseTimeoutMs = Math.max(10_000, Math.floor(timeoutMs / 2));
   let tempDirectory = "";
   try {
     tempDirectory = await mkdtemp(join(tmpdir(), "msf-kb-"));
@@ -118,7 +121,7 @@ export async function fetchTranscript(videoId: string): Promise<string | null> {
       "--no-warnings",
       "-o", join(tempDirectory, "%(id)s.%(ext)s"),
       `https://www.youtube.com/watch?v=${videoId}`,
-    ], { timeout: 90_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
+    ], { timeout: phaseTimeoutMs, windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
     const subtitleFile = (await readdir(tempDirectory)).find((file) => file.endsWith(".json3"));
     if (subtitleFile) {
       const payload = JSON.parse(await readFile(join(tempDirectory, subtitleFile), "utf8")) as {
@@ -139,7 +142,10 @@ export async function fetchTranscript(videoId: string): Promise<string | null> {
   }
 
   try {
-    const items = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
+    const items = await Promise.race([
+      YoutubeTranscript.fetchTranscript(videoId, { lang: "en" }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Transcript fallback timed out")), phaseTimeoutMs)),
+    ]);
     if (!items || items.length === 0) return null;
     return items.map(item => item.text).join(" ");
   } catch (error: unknown) {
@@ -359,11 +365,29 @@ export async function runIngestionPipeline(
     maxVideosPerChannel?: number;
     onProgress?: (msg: string) => void;
     incremental?: boolean;
+    maxRuntimeMs?: number;
+    transcriptTimeoutMs?: number;
   } = {}
 ): Promise<IngestResult> {
-  const { clearExisting = false, maxVideosPerChannel = 15, onProgress, incremental = false } = options;
+  const {
+    clearExisting = false,
+    maxVideosPerChannel = 15,
+    onProgress,
+    incremental = false,
+    maxRuntimeMs,
+    transcriptTimeoutMs = 90_000,
+  } = options;
+  const startedAt = Date.now();
   const log = onProgress || console.log;
-  const result: IngestResult = { videosProcessed: 0, documentsUploaded: 0, errors: [], skippedVideos: [], newVideosFound: 0 };
+  const result: IngestResult = {
+    videosProcessed: 0,
+    documentsUploaded: 0,
+    errors: [],
+    skippedVideos: [],
+    newVideosFound: 0,
+    deadlineReached: false,
+    deferredVideos: 0,
+  };
 
   // When incremental, force clearExisting to false
   if (!incremental && clearExisting) {
@@ -408,10 +432,17 @@ export async function runIngestionPipeline(
   // Step 2: Fetch transcripts and chunk
   let documentsPrepared = 0;
 
-  for (const video of videosToProcess) {
+  for (const [videoIndex, video] of videosToProcess.entries()) {
+    const remainingBudget = maxRuntimeMs ? maxRuntimeMs - (Date.now() - startedAt) : Number.POSITIVE_INFINITY;
+    if (remainingBudget < transcriptTimeoutMs + 15_000) {
+      result.deadlineReached = true;
+      result.deferredVideos = videosToProcess.length - videoIndex;
+      log(`Runtime budget reached; deferring ${result.deferredVideos} videos to the next incremental run`);
+      break;
+    }
     try {
       log(`  Processing: ${video.creator} - ${video.title.substring(0, 60)}...`);
-      const transcript = await fetchTranscript(video.videoId);
+      const transcript = await fetchTranscript(video.videoId, transcriptTimeoutMs);
 
       if (!transcript || transcript.length < 200) {
         result.skippedVideos.push(`${video.videoId}: No transcript available`);
@@ -462,25 +493,20 @@ export interface CreatorStaleness {
  * A creator is stale if their most recent RSS entry is older than 30 days or they have zero entries.
  */
 export async function checkCreatorStaleness(): Promise<CreatorStaleness[]> {
-  const results: CreatorStaleness[] = [];
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-
-  for (const creator of getEnabledMSFCreators()) {
+  return Promise.all(getEnabledMSFCreators().map(async (creator): Promise<CreatorStaleness> => {
     try {
       const videos = await fetchChannelVideos(creator.channelId, creator.name, 1);
       const firstPublished = videos[0]?.published || null;
       if (!firstPublished) {
-        results.push({ name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true });
-        continue;
+        return { name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true };
       }
 
       const lastDate = firstPublished.substring(0, 10);
       const isStale = new Date(firstPublished).getTime() < thirtyDaysAgo;
-      results.push({ name: creator.name, channelId: creator.channelId, lastVideoDate: lastDate, isStale });
+      return { name: creator.name, channelId: creator.channelId, lastVideoDate: lastDate, isStale };
     } catch {
-      results.push({ name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true });
+      return { name: creator.name, channelId: creator.channelId, lastVideoDate: null, isStale: true };
     }
-  }
-
-  return results;
+  }));
 }

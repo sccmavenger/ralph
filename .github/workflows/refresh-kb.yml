@@ -2,8 +2,9 @@ name: Refresh Knowledge Base
 
 on:
   schedule:
-    # Run every 12 hours at 6:00 AM and 6:00 PM UTC
-    - cron: "0 6,18 * * *"
+    # Small resumable creator slices run often enough to absorb new uploads
+    # and recover a backlog without exceeding the web ingress timeout.
+    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch: # Allow manual trigger
 
 concurrency:
