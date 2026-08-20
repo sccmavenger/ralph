@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  refresh:
+  official-sync:
+    name: Refresh official sources
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -25,12 +26,31 @@ jobs:
             --max-time 600 | tee official-sync.json
           jq -e '.summary.failed == 0' official-sync.json
 
-      - name: Discover and ingest creator videos
-        run: |
-          curl --fail-with-body --show-error --silent -X POST \
-            "https://themsftoolkit.com/api/cron/refresh-kb" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            --max-time 600 | tee creator-sync.json > /dev/null
-          jq -e '.result.errors | length == 0' creator-sync.json
-          jq '{videosProcessed: .result.videosProcessed, documentsUploaded: .result.documentsUploaded, skipped: (.result.skippedVideos | length), deadlineReached: .result.deadlineReached, deferredVideos: .result.deferredVideos}' creator-sync.json
+  creator-sync:
+    name: Refresh creator transcripts
+    runs-on: [self-hosted, Windows, X64, msf-kb]
+    timeout-minutes: 90
+    env:
+      AZURE_AI_SEARCH_ENDPOINT: ${{ secrets.AZURE_AI_SEARCH_ENDPOINT }}
+      AZURE_AI_SEARCH_KEY: ${{ secrets.AZURE_AI_SEARCH_KEY }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+    steps:
+      - name: Check out the current knowledge pipeline
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: msf-companion/package-lock.json
+
+      - name: Install dependencies
+        working-directory: msf-companion
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Discover and ingest creator transcripts
+        working-directory: msf-companion
+        run: npm run kb:refresh -- --max=10

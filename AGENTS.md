@@ -40,3 +40,4 @@ Ralph is the repository's internal autonomous development workflow for VS Code a
 - Stories should be small enough to complete in one context window
 - Always update `AGENTS.md` with discovered patterns for future iterations
 - Read `progress.txt` Codebase Patterns section before starting each story
+- `.github/workflows/refresh-kb.yml` keeps official sources current on a GitHub-hosted runner and creator transcripts current on the dedicated Windows runner labeled `msf-kb`; the latter is required because YouTube blocks caption extraction from Azure-hosted IP ranges.
