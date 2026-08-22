@@ -20,7 +20,7 @@ describe("Dark Dimension service", () => {
     mockMsfApiFetch.mockReset();
   });
 
-  it("counts the non-empty rooms in a sparse live rays grid", async () => {
+  it("counts combat rooms in a sparse live rays grid without the entrance", async () => {
     mockMsfApiFetch.mockResolvedValue({
       data: [
         {
@@ -29,6 +29,7 @@ describe("Dark Dimension service", () => {
           combatNodesPerTeam: 3,
           rayCount: 3,
           rayDepth: 3,
+          startingRoomId: "A1",
           rays: [
             ["A1", "A2", "A3"],
             ["", "", "B3"],
@@ -40,10 +41,10 @@ describe("Dark Dimension service", () => {
 
     const result = await fetchAllDDs("token");
 
-    expect(result[0].nodeCount).toBe(4);
+    expect(result[0].nodeCount).toBe(3);
   });
 
-  it("builds selectable nodes when the live detail omits the legacy rooms object", async () => {
+  it("omits the entrance when the live detail has no legacy rooms object", async () => {
     mockMsfApiFetch.mockResolvedValue({
       data: {
         id: "dd9",
@@ -58,18 +59,14 @@ describe("Dark Dimension service", () => {
 
     const result = await fetchDD("dd9", "token");
 
-    expect(result.nodes.map((node) => node.roomId)).toEqual([
-      "A1",
-      "A2",
-      "A3",
-      "B3",
-    ]);
+    expect(result.nodes.map((node) => node.roomId)).toEqual(["A2", "A3", "B3"]);
   });
 
   it("preserves room metadata while ordering and de-duplicating from rays", async () => {
     mockMsfApiFetch.mockResolvedValue({
       data: {
         id: "dd7",
+        startingRoomId: "A1",
         rays: [
           ["A1", "A2"],
           ["", "A2"],
@@ -84,7 +81,6 @@ describe("Dark Dimension service", () => {
     const result = await fetchDD("dd7", "token");
 
     expect(result.nodes).toMatchObject([
-      { roomId: "A1", name: "Entrance" },
       { roomId: "A2", name: "Boss", isBoss: true },
     ]);
   });

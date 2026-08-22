@@ -227,12 +227,15 @@ export async function fetchAllDDs(
   }
 
   const dds: DDInfo[] = (raw.data ?? []).map((item) => {
-    const rayRoomIds = uniqueRoomIds(item.rays);
+    const rayRoomIds = combatRoomIds(item.rays, item.startingRoomId);
 
     // A DD map can contain gaps and branching paths, so rayCount*rayDepth is
-    // not a node count. Prefer the actual non-empty room IDs from the live map.
+    // not a node count. The starting room is a non-combat map entrance, so it
+    // must not be included in the planner's combat-node total.
     const roomCount = item.rooms
-      ? Object.keys(item.rooms).length
+      ? Object.keys(item.rooms).filter(
+          (roomId) => roomId !== item.startingRoomId,
+        ).length
       : rayRoomIds.length > 0
         ? rayRoomIds.length
         : (item.combatNodesPerTeam ?? 0);
@@ -282,11 +285,16 @@ export async function fetchDD(
   }
 
   // Current live responses expose the map as a sparse rays grid and may omit
-  // the legacy rooms object. Always build selectable nodes from the map, then
-  // enrich them with room metadata when it is present.
-  const orderedRoomIds = uniqueRoomIds(data.rays);
+  // the legacy rooms object. The starting room is the non-combat entrance, so
+  // build selectable nodes from every other room and then enrich them with
+  // room metadata when it is present.
+  const orderedRoomIds = combatRoomIds(data.rays, data.startingRoomId);
   if (orderedRoomIds.length === 0 && data.rooms) {
-    orderedRoomIds.push(...Object.keys(data.rooms));
+    orderedRoomIds.push(
+      ...Object.keys(data.rooms).filter(
+        (roomId) => roomId !== data.startingRoomId,
+      ),
+    );
   }
   const nodes: DDNode[] = orderedRoomIds.map((roomId) => {
     const room = data.rooms?.[roomId];
@@ -374,6 +382,13 @@ export async function fetchNode(
 function uniqueRoomIds(rays?: string[][]): string[] {
   if (!rays) return [];
   return [...new Set(rays.flat().filter((roomId) => roomId.trim().length > 0))];
+}
+
+function combatRoomIds(
+  rays?: string[][],
+  startingRoomId?: string,
+): string[] {
+  return uniqueRoomIds(rays).filter((roomId) => roomId !== startingRoomId);
 }
 
 function normalizeRequirements(

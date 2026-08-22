@@ -44,6 +44,29 @@ test.describe("AI Advisor Chat", () => {
     await expect(sendButton).toBeVisible();
   });
 
+  test("a fresh question omits the empty conversation ID", async ({ page }) => {
+    let requestBody: Record<string, unknown> | null = null;
+    await page.route("/api/advisor/chat", async (route) => {
+      requestBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: [
+          `data: ${JSON.stringify({ confidence: 75 })}\n\n`,
+          `data: ${JSON.stringify({ content: "Fresh conversation works." })}\n\n`,
+          "data: [DONE]\n\n",
+        ].join(""),
+      });
+    });
+
+    await page.goto("/advisor");
+    await page.getByTestId("chat-input").fill("What should I build?");
+    await page.getByTestId("send-button").click();
+
+    await expect(page.getByText("Fresh conversation works.")).toBeVisible();
+    expect(requestBody).toEqual({ question: "What should I build?" });
+  });
+
   test("page renders without horizontal overflow at 375px viewport", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/advisor");

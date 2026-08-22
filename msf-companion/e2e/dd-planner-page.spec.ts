@@ -10,7 +10,9 @@ const mockDD7Detail = {
   id: "dd7",
   name: "Dark Dimension 7",
   ddCompletion: null,
+  startingRoomId: "E0",
   nodes: [
+    { roomId: "E0", name: "Entrance", isBoss: false, sectionName: "" },
     { roomId: "A1", name: "City Node 1", isBoss: false, sectionName: "City" },
     { roomId: "A2", name: "City Node 2", isBoss: false, sectionName: "City" },
     { roomId: "B1", name: "Global Boss", isBoss: true, sectionName: "Global" },
@@ -75,7 +77,7 @@ test.describe("DD Planner Page", () => {
     await expect(page.getByText("DD Planner")).toBeVisible();
   });
 
-  test("Select a DD — node selector appears showing nodes in order with total count", async ({
+  test("Select a DD — node selector excludes the entrance and shows combat nodes in order", async ({
     page,
   }) => {
     await setupMockRoutes(page);
@@ -90,6 +92,7 @@ test.describe("DD Planner Page", () => {
       .locator('[data-testid="node-selector"] option')
       .allTextContents();
     const joined = options.join("||");
+    expect(joined).not.toContain("Entrance");
     expect(joined).toContain("City Node 1");
     expect(joined).toContain("City Node 2");
     expect(joined).toContain("Global Boss");

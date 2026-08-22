@@ -18,7 +18,7 @@ import {
 
 interface ChatRequestBody {
   question?: string;
-  conversationId?: string;
+  conversationId?: string | null;
 }
 
 type SearchResult = KnowledgeSearchResult;
@@ -67,7 +67,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (body.conversationId !== undefined && typeof body.conversationId !== "string") {
+  // A missing or null ID means "start a fresh conversation". Accept null for
+  // backward compatibility with clients that serialized their empty state.
+  if (
+    body.conversationId !== undefined &&
+    body.conversationId !== null &&
+    typeof body.conversationId !== "string"
+  ) {
     return NextResponse.json({ error: "Invalid conversation ID" }, { status: 400 });
   }
 

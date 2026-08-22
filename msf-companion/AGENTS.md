@@ -52,6 +52,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Live DD detail payloads expose the sparse map in `rays` and may omit the
   legacy `rooms` object. Derive selectable room IDs and node counts from unique,
   non-empty ray cells; use `rooms` only to enrich metadata when present.
+- A DD map's `startingRoomId` is a non-combat entrance. Exclude it from combat
+  node counts and selectors; the first remaining room is player-facing Node 1.
 - A successful DD room request with an empty `data` object is an unavailable
   upstream payload, not valid zero-enemy intelligence. Return a retryable error
   and do not cache it.
@@ -97,6 +99,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Treat every client-supplied conversation ID as tenant-scoped input. Verify
   both Premium entitlement and `commanderId` ownership before reading history
   or writing messages; the conversation detail/list APIs enforce the same rule.
+- A fresh Advisor chat has no conversation ID. Omit the field from client
+  requests when empty, and treat missing or `null` IDs as a new conversation at
+  the API boundary so stricter validation cannot break first-question flows.
 - SSE reads can split a JSON event at any byte. Use `SseDataParser` on both the
   Azure OpenAI upstream and browser downstream, and retain unfinished tails
   between chunks.

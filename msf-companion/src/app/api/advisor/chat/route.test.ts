@@ -80,6 +80,22 @@ describe("Advisor chat API access controls", () => {
     expect(prisma.advisorConversation.findFirst).not.toHaveBeenCalled();
   });
 
+  it("treats a null conversation ID as a fresh conversation", async () => {
+    vi.mocked(prisma.dailyTokenUsage.findUnique).mockResolvedValue({
+      tokensUsed: 50_000,
+    } as never);
+
+    const response = await POST(chatRequest(JSON.stringify({
+      question: "What should I build?",
+      conversationId: null,
+    })));
+
+    // Reaching the budget check proves the request passed ID validation. A
+    // fresh chat must not perform an ownership lookup for an existing thread.
+    expect(response.status).toBe(429);
+    expect(prisma.advisorConversation.findFirst).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for malformed JSON and oversized questions", async () => {
     const malformed = await POST(chatRequest("{"));
     expect(malformed.status).toBe(400);

@@ -59,7 +59,6 @@ export default function DDPlannerPage() {
 
   /** Build a clean display label for a node */
   function nodeLabel(node: DDNodeItem, idx: number): string {
-    const isEntrance = ddDetail?.startingRoomId === node.roomId;
     const boss = node.isBoss ? " ★ BOSS" : "";
     const section = node.sectionName
       ? ` · ${formatDisplayName(node.sectionName, "")}`
@@ -69,9 +68,6 @@ export default function DDPlannerPage() {
     const rawName = node.name ?? "";
     const isBareName = !rawName || /^[A-Z]\d+$/.test(rawName);
 
-    if (isEntrance && isBareName) {
-      return `#${idx + 1}${boss} — Entrance${section}`;
-    }
     if (isBareName) {
       return `#${idx + 1}${boss} — Node ${node.roomId}${section}`;
     }
@@ -148,6 +144,14 @@ export default function DDPlannerPage() {
       cancelled = true;
     };
   }, [selectedDD, ddDetailReload]);
+
+  // `startingRoomId` is the map entrance, not a battle. The service removes it
+  // from normal responses; this filter also protects the UI from stale or
+  // legacy responses that still include it.
+  const selectableNodes =
+    ddDetail?.nodes.filter(
+      (node) => node.roomId !== ddDetail.startingRoomId,
+    ) ?? [];
 
   return (
     <div className="px-4 py-4">
@@ -260,9 +264,9 @@ export default function DDPlannerPage() {
           {!ddDetailLoading && ddDetail && (
             <>
               <p className="mb-2 text-xs text-[var(--color-muted)]">
-                {ddDetail.nodes.length} nodes
+                {selectableNodes.length} nodes
               </p>
-              {ddDetail.nodes.length === 0 ? (
+              {selectableNodes.length === 0 ? (
                 <div className="mb-4 rounded-lg bg-amber-900/20 p-3 text-xs text-amber-300">
                   No node map is currently available for this Dark Dimension.
                 </div>
@@ -275,7 +279,7 @@ export default function DDPlannerPage() {
                   className="mb-4 w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-3 text-sm text-[var(--color-foreground)]"
                 >
                   <option value="">Select a node...</option>
-                  {ddDetail.nodes.map((node, idx) => (
+                  {selectableNodes.map((node, idx) => (
                     <option key={node.roomId} value={node.roomId}>
                       {nodeLabel(node, idx)}
                     </option>
@@ -291,10 +295,10 @@ export default function DDPlannerPage() {
       {selectedNode &&
         ddDetail &&
         (() => {
-          const nodeIdx = ddDetail.nodes.findIndex(
+          const nodeIdx = selectableNodes.findIndex(
             (n) => n.roomId === selectedNode,
           );
-          const node = ddDetail.nodes[nodeIdx];
+          const node = selectableNodes[nodeIdx];
           return node ? (
             <div className="mb-2 rounded-lg bg-[var(--color-surface)] p-3">
               <p className="text-xs text-[var(--color-muted)]">

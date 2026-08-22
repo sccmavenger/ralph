@@ -184,13 +184,13 @@ export default function AdvisorPageClient({ isPremium = false }: { isPremium?: b
     let assistantId: string | null = null;
 
     try {
+      const requestBody = activeConversationId
+        ? { question, conversationId: activeConversationId }
+        : { question };
       const response = await fetch("/api/advisor/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          conversationId: activeConversationId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
