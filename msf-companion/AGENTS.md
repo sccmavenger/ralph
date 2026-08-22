@@ -1,4 +1,5 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
@@ -32,6 +33,42 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Dashboard navigation E2E tests must suppress or dismiss the install-app prompt
   before clicking page content; the modal intentionally blocks background
   pointer events while it is open.
+
+## Dark Dimension Planner patterns
+
+- Every field inside one MSF `CharacterFilter` is ANDed, including
+  `anyCharacters`; the array of filters is ORed. `specificCharacters` is a
+  separate team-level rule and every listed character must be reserved in the
+  recommendation when compliant.
+- ISO-8 roster data stores the equipped class in `iso8.active` and its level in
+  the class-named field (`iso8.striker`, `iso8.healer`, and so on). There is no
+  generic `iso8.level` field.
+- Mission-character nodes use a fixed game-provided team and must not fetch or
+  recommend the player's roster.
+- DD recommendations fetch roster pages sequentially in groups of 25. Treat
+  upstream 401 and 403 responses as a one-time token-refresh opportunity.
+- MSF `meta.hashes.nodes` and `meta.hashes.chars` changes invalidate every
+  `dd:` cache entry, not just the endpoint that observed the new hash.
+- Live DD detail payloads expose the sparse map in `rays` and may omit the
+  legacy `rooms` object. Derive selectable room IDs and node counts from unique,
+  non-empty ray cells; use `rooms` only to enrich metadata when present.
+- A successful DD room request with an empty `data` object is an unavailable
+  upstream payload, not valid zero-enemy intelligence. Return a retryable error
+  and do not cache it.
+- Node requirements can be a difficulty-indexed array; normalize index 0 for
+  the DD planner because it does not expose a difficulty selector.
+- DD browser tests should call `suppressInstallPrompt` unless they are testing
+  the PWA install sheet itself.
+- DD recommendation percentages describe roster readiness (eligible team size,
+  available power, and role coverage), never a probability of clearing. Do not
+  label them as confidence without observed outcome evidence.
+- Never infer that sharing traits with an enemy makes a character a counter.
+  Cross-mode value may use `teamOrder` appearances as popularity evidence, but
+  must label usage separately from wins and degrade to roster readiness when
+  the analysis feed is unavailable.
+- Generate node strategy only from facts present in the live node payload
+  (composition, roles, stats, ISO-8, and wave triggers). Do not invent passive
+  interactions or claim a guaranteed target order when ability evidence is absent.
 
 ## Teams page patterns
 

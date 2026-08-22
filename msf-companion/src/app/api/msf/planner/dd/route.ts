@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getValidAccessTokenWithRefresh, refreshAccessToken } from "@/lib/auth";
-import { fetchAllDDs, DDServiceError } from "@/lib/dd-service";
+import { fetchAllDDs } from "@/lib/dd-service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  let token = await getValidAccessTokenWithRefresh();
+  const token = await getValidAccessTokenWithRefresh();
 
   if (!token) {
     return NextResponse.json(
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 
-    if (message.includes("401")) {
+    if (message.includes("401") || message.includes("403")) {
       const freshToken = await refreshAccessToken();
       if (freshToken) {
         try {
@@ -49,21 +49,33 @@ export async function GET(request: Request) {
         }
       }
       return NextResponse.json(
-        { error: "Session expired. Please log in again.", code: "TOKEN_EXPIRED", retryable: false },
+        {
+          error: "Session expired. Please log in again.",
+          code: "TOKEN_EXPIRED",
+          retryable: false,
+        },
         { status: 401 },
       );
     }
 
     if (message.includes("552") || message.includes("553")) {
       return NextResponse.json(
-        { error: "Game servers are in maintenance.", code: "MAINTENANCE", retryable: true },
+        {
+          error: "Game servers are in maintenance.",
+          code: "MAINTENANCE",
+          retryable: true,
+        },
         { status: 503 },
       );
     }
 
     console.error("DD list fetch failed:", err);
     return NextResponse.json(
-      { error: "Failed to fetch Dark Dimensions", code: "MSF_API_ERROR", retryable: true },
+      {
+        error: "Failed to fetch Dark Dimensions",
+        code: "MSF_API_ERROR",
+        retryable: true,
+      },
       { status: 502 },
     );
   }

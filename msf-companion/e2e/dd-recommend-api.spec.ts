@@ -8,13 +8,44 @@ import { test, expect, type Page } from "@playwright/test";
 
 const mockRecommendation = {
   primaryTeam: [
-    { id: "char-0", name: "Character 0", power: 800000, gearTier: 18, reasoning: "High power relative to enemies" },
-    { id: "char-1", name: "Character 1", power: 780000, gearTier: 18, reasoning: "Provides team protection" },
-    { id: "char-2", name: "Character 2", power: 760000, gearTier: 18, reasoning: "Strong trait overlap" },
-    { id: "char-3", name: "Character 3", power: 740000, gearTier: 18, reasoning: "High damage output" },
-    { id: "char-4", name: "Character 4", power: 720000, gearTier: 18, reasoning: "Support role" },
+    {
+      id: "char-0",
+      name: "Character 0",
+      power: 800000,
+      gearTier: 18,
+      reasoning: "High available combat power for this node",
+    },
+    {
+      id: "char-1",
+      name: "Character 1",
+      power: 780000,
+      gearTier: 18,
+      reasoning: "Provides team protection",
+    },
+    {
+      id: "char-2",
+      name: "Character 2",
+      power: 760000,
+      gearTier: 18,
+      reasoning: "Adds crowd-control potential",
+    },
+    {
+      id: "char-3",
+      name: "Character 3",
+      power: 740000,
+      gearTier: 18,
+      reasoning: "High damage output",
+    },
+    {
+      id: "char-4",
+      name: "Character 4",
+      power: 720000,
+      gearTier: 18,
+      reasoning: "Support role",
+    },
   ],
-  confidence: 72,
+  rosterReadiness: 72,
+  mode: "fastest-clear",
   alternatives: [],
   swapSuggestions: [],
   futureBuildSuggestions: [],
@@ -33,7 +64,7 @@ async function setupMockRoutes(page: Page) {
 }
 
 test.describe("DD Recommendation API", () => {
-  test("POST /api/msf/planner/dd/recommend returns primaryTeam and confidence", async ({
+  test("POST /api/msf/planner/dd/recommend returns primaryTeam and roster readiness", async ({
     page,
   }) => {
     await setupMockRoutes(page);
@@ -49,8 +80,8 @@ test.describe("DD Recommendation API", () => {
     expect(result.status).toBe(200);
     expect(result.body).toHaveProperty("primaryTeam");
     expect(Array.isArray(result.body.primaryTeam)).toBe(true);
-    expect(result.body).toHaveProperty("confidence");
-    expect(typeof result.body.confidence).toBe("number");
+    expect(result.body).toHaveProperty("rosterReadiness");
+    expect(typeof result.body.rosterReadiness).toBe("number");
   });
 
   test("POST without session returns 401", async ({ page }) => {
@@ -119,7 +150,7 @@ test.describe("DD Recommendation API", () => {
     }
   });
 
-  test("confidence is a number between 0 and 100", async ({ page }) => {
+  test("roster readiness is a number between 0 and 100", async ({ page }) => {
     await setupMockRoutes(page);
     await page.goto("/");
     const result = await page.evaluate(async () => {
@@ -131,7 +162,7 @@ test.describe("DD Recommendation API", () => {
       return { status: res.status, body: await res.json() };
     });
     expect(result.status).toBe(200);
-    expect(result.body.confidence).toBeGreaterThanOrEqual(0);
-    expect(result.body.confidence).toBeLessThanOrEqual(100);
+    expect(result.body.rosterReadiness).toBeGreaterThanOrEqual(0);
+    expect(result.body.rosterReadiness).toBeLessThanOrEqual(100);
   });
 });

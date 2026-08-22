@@ -35,11 +35,16 @@ export default function DDPlannerPage() {
   const [selectedDD, setSelectedDD] = useState<string | null>(null);
   const [ddDetail, setDDDetail] = useState<DDDetail | null>(null);
   const [ddDetailLoading, setDDDetailLoading] = useState(false);
+  const [ddDetailError, setDDDetailError] = useState<string | null>(null);
+  const [ddDetailReload, setDDDetailReload] = useState(0);
 
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   /** Convert raw API IDs (e.g. DD_ID_INSANITY_EVENT) to readable names as a last resort */
-  function formatDisplayName(raw: string | undefined, fallbackId: string): string {
+  function formatDisplayName(
+    raw: string | undefined,
+    fallbackId: string,
+  ): string {
     if (!raw) return fallbackId;
     // If the name is already human-readable (contains spaces or lowercase), return as-is
     if (/[a-z ]/.test(raw)) return raw;
@@ -56,7 +61,9 @@ export default function DDPlannerPage() {
   function nodeLabel(node: DDNodeItem, idx: number): string {
     const isEntrance = ddDetail?.startingRoomId === node.roomId;
     const boss = node.isBoss ? " ★ BOSS" : "";
-    const section = node.sectionName ? ` · ${formatDisplayName(node.sectionName, "")}` : "";
+    const section = node.sectionName
+      ? ` · ${formatDisplayName(node.sectionName, "")}`
+      : "";
 
     // If the node name is missing or is just a short room ID like "E1", "A1", use a better label
     const rawName = node.name ?? "";
@@ -82,6 +89,8 @@ export default function DDPlannerPage() {
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       const data: DDListItem[] = await res.json();
+      if (!Array.isArray(data))
+        throw new Error("Invalid Dark Dimension response");
       setDDList(data);
     } catch (err) {
       setDDListError(err instanceof Error ? err.message : "Failed to load");
@@ -98,22 +107,38 @@ export default function DDPlannerPage() {
   useEffect(() => {
     if (!selectedDD) {
       setDDDetail(null);
+      setDDDetailError(null);
       return;
     }
     let cancelled = false;
     setDDDetailLoading(true);
+    setDDDetail(null);
+    setDDDetailError(null);
     setSelectedNode(null); // Clear node selection on DD change
 
     fetch(`/api/msf/planner/dd/${encodeURIComponent(selectedDD)}`)
       .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
         return res.json();
       })
       .then((data: DDDetail) => {
-        if (!cancelled) setDDDetail(data);
+        if (!cancelled) {
+          if (!Array.isArray(data.nodes)) {
+            throw new Error("Invalid Dark Dimension detail response");
+          }
+          setDDDetail(data);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setDDDetail(null);
+      .catch((err) => {
+        if (!cancelled) {
+          setDDDetail(null);
+          setDDDetailError(
+            err instanceof Error ? err.message : "Failed to load node list",
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setDDDetailLoading(false);
@@ -122,7 +147,7 @@ export default function DDPlannerPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDD]);
+  }, [selectedDD, ddDetailReload]);
 
   return (
     <div className="px-4 py-4">
@@ -142,7 +167,10 @@ export default function DDPlannerPage() {
       </p>
 
       {/* DD Selector */}
-      <label className="mb-2 block text-sm font-semibold text-[var(--color-foreground)]">
+      <label
+        htmlFor="dd-selector"
+        className="mb-2 block text-sm font-semibold text-[var(--color-foreground)]"
+      >
         Dark Dimension
       </label>
 
@@ -177,6 +205,7 @@ export default function DDPlannerPage() {
 
       {!ddListLoading && !ddListError && ddList.length > 0 && (
         <select
+          id="dd-selector"
           data-testid="dd-selector"
           value={selectedDD ?? ""}
           onChange={(e) => setSelectedDD(e.target.value || null)}
@@ -194,7 +223,10 @@ export default function DDPlannerPage() {
       {/* Node Selector */}
       {selectedDD && (
         <>
-          <label className="mb-2 block text-sm font-semibold text-[var(--color-foreground)]">
+          <label
+            htmlFor="node-selector"
+            className="mb-2 block text-sm font-semibold text-[var(--color-foreground)]"
+          >
             Node
           </label>
 
@@ -209,51 +241,88 @@ export default function DDPlannerPage() {
             </div>
           )}
 
+          {!ddDetailLoading && ddDetailError && (
+            <div
+              data-testid="dd-detail-error"
+              className="rounded-lg bg-red-900/30 p-4 text-center"
+            >
+              <p className="text-sm text-red-400">{ddDetailError}</p>
+              <button
+                type="button"
+                onClick={() => setDDDetailReload((value) => value + 1)}
+                className="mt-2 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white"
+              >
+                Retry nodes
+              </button>
+            </div>
+          )}
+
           {!ddDetailLoading && ddDetail && (
             <>
               <p className="mb-2 text-xs text-[var(--color-muted)]">
                 {ddDetail.nodes.length} nodes
               </p>
-              <select
-                data-testid="node-selector"
-                value={selectedNode ?? ""}
-                onChange={(e) => setSelectedNode(e.target.value || null)}
-                className="mb-4 w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-3 text-sm text-[var(--color-foreground)]"
-              >
-                <option value="">Select a node...</option>
-                {ddDetail.nodes.map((node, idx) => (
-                  <option key={node.roomId} value={node.roomId}>
-                    {nodeLabel(node, idx)}
-                  </option>
-                ))}
-              </select>
+              {ddDetail.nodes.length === 0 ? (
+                <div className="mb-4 rounded-lg bg-amber-900/20 p-3 text-xs text-amber-300">
+                  No node map is currently available for this Dark Dimension.
+                </div>
+              ) : (
+                <select
+                  id="node-selector"
+                  data-testid="node-selector"
+                  value={selectedNode ?? ""}
+                  onChange={(e) => setSelectedNode(e.target.value || null)}
+                  className="mb-4 w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-3 py-3 text-sm text-[var(--color-foreground)]"
+                >
+                  <option value="">Select a node...</option>
+                  {ddDetail.nodes.map((node, idx) => (
+                    <option key={node.roomId} value={node.roomId}>
+                      {nodeLabel(node, idx)}
+                    </option>
+                  ))}
+                </select>
+              )}
             </>
           )}
         </>
       )}
 
       {/* Selected node indicator */}
-      {selectedNode && ddDetail && (() => {
-        const nodeIdx = ddDetail.nodes.findIndex((n) => n.roomId === selectedNode);
-        const node = ddDetail.nodes[nodeIdx];
-        return node ? (
-          <div className="mb-2 rounded-lg bg-[var(--color-surface)] p-3">
-            <p className="text-xs text-[var(--color-muted)]">Selected node:</p>
-            <p className="text-sm font-semibold text-[var(--color-foreground)]">
-              {nodeLabel(node, nodeIdx)}
-            </p>
-          </div>
-        ) : null;
-      })()}
+      {selectedNode &&
+        ddDetail &&
+        (() => {
+          const nodeIdx = ddDetail.nodes.findIndex(
+            (n) => n.roomId === selectedNode,
+          );
+          const node = ddDetail.nodes[nodeIdx];
+          return node ? (
+            <div className="mb-2 rounded-lg bg-[var(--color-surface)] p-3">
+              <p className="text-xs text-[var(--color-muted)]">
+                Selected node:
+              </p>
+              <p className="text-sm font-semibold text-[var(--color-foreground)]">
+                {nodeLabel(node, nodeIdx)}
+              </p>
+            </div>
+          ) : null;
+        })()}
 
       {/* Recommendation — shown first so users don't have to scroll past waves */}
       {selectedDD && selectedNode && (
-        <DDRecommendation ddId={selectedDD} roomId={selectedNode} />
+        <DDRecommendation
+          key={`recommendation:${selectedDD}:${selectedNode}`}
+          ddId={selectedDD}
+          roomId={selectedNode}
+        />
       )}
 
       {/* Node Enemy Intelligence — collapsible waves below */}
       {selectedDD && selectedNode && (
-        <DDNodeIntelligence ddId={selectedDD} roomId={selectedNode} />
+        <DDNodeIntelligence
+          key={`intelligence:${selectedDD}:${selectedNode}`}
+          ddId={selectedDD}
+          roomId={selectedNode}
+        />
       )}
     </div>
   );

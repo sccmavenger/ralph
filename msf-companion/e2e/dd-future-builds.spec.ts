@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { suppressInstallPrompt } from "./helpers/app-page";
 
 const mockDDList = [
   { id: "dd7", name: "Dark Dimension 7", nodeCount: 3, ddCompletion: null },
@@ -18,17 +19,37 @@ const mockNodeDetail = {
   name: "City Node 1",
   isBoss: false,
   sectionName: "City",
-  requirements: { anyCharacterFilters: [{ allTraits: ["City"], gearTier: 19 }], maxCharacters: 5 },
-  enemies: { left: { waves: [{ units: [{ id: "e1", level: 95, info: { name: "Enemy" } }] }] } },
+  requirements: {
+    anyCharacterFilters: [{ allTraits: ["City"], gearTier: 19 }],
+    maxCharacters: 5,
+  },
+  enemies: {
+    left: {
+      waves: [{ units: [{ id: "e1", level: 95, info: { name: "Enemy" } }] }],
+    },
+  },
 };
 
-// Recommendation with weak roster (low confidence, future builds present)
+// Recommendation with a weak roster and future builds present
 const mockWeakRosterRecommendation = {
   primaryTeam: [
-    { id: "c1", name: "Silver Sable", power: 600000, gearTier: 17, reasoning: "Best available" },
-    { id: "c2", name: "Daredevil", power: 500000, gearTier: 16, reasoning: "Trait match" },
+    {
+      id: "c1",
+      name: "Silver Sable",
+      power: 600000,
+      gearTier: 17,
+      reasoning: "Best available",
+    },
+    {
+      id: "c2",
+      name: "Daredevil",
+      power: 500000,
+      gearTier: 16,
+      reasoning: "Trait match",
+    },
   ],
-  confidence: 45,
+  rosterReadiness: 45,
+  mode: "fastest-clear",
   alternatives: [],
   swapSuggestions: [],
   futureBuildSuggestions: [
@@ -51,7 +72,10 @@ const mockWeakRosterRecommendation = {
   maxCharacters: 5,
 };
 
-async function setupMockRoutes(page: Page, recData: unknown = mockWeakRosterRecommendation) {
+async function setupMockRoutes(
+  page: Page,
+  recData: unknown = mockWeakRosterRecommendation,
+) {
   await page.route("**/api/msf/planner/dd/recommend", (route) =>
     route.fulfill({
       status: 200,
@@ -95,17 +119,21 @@ async function navigateAndRecommend(page: Page) {
   await page.locator('[data-testid="node-selector"]').selectOption("A1");
   await page.waitForSelector('[data-testid="get-recommendation-btn"]');
   await page.locator('[data-testid="get-recommendation-btn"]').click();
-  await page.waitForSelector('[data-testid="confidence-score"]');
+  await page.waitForSelector('[data-testid="roster-readiness"]');
 }
 
 test.describe("DD Future Builds and Gear Origin", () => {
+  test.beforeEach(async ({ page }) => suppressInstallPrompt(page));
+
   test("Future build suggestions section appears with at least 1 suggestion when roster is weak", async ({
     page,
   }) => {
     await setupMockRoutes(page);
     await navigateAndRecommend(page);
     await expect(page.getByTestId("future-builds")).toBeVisible();
-    const entries = await page.locator('[data-testid="future-build-entry"]').count();
+    const entries = await page
+      .locator('[data-testid="future-build-entry"]')
+      .count();
     expect(entries).toBeGreaterThanOrEqual(1);
   });
 
@@ -115,10 +143,15 @@ test.describe("DD Future Builds and Gear Origin", () => {
     await setupMockRoutes(page);
     await navigateAndRecommend(page);
     await expect(page.getByText("Spider-Man 2099")).toBeVisible();
-    const reasons = await page.locator('[data-testid="future-build-reason"]').count();
+    const reasons = await page
+      .locator('[data-testid="future-build-reason"]')
+      .count();
     expect(reasons).toBeGreaterThan(0);
     for (let i = 0; i < reasons; i++) {
-      const text = await page.locator('[data-testid="future-build-reason"]').nth(i).textContent();
+      const text = await page
+        .locator('[data-testid="future-build-reason"]')
+        .nth(i)
+        .textContent();
       expect(text?.length).toBeGreaterThan(0);
     }
   });
@@ -138,7 +171,9 @@ test.describe("DD Future Builds and Gear Origin", () => {
     await navigateAndRecommend(page);
 
     const primaryTeamBox = await page.getByTestId("primary-team").boundingBox();
-    const futureBuildsBox = await page.getByTestId("future-builds").boundingBox();
+    const futureBuildsBox = await page
+      .getByTestId("future-builds")
+      .boundingBox();
 
     expect(primaryTeamBox).toBeTruthy();
     expect(futureBuildsBox).toBeTruthy();

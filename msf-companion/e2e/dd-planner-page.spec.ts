@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { suppressInstallPrompt } from "./helpers/app-page";
 
 const mockDDList = [
   { id: "dd7", name: "Dark Dimension 7", nodeCount: 13, ddCompletion: null },
@@ -21,7 +22,12 @@ const mockDD8Detail = {
   name: "Dark Dimension 8",
   ddCompletion: null,
   nodes: [
-    { roomId: "C1", name: "Hero Node 1", isBoss: false, sectionName: "City Hero" },
+    {
+      roomId: "C1",
+      name: "Hero Node 1",
+      isBoss: false,
+      sectionName: "City Hero",
+    },
   ],
 };
 
@@ -55,11 +61,15 @@ async function setupMockRoutes(page: Page) {
 }
 
 test.describe("DD Planner Page", () => {
+  test.beforeEach(async ({ page }) => suppressInstallPrompt(page));
+
   test("DD selector is visible and lists at least one DD", async ({ page }) => {
     await setupMockRoutes(page);
     await page.goto("/analyze/dd-planner");
     await page.waitForSelector('[data-testid="dd-selector"]');
-    const options = await page.locator('[data-testid="dd-selector"] option').count();
+    const options = await page
+      .locator('[data-testid="dd-selector"] option')
+      .count();
     // At least placeholder + 1 DD
     expect(options).toBeGreaterThanOrEqual(2);
     await expect(page.getByText("DD Planner")).toBeVisible();
@@ -76,7 +86,9 @@ test.describe("DD Planner Page", () => {
     // Should show 3 nodes
     await expect(page.getByText("3 nodes", { exact: true })).toBeVisible();
     // Node names appear inside dropdown options
-    const options = await page.locator('[data-testid="node-selector"] option').allTextContents();
+    const options = await page
+      .locator('[data-testid="node-selector"] option')
+      .allTextContents();
     const joined = options.join("||");
     expect(joined).toContain("City Node 1");
     expect(joined).toContain("City Node 2");
@@ -107,9 +119,34 @@ test.describe("DD Planner Page", () => {
     await page.goto("/analyze/dd-planner");
     await page.waitForSelector('[data-testid="dd-selector"]');
 
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const scrollWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    const clientWidth = await page.evaluate(
+      () => document.documentElement.clientWidth,
+    );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+  });
+
+  test("Desktop viewport shows the intentional mobile-app handoff", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await setupMockRoutes(page);
+    await page.goto("/analyze/dd-planner");
+
+    await expect(
+      page.getByText(
+        "Your Marvel Strike Force command center — built for mobile",
+      ),
+    ).toBeVisible();
+    await expect(page.getByTestId("dd-selector")).not.toBeVisible();
+    const hasOverflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    );
+    expect(hasOverflow).toBe(false);
   });
 
   test("Switch DD — previous node selection is cleared", async ({ page }) => {
@@ -130,7 +167,81 @@ test.describe("DD Planner Page", () => {
     // Previous selection should be cleared
     await expect(page.getByText("Selected node:")).not.toBeVisible();
     // DD8 node should be visible in dropdown options
-    const options = await page.locator('[data-testid="node-selector"] option').allTextContents();
+    const options = await page
+      .locator('[data-testid="node-selector"] option')
+      .allTextContents();
     expect(options.join("||")).toContain("Hero Node 1");
+  });
+
+  test("Switch node — previous recommendation is cleared", async ({ page }) => {
+    await setupMockRoutes(page);
+    await page.route("**/api/msf/planner/dd/recommend", async (route) => {
+      const body = route.request().postDataJSON() as { roomId: string };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          primaryTeam: [
+            {
+              id: `char-${body.roomId}`,
+              name: `Recommendation ${body.roomId}`,
+              power: 500000,
+              gearTier: 19,
+              reasoning: "Best available",
+            },
+          ],
+          rosterReadiness: 70,
+          mode: "fastest-clear",
+          alternatives: [],
+          swapSuggestions: [],
+          futureBuildSuggestions: [],
+          gearOriginWarnings: [],
+          maxCharacters: 5,
+        }),
+      });
+    });
+
+    await page.goto("/analyze/dd-planner");
+    await page.getByTestId("dd-selector").selectOption("dd7");
+    await page.getByTestId("node-selector").selectOption("A1");
+    await page.getByTestId("get-recommendation-btn").click();
+    await expect(page.getByText("Recommendation A1")).toBeVisible();
+
+    await page.getByTestId("node-selector").selectOption("A2");
+
+    await expect(page.getByText("Recommendation A1")).not.toBeVisible();
+    await expect(page.getByTestId("get-recommendation-btn")).toBeVisible();
+  });
+
+  test("Node-list failure is visible and retryable", async ({ page }) => {
+    await setupMockRoutes(page);
+    let attempts = 0;
+    await page.route("**/api/msf/planner/dd/dd7", async (route) => {
+      if (route.request().url().includes("/dd7/")) return route.fallback();
+      attempts++;
+      if (attempts === 1) {
+        return route.fulfill({
+          status: 502,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Node list temporarily unavailable" }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockDD7Detail),
+      });
+    });
+
+    await page.goto("/analyze/dd-planner");
+    await page.getByTestId("dd-selector").selectOption("dd7");
+    await expect(page.getByTestId("dd-detail-error")).toContainText(
+      "Node list temporarily unavailable",
+    );
+
+    await page.getByRole("button", { name: "Retry nodes" }).click();
+
+    await expect(page.getByTestId("node-selector")).toBeVisible();
+    expect(attempts).toBe(2);
   });
 });

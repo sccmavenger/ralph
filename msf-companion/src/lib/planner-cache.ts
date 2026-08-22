@@ -29,6 +29,12 @@ export function setCache<T>(key: string, data: T): void {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
+export function clearCacheByPrefix(prefix: string): void {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) cache.delete(key);
+  }
+}
+
 export function clearCache(): void {
   cache.clear();
 }

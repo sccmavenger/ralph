@@ -1,7 +1,20 @@
 import type { CharacterFilter, EnemyCombat, EnemyUnit } from "@/lib/dd-service";
 import type { RosterCharacter } from "@/lib/dd-eligibility";
 
-// ── Types ──
+export const RECOMMENDATION_MODES = [
+  "fastest-clear",
+  "lowest-investment",
+  "cross-mode-value",
+] as const;
+
+export type RecommendationMode = (typeof RECOMMENDATION_MODES)[number];
+
+export interface CharacterModeEvidence {
+  modes: string[];
+  totalAppearances: number;
+}
+
+export type CharacterModeEvidenceMap = Record<string, CharacterModeEvidence>;
 
 export interface RecommendedCharacter {
   character: RosterCharacter;
@@ -10,12 +23,12 @@ export interface RecommendedCharacter {
 
 export interface RecommendationResult {
   primaryTeam: RecommendedCharacter[];
-  confidence: number;
+  rosterReadiness: number;
   alternatives: RecommendedCharacter[][];
   reasoning: string;
+  mode: RecommendationMode;
+  modeEvidenceAvailable: boolean;
 }
-
-// ── Helpers ──
 
 function traitId(t: string | { id: string }): string {
   return typeof t === "string" ? t : t.id;
@@ -23,141 +36,130 @@ function traitId(t: string | { id: string }): string {
 
 function getCharTraits(char: RosterCharacter): string[] {
   const traits: string[] = [];
-  if (char.info?.traits) {
-    for (const t of char.info.traits) traits.push(traitId(t));
-  }
-  if (char.info?.invisibleTraits) {
-    for (const t of char.info.invisibleTraits) traits.push(traitId(t));
+  for (const trait of char.info?.traits ?? []) traits.push(traitId(trait));
+  for (const trait of char.info?.invisibleTraits ?? []) {
+    traits.push(traitId(trait));
   }
   return traits;
 }
 
 function getAllEnemyUnits(combat?: EnemyCombat): EnemyUnit[] {
   const units: EnemyUnit[] = [];
-  if (combat?.left?.waves) {
-    for (const wave of combat.left.waves) {
-      units.push(...wave.units);
-    }
-  }
-  if (combat?.right?.waves) {
-    for (const wave of combat.right.waves) {
-      units.push(...wave.units);
-    }
-  }
+  for (const wave of combat?.left?.waves ?? []) units.push(...wave.units);
+  for (const wave of combat?.right?.waves ?? []) units.push(...wave.units);
   return units;
 }
 
 function getTotalEnemyPower(enemies: EnemyUnit[]): number {
-  let total = 0;
-  for (const e of enemies) {
-    if (e.stats?.power) {
-      total += e.stats.power;
-    } else {
-      // Estimate power from level and gear tier
-      total += (e.level ?? 1) * (e.gearTier ?? 1) * 100;
-    }
-  }
-  return total;
-}
-
-function getEnemyTraits(enemies: EnemyUnit[]): Map<string, number> {
-  const traitCounts = new Map<string, number>();
-  for (const e of enemies) {
-    if (e.info?.traits) {
-      for (const t of e.info.traits) {
-        const id = traitId(t);
-        traitCounts.set(id, (traitCounts.get(id) ?? 0) + 1);
-      }
-    }
-  }
-  return traitCounts;
+  return enemies.reduce((total, enemy) => {
+    if (enemy.stats?.power) return total + enemy.stats.power;
+    return total + (enemy.level ?? 1) * (enemy.gearTier ?? 1) * 100;
+  }, 0);
 }
 
 function getCharPower(char: RosterCharacter): number {
   return char.power ?? (char.level ?? 1) * (char.gearTier ?? 1) * 100;
 }
 
+const MODE_LABELS: Record<string, string> = {
+  raids: "Raids",
+  arena: "Arena",
+  war: "War",
+  crucible: "Crucible",
+  tower: "Tower",
+  blitz: "Blitz",
+};
+
+function formatModes(modes: string[]): string {
+  return modes.map((mode) => MODE_LABELS[mode] ?? mode).join(", ");
+}
+
 /**
- * Score a character for a node based on multiple factors.
- * Higher score = better fit.
+ * Rank one already-compliant character for the selected planning goal.
+ * This never treats shared enemy traits as counter evidence: matching an
+ * enemy's origin, location, or alignment says nothing about matchup quality.
  */
 function scoreCharacter(
   char: RosterCharacter,
   enemies: EnemyUnit[],
-  enemyTraitCounts: Map<string, number>,
   totalEnemyPower: number,
+  mode: RecommendationMode,
+  modeEvidence: CharacterModeEvidenceMap,
+  maxModeAppearances: number,
 ): { score: number; reasons: string[] } {
   let score = 0;
   const reasons: string[] = [];
   const charTraits = getCharTraits(char);
   const charPower = getCharPower(char);
 
-  // Factor 1: Power relative to enemies (0-30 points)
+  // Combat strength is readiness evidence, not observed clear evidence.
+  const maxPowerScore = mode === "fastest-clear" ? 55 : 35;
   if (totalEnemyPower > 0) {
-    const powerRatio = charPower / (totalEnemyPower / Math.max(enemies.length, 1));
-    const powerScore = Math.min(30, powerRatio * 15);
-    score += powerScore;
+    const powerRatio =
+      charPower / (totalEnemyPower / Math.max(enemies.length, 1));
+    score += Math.min(maxPowerScore, powerRatio * 20);
     if (powerRatio > 1.5) {
-      reasons.push("High power relative to enemies");
+      reasons.push("High available combat power for this node");
     }
+  } else {
+    score += Math.min(maxPowerScore, charPower / 20_000);
   }
 
-  // Factor 2: Trait synergies with team (0-25 points)
-  // Characters sharing traits with many enemies tend to have ability interactions
-  let traitOverlap = 0;
-  for (const trait of charTraits) {
-    const count = enemyTraitCounts.get(trait) ?? 0;
-    traitOverlap += count;
-  }
-  const traitScore = Math.min(25, traitOverlap * 3);
-  score += traitScore;
-  if (traitOverlap > 3) {
-    reasons.push("Strong trait overlap with enemy composition");
+  const evidence = modeEvidence[char.id];
+  if (mode === "cross-mode-value" && evidence) {
+    const breadthScore = Math.min(45, evidence.modes.length * 9);
+    const usageScore =
+      maxModeAppearances > 0
+        ? (Math.log1p(evidence.totalAppearances) /
+            Math.log1p(maxModeAppearances)) *
+          20
+        : 0;
+    score += breadthScore + usageScore;
+    reasons.unshift(
+      `Observed across ${evidence.modes.length} current mode dataset${evidence.modes.length === 1 ? "" : "s"} (${formatModes(evidence.modes)}); usage is not a win guarantee`,
+    );
+  } else if (mode === "lowest-investment") {
+    // All candidates at this point already satisfy the node. Their additional
+    // entry investment is therefore zero; existing power is the tie-breaker.
+    score += 25;
+    reasons.unshift("Already meets every node entry requirement");
   }
 
-  // Factor 3: Role-based scoring (0-20 points)
   const isProtector = charTraits.includes("Protector");
   const isSupport = charTraits.includes("Support");
   const isController = charTraits.includes("Controller");
-  const isBrawler = charTraits.includes("Brawler");
-  const isBlaster = charTraits.includes("Blaster");
+  const isDamage =
+    charTraits.includes("Brawler") || charTraits.includes("Blaster");
 
   if (isProtector) {
-    score += 15;
-    reasons.push("Provides team protection (Protector role)");
+    score += 10;
+    reasons.push("Adds protection to the available team");
   }
   if (isSupport) {
-    score += 18;
-    reasons.push("Provides healing/buffs (Support role)");
+    score += 12;
+    reasons.push("Adds sustain or buffs to the available team");
   }
   if (isController) {
     score += 12;
-    reasons.push("Provides crowd control (Controller role)");
+    reasons.push("Adds crowd-control potential to the available team");
   }
-  if (isBrawler || isBlaster) {
-    score += 10;
-    reasons.push("High damage output");
+  if (isDamage) {
+    score += mode === "fastest-clear" ? 12 : 6;
+    reasons.push("Adds damage pressure to the available team");
   }
 
-  // Factor 4: Gear tier bonus (0-15 points)
-  const gearTier = char.gearTier ?? 0;
-  const gearScore = Math.min(15, gearTier);
-  score += gearScore;
-
-  // Factor 5: Star level bonus (0-10 points)
-  const stars = char.activeYellow ?? 0;
-  const redStars = char.activeRed ?? 0;
-  score += Math.min(5, stars);
-  score += Math.min(5, redStars);
+  // Existing build is a deterministic tie-breaker, not an instruction to
+  // spend additional resources.
+  score += Math.min(10, (char.gearTier ?? 0) / 2);
+  score += Math.min(4, (char.activeYellow ?? 0) / 2);
+  score += Math.min(4, (char.activeRed ?? 0) / 2);
 
   if (reasons.length === 0) {
-    reasons.push("Meets node eligibility requirements");
+    reasons.push("Meets every node entry requirement");
   }
 
   return { score, reasons };
 }
-
-// ── Post-validation ──
 
 function matchesCharacterFilter(
   char: RosterCharacter,
@@ -170,35 +172,32 @@ function matchesCharacterFilter(
   for (const filter of filters) {
     let matches = true;
 
-    if (filter.allTraits && filter.allTraits.length > 0) {
-      for (const t of filter.allTraits) {
-        if (!charTraits.includes(traitId(t))) {
+    if (filter.allTraits?.length) {
+      for (const trait of filter.allTraits) {
+        if (!charTraits.includes(traitId(trait))) {
           matches = false;
           break;
         }
       }
     }
 
-    if (matches && filter.anyTraits && filter.anyTraits.length > 0) {
-      matches = filter.anyTraits.some((t) => charTraits.includes(traitId(t)));
+    if (matches && filter.anyTraits?.length) {
+      matches = filter.anyTraits.some((trait) =>
+        charTraits.includes(traitId(trait)),
+      );
     }
 
-    if (matches && filter.exceptTraits && filter.exceptTraits.length > 0) {
-      for (const t of filter.exceptTraits) {
-        if (charTraits.includes(traitId(t))) {
+    if (matches && filter.exceptTraits?.length) {
+      for (const trait of filter.exceptTraits) {
+        if (charTraits.includes(traitId(trait))) {
           matches = false;
           break;
         }
       }
     }
 
-    if (matches && filter.anyCharacters && filter.anyCharacters.length > 0) {
-      if (!filter.anyCharacters.includes(char.id)) {
-        // Only fail if there are no trait filters to match on
-        if (!filter.allTraits?.length && !filter.anyTraits?.length) {
-          matches = false;
-        }
-      }
+    if (matches && filter.anyCharacters?.length) {
+      matches = filter.anyCharacters.includes(char.id);
     }
 
     if (matches) return true;
@@ -207,44 +206,50 @@ function matchesCharacterFilter(
   return false;
 }
 
-// ── Main Function ──
-
 export function generateRecommendation(
   compliantCharacters: RosterCharacter[],
   nodeCombat: EnemyCombat | undefined,
   maxCharacters: number,
   characterFilters?: CharacterFilter[],
+  requiredCharacterIds: string[] = [],
+  mode: RecommendationMode = "fastest-clear",
+  modeEvidence: CharacterModeEvidenceMap = {},
 ): RecommendationResult {
   const enemies = getAllEnemyUnits(nodeCombat);
-  const enemyTraitCounts = getEnemyTraits(enemies);
   const totalEnemyPower = getTotalEnemyPower(enemies);
+  const maxModeAppearances = Math.max(
+    0,
+    ...Object.values(modeEvidence).map((entry) => entry.totalAppearances),
+  );
+  const modeEvidenceAvailable = Object.keys(modeEvidence).length > 0;
+  const scoringMode =
+    mode === "cross-mode-value" && !modeEvidenceAvailable
+      ? "fastest-clear"
+      : mode;
 
-  // Score all compliant characters
   const scored = compliantCharacters.map((char) => {
     const { score, reasons } = scoreCharacter(
       char,
       enemies,
-      enemyTraitCounts,
       totalEnemyPower,
+      scoringMode,
+      modeEvidence,
+      maxModeAppearances,
     );
     return { char, score, reasons };
   });
 
-  // Sort by score descending (deterministic: tie-break by character ID)
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return a.char.id.localeCompare(b.char.id);
   });
 
-  // Select primary team
-  const primaryCount = Math.min(maxCharacters, scored.length);
-  const primaryScored = scored.slice(0, primaryCount);
-
-  // Post-validation: ensure all characters pass CharacterFilter
-  const validPrimary: typeof primaryScored = [];
-  for (const entry of primaryScored) {
+  // Re-check the full CharacterFilter contract independently so malformed
+  // upstream data cannot leak an ineligible character into a recommendation.
+  const validScored: typeof scored = [];
+  for (const entry of scored) {
     if (matchesCharacterFilter(entry.char, characterFilters)) {
-      validPrimary.push(entry);
+      validScored.push(entry);
     } else {
       console.warn(
         `Data integrity violation: Character ${entry.char.id} failed CharacterFilter re-check — excluded from recommendation`,
@@ -252,76 +257,80 @@ export function generateRecommendation(
     }
   }
 
-  const primaryTeam: RecommendedCharacter[] = validPrimary.map((entry) => ({
+  // Every compliant specificCharacters entry is a team-level requirement and
+  // must receive a reserved slot before optional candidates are ranked.
+  const requiredIds = [...new Set(requiredCharacterIds)];
+  const requiredSet = new Set(requiredIds);
+  const requiredScored = requiredIds
+    .map((id) => validScored.find((entry) => entry.char.id === id))
+    .filter((entry): entry is (typeof validScored)[number] => entry != null)
+    .slice(0, maxCharacters);
+  const optionalScored = validScored.filter(
+    (entry) => !requiredSet.has(entry.char.id),
+  );
+  const optionalSlots = Math.max(0, maxCharacters - requiredScored.length);
+  const primaryScored = [
+    ...requiredScored,
+    ...optionalScored.slice(0, optionalSlots),
+  ];
+
+  const primaryTeam: RecommendedCharacter[] = primaryScored.map((entry) => ({
     character: entry.char,
-    reasoning: entry.reasons[0] ?? "Meets node requirements",
+    reasoning: entry.reasons[0] ?? "Meets every node entry requirement",
   }));
 
-  // Calculate confidence score (0-100)
-  let confidence = 0;
+  // Roster readiness is transparent build/readiness information. It is not an
+  // observed clear rate and must never be labelled as confidence.
+  let rosterReadiness = 0;
+  const countRatio =
+    maxCharacters > 0 ? primaryScored.length / maxCharacters : 0;
+  rosterReadiness += Math.min(50, countRatio * 50);
 
-  // Factor 1: Character count vs required (0-40)
-  const countRatio = validPrimary.length / maxCharacters;
-  confidence += Math.min(40, countRatio * 40);
-
-  // Factor 2: Team power vs enemy power (0-40)
-  const teamPower = validPrimary.reduce(
-    (sum, e) => sum + getCharPower(e.char),
+  const teamPower = primaryScored.reduce(
+    (sum, entry) => sum + getCharPower(entry.char),
     0,
   );
   if (totalEnemyPower > 0) {
-    const powerRatio = teamPower / totalEnemyPower;
-    confidence += Math.min(40, powerRatio * 20);
-  } else {
-    confidence += 40; // No enemies = max confidence for power
+    rosterReadiness += Math.min(30, (teamPower / totalEnemyPower) * 20);
   }
 
-  // Factor 3: Role coverage (0-20)
   const teamTraits = new Set<string>();
-  for (const entry of validPrimary) {
-    for (const t of getCharTraits(entry.char)) {
-      teamTraits.add(t);
-    }
+  for (const entry of primaryScored) {
+    for (const trait of getCharTraits(entry.char)) teamTraits.add(trait);
   }
   const roles = ["Protector", "Support", "Controller", "Brawler", "Blaster"];
-  const roleCoverage = roles.filter((r) => teamTraits.has(r)).length;
-  confidence += Math.min(20, (roleCoverage / roles.length) * 20);
+  const roleCoverage = roles.filter((role) => teamTraits.has(role)).length;
+  rosterReadiness += Math.min(20, (roleCoverage / roles.length) * 20);
+  rosterReadiness = Math.round(Math.min(100, Math.max(0, rosterReadiness)));
 
-  confidence = Math.round(Math.min(100, Math.max(0, confidence)));
-
-  // Generate alternatives if enough candidates
   const alternatives: RecommendedCharacter[][] = [];
-  if (scored.length >= 2 * maxCharacters) {
-    const altScored = scored.slice(primaryCount, primaryCount + maxCharacters);
-    const validAlt: typeof altScored = [];
-    for (const entry of altScored) {
-      if (matchesCharacterFilter(entry.char, characterFilters)) {
-        validAlt.push(entry);
-      }
-    }
-    if (validAlt.length > 0) {
+  if (optionalSlots > 0 && optionalScored.length >= optionalSlots * 2) {
+    const alternative = [
+      ...requiredScored,
+      ...optionalScored.slice(optionalSlots, optionalSlots * 2),
+    ];
+    if (alternative.length > requiredScored.length) {
       alternatives.push(
-        validAlt.map((entry) => ({
+        alternative.map((entry) => ({
           character: entry.char,
-          reasoning: entry.reasons[0] ?? "Alternative candidate",
+          reasoning: entry.reasons[0] ?? "Alternative ready candidate",
         })),
       );
     }
   }
 
-  // Generate reasoning summary
-  let reasoning = `Recommended ${validPrimary.length} of ${maxCharacters} characters`;
-  if (enemies.length > 0) {
-    reasoning += ` against ${enemies.length} enemies`;
-  }
-  if (validPrimary.length < maxCharacters) {
-    reasoning += `. Only ${compliantCharacters.length} compliant characters available`;
+  let reasoning = `Recommended ${primaryScored.length} of ${maxCharacters} roster-ready characters`;
+  if (enemies.length > 0) reasoning += ` against ${enemies.length} enemies`;
+  if (primaryScored.length < maxCharacters) {
+    reasoning += `. Only ${compliantCharacters.length} compliant characters are available`;
   }
 
   return {
     primaryTeam,
-    confidence,
+    rosterReadiness,
     alternatives,
     reasoning,
+    mode,
+    modeEvidenceAvailable,
   };
 }

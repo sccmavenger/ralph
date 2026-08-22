@@ -25,7 +25,10 @@ function makeChar(
     activeYellow: opts.activeYellow ?? 7,
     activeRed: opts.activeRed ?? 5,
     iso8: opts.iso8Active
-      ? { active: opts.iso8Active, level: opts.iso8Level ?? 3 }
+      ? {
+          active: opts.iso8Active.toLowerCase(),
+          [opts.iso8Active.toLowerCase()]: opts.iso8Level ?? 3,
+        }
       : undefined,
     info: {
       traits: traits.map((t) => t),
@@ -67,7 +70,9 @@ test.describe("DD Eligibility Filter", () => {
     };
     const result = await callEligibility(page, roster, requirements);
     expect(result.status).toBe(200);
-    expect(result.body.eligible.map((c: { id: string }) => c.id)).toEqual(["char-a"]);
+    expect(result.body.eligible.map((c: { id: string }) => c.id)).toEqual([
+      "char-a",
+    ]);
   });
 
   test("anyTraits OR enforcement includes characters matching at least one trait", async ({
@@ -166,9 +171,7 @@ test.describe("DD Eligibility Filter", () => {
       makeChar("char-c", ["Global"]), // no iso8
     ];
     const requirements = {
-      anyCharacterFilters: [
-        { allTraits: ["Global"], iso8ClassLevel: 3 },
-      ],
+      anyCharacterFilters: [{ allTraits: ["Global"], iso8ClassLevel: 3 }],
     };
     const result = await callEligibility(page, roster, requirements);
     expect(result.status).toBe(200);

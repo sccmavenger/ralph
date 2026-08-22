@@ -39,10 +39,16 @@ export async function GET(
         { status: 404 },
       );
     }
+    if (err instanceof DDServiceError && err.status === 502) {
+      return NextResponse.json(
+        { error: err.message, code: "MSF_API_ERROR", retryable: true },
+        { status: 502 },
+      );
+    }
 
     const message = err instanceof Error ? err.message : String(err);
 
-    if (message.includes("401")) {
+    if (message.includes("401") || message.includes("403")) {
       const freshToken = await refreshAccessToken();
       if (freshToken) {
         try {
@@ -60,21 +66,33 @@ export async function GET(
         }
       }
       return NextResponse.json(
-        { error: "Session expired. Please log in again.", code: "TOKEN_EXPIRED", retryable: false },
+        {
+          error: "Session expired. Please log in again.",
+          code: "TOKEN_EXPIRED",
+          retryable: false,
+        },
         { status: 401 },
       );
     }
 
     if (message.includes("552") || message.includes("553")) {
       return NextResponse.json(
-        { error: "Game servers are in maintenance.", code: "MAINTENANCE", retryable: true },
+        {
+          error: "Game servers are in maintenance.",
+          code: "MAINTENANCE",
+          retryable: true,
+        },
         { status: 503 },
       );
     }
 
     console.error("DD node fetch failed:", err);
     return NextResponse.json(
-      { error: "Failed to fetch node detail", code: "MSF_API_ERROR", retryable: true },
+      {
+        error: "Failed to fetch node detail",
+        code: "MSF_API_ERROR",
+        retryable: true,
+      },
       { status: 502 },
     );
   }

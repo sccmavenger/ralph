@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { suppressInstallPrompt } from "./helpers/app-page";
 
 const mockDDList = [
   { id: "dd7", name: "Dark Dimension 7", nodeCount: 3, ddCompletion: null },
@@ -18,25 +19,82 @@ const mockNodeDetail = {
   name: "City Node 1",
   isBoss: false,
   sectionName: "City",
-  requirements: { anyCharacterFilters: [{ allTraits: ["City"], gearTier: 19 }], maxCharacters: 5 },
-  enemies: { left: { waves: [{ units: [{ id: "e1", level: 95, info: { name: "Enemy" } }] }] } },
+  requirements: {
+    anyCharacterFilters: [{ allTraits: ["City"], gearTier: 19 }],
+    maxCharacters: 5,
+  },
+  enemies: {
+    left: {
+      waves: [{ units: [{ id: "e1", level: 95, info: { name: "Enemy" } }] }],
+    },
+  },
 };
 
 // Recommendation with alternatives (high roster count)
 const mockRecommendationWithAlts = {
   primaryTeam: [
-    { id: "c1", name: "Silver Sable", power: 900000, gearTier: 19, reasoning: "High power" },
-    { id: "c2", name: "Daredevil", power: 850000, gearTier: 19, reasoning: "Protection role" },
-    { id: "c3", name: "Punisher", power: 800000, gearTier: 19, reasoning: "Trait synergy" },
-    { id: "c4", name: "Blade", power: 750000, gearTier: 19, reasoning: "Damage output" },
-    { id: "c5", name: "Oath", power: 700000, gearTier: 19, reasoning: "Support role" },
+    {
+      id: "c1",
+      name: "Silver Sable",
+      power: 900000,
+      gearTier: 19,
+      reasoning: "High power",
+    },
+    {
+      id: "c2",
+      name: "Daredevil",
+      power: 850000,
+      gearTier: 19,
+      reasoning: "Protection role",
+    },
+    {
+      id: "c3",
+      name: "Punisher",
+      power: 800000,
+      gearTier: 19,
+      reasoning: "Adds damage pressure",
+    },
+    {
+      id: "c4",
+      name: "Blade",
+      power: 750000,
+      gearTier: 19,
+      reasoning: "Damage output",
+    },
+    {
+      id: "c5",
+      name: "Oath",
+      power: 700000,
+      gearTier: 19,
+      reasoning: "Support role",
+    },
   ],
-  confidence: 75,
+  rosterReadiness: 75,
+  readinessBasis: "Ready team size, power, and role coverage.",
+  mode: "fastest-clear",
   alternatives: [
     [
-      { id: "c6", name: "Hit-Monkey", power: 680000, gearTier: 19, reasoning: "Alternative DPS" },
-      { id: "c7", name: "Spider-Man 2099", power: 660000, gearTier: 19, reasoning: "Controller role" },
-      { id: "c8", name: "Miles Morales", power: 640000, gearTier: 19, reasoning: "City synergy" },
+      {
+        id: "c6",
+        name: "Hit-Monkey",
+        power: 680000,
+        gearTier: 19,
+        reasoning: "Alternative DPS",
+      },
+      {
+        id: "c7",
+        name: "Spider-Man 2099",
+        power: 660000,
+        gearTier: 19,
+        reasoning: "Controller role",
+      },
+      {
+        id: "c8",
+        name: "Miles Morales",
+        power: 640000,
+        gearTier: 19,
+        reasoning: "City synergy",
+      },
     ],
   ],
   swapSuggestions: [],
@@ -44,7 +102,10 @@ const mockRecommendationWithAlts = {
   maxCharacters: 5,
 };
 
-async function setupMockRoutes(page: Page, recData: unknown = mockRecommendationWithAlts) {
+async function setupMockRoutes(
+  page: Page,
+  recData: unknown = mockRecommendationWithAlts,
+) {
   await page.route("**/api/msf/planner/dd/recommend", (route) =>
     route.fulfill({
       status: 200,
@@ -91,13 +152,15 @@ async function navigateAndRecommend(page: Page) {
   await page.waitForSelector('[data-testid="primary-team"]');
 }
 
-test.describe("DD Confidence and Alternatives", () => {
-  test("Confidence score element is visible with numeric value between 0 and 100", async ({
+test.describe("DD Roster Readiness and Alternatives", () => {
+  test.beforeEach(async ({ page }) => suppressInstallPrompt(page));
+
+  test("Roster readiness is visible with a numeric value between 0 and 100", async ({
     page,
   }) => {
     await setupMockRoutes(page);
     await navigateAndRecommend(page);
-    const scoreEl = page.getByTestId("confidence-value");
+    const scoreEl = page.getByTestId("roster-readiness-value");
     await expect(scoreEl).toBeVisible();
     const text = await scoreEl.textContent();
     const value = parseInt(text ?? "", 10);
@@ -105,12 +168,12 @@ test.describe("DD Confidence and Alternatives", () => {
     expect(value).toBeLessThanOrEqual(100);
   });
 
-  test("Confidence score has color styling applied (green, yellow, or red class)", async ({
+  test("Roster readiness has color styling applied (green, yellow, or red class)", async ({
     page,
   }) => {
     await setupMockRoutes(page);
     await navigateAndRecommend(page);
-    const scoreEl = page.getByTestId("confidence-value");
+    const scoreEl = page.getByTestId("roster-readiness-value");
     const classes = await scoreEl.getAttribute("class");
     // Should have one of the color classes
     const hasColor =
@@ -126,7 +189,7 @@ test.describe("DD Confidence and Alternatives", () => {
     await setupMockRoutes(page);
     await navigateAndRecommend(page);
     await expect(page.getByTestId("alternatives")).toBeVisible();
-    await expect(page.getByText("Alternative Team")).toBeVisible();
+    await expect(page.getByText("Alternative Ready Team")).toBeVisible();
   });
 
   test("Alternative team entries show character names and portraits", async ({

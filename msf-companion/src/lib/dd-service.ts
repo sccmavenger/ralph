@@ -1,7 +1,16 @@
 import { msfApiFetch } from "@/lib/msf-api";
-import { getCached, setCache } from "@/lib/planner-cache";
+import { clearCacheByPrefix, getCached, setCache } from "@/lib/planner-cache";
 
 // ── TypeScript Interfaces (mapped from API schemas) ──
+
+export interface Iso8State {
+  active?: string;
+  striker?: number;
+  fortifier?: number;
+  healer?: number;
+  skirmisher?: number;
+  raider?: number;
+}
 
 export interface CharacterFilter {
   allTraits?: (string | { id: string })[];
@@ -36,7 +45,7 @@ export interface EnemyUnit {
   special?: number;
   ultimate?: number;
   passive?: number;
-  iso8?: { active?: string; level?: number; pips?: number };
+  iso8?: Iso8State;
   nodeEffects?: unknown[];
   difficultyBoost?: unknown;
   stats?: Record<string, number>;
@@ -105,6 +114,7 @@ interface RawDDListItem {
   name?: string;
   rayCount?: number;
   rayDepth?: number;
+  rays?: string[][];
   startingRoomId?: string;
   ddCompletion?: unknown;
   combatNodesPerTeam?: number;
@@ -129,7 +139,7 @@ interface RawRoomData {
   name?: string;
   isBoss?: boolean;
   sectionName?: string;
-  requirements?: NodeRequirements;
+  requirements?: RawNodeRequirements;
   combatId?: string;
   roomNW?: string;
   roomNE?: string;
@@ -142,7 +152,7 @@ interface RawNodeDetailResponse {
     name?: string;
     isBoss?: boolean;
     sectionName?: string;
-    requirements?: NodeRequirements;
+    requirements?: RawNodeRequirements;
     combat?: EnemyCombat;
     combatId?: string;
     roomNW?: string;
@@ -153,22 +163,34 @@ interface RawNodeDetailResponse {
   meta?: { hashes?: { nodes?: string; chars?: string } };
 }
 
+type RawNodeRequirements = NodeRequirements | Array<NodeRequirements | null>;
+
 // ── Cache keys & hash tracking ──
 
 const CACHE_PREFIX = "dd:";
 let storedNodeHash: string | null = null;
 let storedCharHash: string | null = null;
 
-function checkHashInvalidation(meta?: { hashes?: { nodes?: string; chars?: string } }): boolean {
+function checkHashInvalidation(meta?: {
+  hashes?: { nodes?: string; chars?: string };
+}): boolean {
   if (!meta?.hashes) return false;
   const nodeHash = meta.hashes.nodes ?? null;
   const charHash = meta.hashes.chars ?? null;
   let invalidated = false;
 
-  if (storedNodeHash !== null && nodeHash !== null && nodeHash !== storedNodeHash) {
+  if (
+    storedNodeHash !== null &&
+    nodeHash !== null &&
+    nodeHash !== storedNodeHash
+  ) {
     invalidated = true;
   }
-  if (storedCharHash !== null && charHash !== null && charHash !== storedCharHash) {
+  if (
+    storedCharHash !== null &&
+    charHash !== null &&
+    charHash !== storedCharHash
+  ) {
     invalidated = true;
   }
 
@@ -179,12 +201,7 @@ function checkHashInvalidation(meta?: { hashes?: { nodes?: string; chars?: strin
 }
 
 function invalidateDDCache(): void {
-  // Clear all DD-related cache entries
-  // The planner cache is a simple Map, so we iterate and delete matching keys
-  // We use getCached to probe and clearCache isn't selective, so we just update hashes
-  // and let TTL handle expiry. For immediate invalidation, we set null cached values.
-  storedNodeHash = null;
-  storedCharHash = null;
+  clearCacheByPrefix(CACHE_PREFIX);
 }
 
 // ── Service Functions ──
@@ -210,16 +227,22 @@ export async function fetchAllDDs(
   }
 
   const dds: DDInfo[] = (raw.data ?? []).map((item) => {
-    // Compute node count from rooms map (if available) or rayCount*rayDepth
+    const rayRoomIds = uniqueRoomIds(item.rays);
+
+    // A DD map can contain gaps and branching paths, so rayCount*rayDepth is
+    // not a node count. Prefer the actual non-empty room IDs from the live map.
     const roomCount = item.rooms
       ? Object.keys(item.rooms).length
-      : item.combatNodesPerTeam ?? (item.rayCount ?? 0) * (item.rayDepth ?? 0);
+      : rayRoomIds.length > 0
+        ? rayRoomIds.length
+        : (item.combatNodesPerTeam ?? 0);
 
     return {
       id: item.id,
       name: item.name,
       rayCount: item.rayCount,
       rayDepth: item.rayDepth,
+      rays: item.rays,
       startingRoomId: item.startingRoomId,
       ddCompletion: item.ddCompletion,
       nodes: [],
@@ -258,30 +281,28 @@ export async function fetchDD(
     throw new DDServiceError(404, `Dark Dimension '${ddId}' not found`);
   }
 
-  const nodes: DDNode[] = [];
-  if (data.rooms) {
-    // Preserve node order using rays if available, otherwise use room keys
-    const orderedRoomIds = data.rays
-      ? data.rays.flat()
-      : Object.keys(data.rooms);
-
-    for (const roomId of orderedRoomIds) {
-      const room = data.rooms[roomId];
-      if (!room) continue;
-      nodes.push({
-        roomId,
-        name: room.name,
-        isBoss: room.isBoss,
-        sectionName: room.sectionName,
-        requirements: room.requirements,
-        combatId: room.combatId,
-        roomNW: room.roomNW,
-        roomNE: room.roomNE,
-        roomSE: room.roomSE,
-        roomSW: room.roomSW,
-      });
-    }
+  // Current live responses expose the map as a sparse rays grid and may omit
+  // the legacy rooms object. Always build selectable nodes from the map, then
+  // enrich them with room metadata when it is present.
+  const orderedRoomIds = uniqueRoomIds(data.rays);
+  if (orderedRoomIds.length === 0 && data.rooms) {
+    orderedRoomIds.push(...Object.keys(data.rooms));
   }
+  const nodes: DDNode[] = orderedRoomIds.map((roomId) => {
+    const room = data.rooms?.[roomId];
+    return {
+      roomId,
+      name: room?.name,
+      isBoss: room?.isBoss,
+      sectionName: room?.sectionName,
+      requirements: normalizeRequirements(room?.requirements),
+      combatId: room?.combatId,
+      roomNW: room?.roomNW,
+      roomNE: room?.roomNE,
+      roomSE: room?.roomSE,
+      roomSW: room?.roomSW,
+    };
+  });
 
   const dd: DDInfo = {
     id: data.id,
@@ -325,13 +346,19 @@ export async function fetchNode(
   if (!data) {
     throw new DDServiceError(404, `Node '${roomId}' in DD '${ddId}' not found`);
   }
+  if (Object.keys(data).length === 0) {
+    throw new DDServiceError(
+      502,
+      `Node '${roomId}' data is temporarily unavailable from the game API`,
+    );
+  }
 
   const node: DDNode = {
     roomId,
     name: data.name,
     isBoss: data.isBoss,
     sectionName: data.sectionName,
-    requirements: data.requirements,
+    requirements: normalizeRequirements(data.requirements),
     combat: data.combat,
     combatId: data.combatId,
     roomNW: data.roomNW,
@@ -342,6 +369,20 @@ export async function fetchNode(
 
   setCache(cacheKey, node);
   return node;
+}
+
+function uniqueRoomIds(rays?: string[][]): string[] {
+  if (!rays) return [];
+  return [...new Set(rays.flat().filter((roomId) => roomId.trim().length > 0))];
+}
+
+function normalizeRequirements(
+  requirements?: RawNodeRequirements,
+): NodeRequirements | undefined {
+  if (!Array.isArray(requirements)) return requirements;
+  // Per the MSF schema, index 0 represents normal difficulty. DD currently
+  // has no difficulty selector, so normal is the only honest planner target.
+  return requirements[0] ?? undefined;
 }
 
 // ── Error type ──

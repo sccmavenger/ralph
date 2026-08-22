@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { suppressInstallPrompt } from "./helpers/app-page";
 
 const mockDDList = [
   { id: "dd7", name: "Dark Dimension 7", nodeCount: 3, ddCompletion: null },
@@ -45,12 +46,13 @@ const mockNodeDetail = {
               gearTier: 19,
               info: {
                 name: "Daredevil",
-                traits: ["City", "Hero", "Skill"],
+                traits: ["City", "Hero", "Skill", "Controller"],
               },
             },
           ],
         },
         {
+          onFewerThan: 2,
           units: [
             {
               id: "char-punisher",
@@ -106,6 +108,8 @@ async function selectDDAndNode(page: Page) {
 }
 
 test.describe("DD Node Intelligence", () => {
+  test.beforeEach(async ({ page }) => suppressInstallPrompt(page));
+
   test("Select a node — enemy intelligence panel appears with enemy entries", async ({
     page,
   }) => {
@@ -122,7 +126,11 @@ test.describe("DD Node Intelligence", () => {
     await selectDDAndNode(page);
     // Expand waves to reveal enemy entries
     await page.getByText("Expand All").click();
-    await expect(page.getByText("Spider-Man")).toBeVisible();
+    await expect(
+      page
+        .locator('[data-testid="enemy-entry"]')
+        .getByText("Spider-Man", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("Lv 95").first()).toBeVisible();
   });
 
@@ -133,8 +141,8 @@ test.describe("DD Node Intelligence", () => {
     await selectDDAndNode(page);
     await expect(page.getByTestId("wave-1")).toBeVisible();
     await expect(page.getByTestId("wave-2")).toBeVisible();
-    await expect(page.getByText("Wave 1")).toBeVisible();
-    await expect(page.getByText("Wave 2")).toBeVisible();
+    await expect(page.getByTestId("wave-1")).toContainText("Wave 1");
+    await expect(page.getByTestId("wave-2")).toContainText("Wave 2");
   });
 
   test("Panel renders at 375x667 viewport without clipping", async ({
@@ -160,7 +168,61 @@ test.describe("DD Node Intelligence", () => {
     await expect(page.getByTestId("node-requirements")).toBeVisible();
     await expect(page.getByText("Node Requirements")).toBeVisible();
     // Should show City trait and GT19 within the requirements section
-    await expect(page.locator('[data-testid="node-requirements"]').getByText("City")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="node-requirements"]').getByText("City"),
+    ).toBeVisible();
     await expect(page.getByText("GT19+")).toBeVisible();
+  });
+
+  test("Node strategy shows a target order, opening plan, and wave trigger", async ({
+    page,
+  }) => {
+    await setupMockRoutes(page);
+    await selectDDAndNode(page);
+
+    await expect(page.getByTestId("node-strategy-card")).toBeVisible();
+    await expect(page.getByTestId("strategy-opening-plan")).toContainText(
+      "Daredevil",
+    );
+    await expect(page.getByTestId("strategy-target-order")).toContainText(
+      "Wave 1: Daredevil",
+    );
+    await expect(page.getByTestId("strategy-wave-plan")).toContainText(
+      "fewer than 2 enemies remain",
+    );
+  });
+
+  test("Enemy-data failure is visible and retryable", async ({ page }) => {
+    await setupMockRoutes(page);
+    let attempts = 0;
+    await page.route("**/api/msf/planner/dd/dd7/A1*", async (route) => {
+      attempts++;
+      // React Strict Mode mounts effects twice in the dev server, so keep both
+      // initial requests failing and let the explicit retry succeed.
+      if (attempts <= 2) {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Game servers are in maintenance." }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockNodeDetail),
+      });
+    });
+
+    await page.goto("/analyze/dd-planner");
+    await page.getByTestId("dd-selector").selectOption("dd7");
+    await page.getByTestId("node-selector").selectOption("A1");
+    await expect(
+      page.getByText("Game servers are in maintenance."),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Retry enemy data" }).click();
+
+    await expect(page.getByTestId("node-intel-panel")).toBeVisible();
+    expect(attempts).toBe(3);
   });
 });
