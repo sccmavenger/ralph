@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findCommanders: vi.fn(),
   findSnapshots: vi.fn(),
+  findSnapshotBaseline: vi.fn(),
   findNotifications: vi.fn(),
   countAdvisorQuestions: vi.fn(),
   getFreshOfficialUpdates: vi.fn(),
@@ -12,7 +13,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     commander: { findMany: mocks.findCommanders },
-    rosterSnapshot: { findMany: mocks.findSnapshots },
+    rosterSnapshot: {
+      findMany: mocks.findSnapshots,
+      findFirst: mocks.findSnapshotBaseline,
+    },
     commanderNotification: { findMany: mocks.findNotifications },
     advisorMessage: { count: mocks.countAdvisorQuestions },
   },
@@ -37,6 +41,7 @@ describe("weekly email route", () => {
       { id: "commander-1", email: "commander@example.test", displayName: "Ironman2733" },
     ]);
     mocks.findSnapshots.mockResolvedValue([]);
+    mocks.findSnapshotBaseline.mockResolvedValue(null);
     mocks.findNotifications.mockResolvedValue([]);
     mocks.countAdvisorQuestions.mockResolvedValue(0);
     mocks.getFreshOfficialUpdates.mockResolvedValue([]);
@@ -71,8 +76,8 @@ describe("weekly email route", () => {
     expect(mocks.sendTrackedEmail).toHaveBeenCalledOnce();
     const delivery = mocks.sendTrackedEmail.mock.calls[0][0];
     expect(delivery.subject).toBe("Your Weekly MSF Progress Report");
-    expect(delivery.idempotencyKey).toContain("weekly-digest:v2:");
-    expect(delivery.metadata).toMatchObject({ contentVersion: "v2" });
+    expect(delivery.idempotencyKey).toContain("weekly-digest:v3:");
+    expect(delivery.metadata).toMatchObject({ contentVersion: "v3" });
     expect(delivery.html).toContain("Your roster at a glance");
     expect(delivery.html).toContain("Advisor activity");
     expect(delivery.html).not.toContain("Email delivery verification");

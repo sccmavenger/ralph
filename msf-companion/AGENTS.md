@@ -148,5 +148,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
   MSF posts. Do not depend on `DailyTip` until a real producer exists.
 - Label roster snapshot dates and warn when they are more than seven days old.
   Never present an old snapshot as current account progress.
+- Roster snapshots are created on successful login, so adjacent rows may be
+  identical. Do not call the immediately preceding login a weekly comparison.
+  Select the newest baseline on or before the 7-day and 30-day cutoffs, show
+  its exact date and elapsed days, and phrase a true zero delta as no recorded
+  change.
+- Email progression visuals must use broadly supported table/div markup rather
+  than canvas or JavaScript. If bars use a relative scale, say so and display
+  the exact numeric total beside every bar.
 - Only include active official posts published within the last seven days; if
   no useful section can be built, skip the email instead of sending a shell.

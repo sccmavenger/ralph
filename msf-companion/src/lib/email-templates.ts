@@ -37,20 +37,55 @@ export function buildWeeklyDigestHtml(content: WeeklyDigestContent): string {
 }
 
 function buildRosterSection(roster: DigestRosterSummary): string {
-  const changeParts = [
-    roster.powerChange === null ? "" : `${formatSignedNumber(roster.powerChange)} collection power`,
-    roster.rosterChange === null ? "" : `${formatSignedNumber(roster.rosterChange)} characters`,
-  ].filter(Boolean);
-  const change = changeParts.length
-    ? `<p style="margin:10px 0 0;font-size:12px;color:#9ca3af">Since your previous snapshot: ${changeParts.join(" · ")}</p>`
-    : "";
+  const changes = buildChangeSection(roster);
+  const progress = buildProgressChart(roster);
   const topCharacters = roster.topCharacters.length
     ? `<p style="margin:10px 0 0;font-size:12px;color:#cbd5e1">Top characters: ${roster.topCharacters.map((character) => `${escapeEmailHtml(character.name)} (${formatCompactNumber(character.power)})`).join(" · ")}</p>`
     : "";
   const freshness = roster.isStale
     ? `<p style="margin:10px 0 0;font-size:12px;color:#f59e0b">This roster snapshot is more than seven days old. Refresh it before making investment decisions.</p>`
     : `<p style="margin:10px 0 0;font-size:12px;color:#9ca3af">Roster snapshot: ${formatEmailDate(roster.snapshotAt)}</p>`;
-  return `<div style="padding:4px 0 20px"><h2 style="color:#22c55e;font-size:16px">Your roster at a glance</h2><div style="background:#1a1a2e;border-radius:8px;padding:14px"><table role="presentation" style="width:100%;text-align:center"><tr><td style="padding:6px"><strong style="display:block;color:#22c55e;font-size:18px">${formatCompactNumber(roster.totalPower)}</strong><span style="font-size:11px;color:#9ca3af">Collection power</span></td><td style="padding:6px"><strong style="display:block;color:#60a5fa;font-size:18px">${roster.rosterSize}</strong><span style="font-size:11px;color:#9ca3af">Characters</span></td></tr><tr><td style="padding:6px"><strong style="display:block;color:#f59e0b;font-size:18px">${formatCompactNumber(roster.averagePower)}</strong><span style="font-size:11px;color:#9ca3af">Average power</span></td><td style="padding:6px"><strong style="display:block;color:#f472b6;font-size:18px">${roster.sevenStarCharacters}</strong><span style="font-size:11px;color:#9ca3af">At 7 stars</span></td></tr></table>${change}${topCharacters}${freshness}</div></div>`;
+  return `<div style="padding:4px 0 20px"><h2 style="color:#22c55e;font-size:16px">Your roster at a glance</h2><div style="background:#1a1a2e;border-radius:8px;padding:14px"><table role="presentation" style="width:100%;text-align:center"><tr><td style="padding:6px"><strong style="display:block;color:#22c55e;font-size:18px">${formatCompactNumber(roster.totalPower)}</strong><span style="font-size:11px;color:#9ca3af">Collection power</span></td><td style="padding:6px"><strong style="display:block;color:#60a5fa;font-size:18px">${roster.rosterSize}</strong><span style="font-size:11px;color:#9ca3af">Characters</span></td></tr><tr><td style="padding:6px"><strong style="display:block;color:#f59e0b;font-size:18px">${formatCompactNumber(roster.averagePower)}</strong><span style="font-size:11px;color:#9ca3af">Average power</span></td><td style="padding:6px"><strong style="display:block;color:#f472b6;font-size:18px">${roster.sevenStarCharacters}</strong><span style="font-size:11px;color:#9ca3af">At 7 stars</span></td></tr></table>${changes}${progress}${topCharacters}${freshness}</div></div>`;
+}
+
+function buildChangeSection(roster: DigestRosterSummary): string {
+  const changes = [
+    roster.weekChange ? { label: "7+ day change", change: roster.weekChange } : null,
+    roster.monthChange ? { label: "30+ day change", change: roster.monthChange } : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null)
+    .filter((item, index, items) =>
+      items.findIndex((candidate) => candidate.change.baselineAt === item.change.baselineAt) === index
+    );
+  if (!changes.length) return "";
+
+  const cards = changes.map(({ label, change }) => {
+    const changeParts = [
+      change.powerChange !== 0
+        ? `${formatSignedNumber(change.powerChange)} collection power`
+        : "",
+      change.rosterChange !== 0 ? formatCharacterChange(change.rosterChange) : "",
+    ].filter(Boolean);
+    const detail = changeParts.length
+      ? changeParts.join(" · ")
+      : "No collection-power or roster-size change recorded";
+    return `<td style="width:50%;padding:6px;vertical-align:top"><div style="background:#111827;border-radius:7px;padding:10px;height:100%"><strong style="display:block;color:#60a5fa;font-size:12px">${label}</strong><span style="display:block;margin-top:5px;font-size:13px;color:#e5e7eb">${detail}</span><span style="display:block;margin-top:5px;font-size:10px;color:#9ca3af">Since ${formatEmailDate(change.baselineAt)} · ${change.elapsedDays} days between snapshots</span></div></td>`;
+  }).join("");
+  return `<div style="margin-top:12px"><table role="presentation" style="width:100%;border-collapse:collapse"><tr>${cards}</tr></table></div>`;
+}
+
+function buildProgressChart(roster: DigestRosterSummary): string {
+  if (roster.progress.length < 2) return "";
+  const powers = roster.progress.map((point) => point.totalPower);
+  const minimum = Math.min(...powers);
+  const maximum = Math.max(...powers);
+  const range = maximum - minimum;
+  const rows = roster.progress.map((point) => {
+    const width = range === 0
+      ? 100
+      : Math.round(12 + ((point.totalPower - minimum) / range) * 88);
+    return `<tr><td style="width:70px;padding:4px 7px 4px 0;font-size:10px;color:#9ca3af;white-space:nowrap">${formatEmailDateShort(point.snapshotAt)}</td><td style="padding:4px 8px 4px 0"><div style="height:9px;background:#253047;border-radius:999px;overflow:hidden"><div style="height:9px;width:${width}%;background:#22c55e;border-radius:999px"></div></div></td><td style="width:54px;padding:4px 0;text-align:right;font-size:10px;color:#e5e7eb;white-space:nowrap">${formatCompactNumber(point.totalPower)}</td></tr>`;
+  }).join("");
+  return `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155"><strong style="display:block;font-size:12px;color:#22c55e">Collection power progression</strong><table role="presentation" style="width:100%;margin-top:6px;border-collapse:collapse">${rows}</table><p style="margin:6px 0 0;font-size:9px;color:#64748b">Bars use a relative scale across the displayed snapshots; the totals at right are exact.</p></div>`;
 }
 
 function formatCompactNumber(value: number): string {
@@ -65,11 +100,22 @@ function formatSignedNumber(value: number): string {
   return `${prefix}${formatCompactNumber(value)}`;
 }
 
+function formatCharacterChange(value: number): string {
+  return `${formatSignedNumber(value)} ${Math.abs(value) === 1 ? "character" : "characters"}`;
+}
+
 function formatEmailDate(value: string): string {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
     ? "date unavailable"
     : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function formatEmailDateShort(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? "Unknown"
+    : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 export function buildLifecycleEmailHtml(

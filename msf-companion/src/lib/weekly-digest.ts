@@ -10,10 +10,24 @@ export interface DigestRosterSummary {
   averagePower: number;
   sevenStarCharacters: number;
   snapshotAt: string;
-  powerChange: number | null;
-  rosterChange: number | null;
+  weekChange: DigestRosterChange | null;
+  monthChange: DigestRosterChange | null;
+  progress: DigestProgressPoint[];
   topCharacters: Array<{ name: string; power: number }>;
   isStale: boolean;
+}
+
+export interface DigestRosterChange {
+  powerChange: number;
+  rosterChange: number;
+  baselineAt: string;
+  elapsedDays: number;
+}
+
+export interface DigestProgressPoint {
+  snapshotAt: string;
+  totalPower: number;
+  rosterSize: number;
 }
 
 export interface DigestOfficialUpdate {
@@ -37,6 +51,16 @@ interface SearchPayload {
   value?: Array<Record<string, unknown>>;
 }
 
+interface NormalizedSnapshot extends DigestProgressPoint {
+  characters: ReturnType<typeof normalizeAdvisorRosterSnapshot>;
+  timestamp: number;
+}
+
+const DAY_MS = 86_400_000;
+const WEEK_DAYS = 7;
+const MONTH_DAYS = 30;
+const MAX_PROGRESS_POINTS = 6;
+
 function finiteNonNegative(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
@@ -45,43 +69,122 @@ export function summarizeDigestRoster(
   snapshots: SnapshotInput[],
   now = new Date()
 ): DigestRosterSummary | null {
-  const currentSnapshot = snapshots[0];
-  if (!currentSnapshot) return null;
+  const normalized = snapshots
+    .map(normalizeSnapshot)
+    .filter((snapshot): snapshot is NormalizedSnapshot => snapshot !== null)
+    .sort((a, b) => b.timestamp - a.timestamp);
+  const current = normalized[0];
+  if (!current) return null;
 
-  const current = normalizeAdvisorRosterSnapshot(currentSnapshot.snapshotData);
-  if (!current.length) return null;
-
-  const previous = snapshots[1]
-    ? normalizeAdvisorRosterSnapshot(snapshots[1].snapshotData)
-    : [];
-  const totalPower = current.reduce(
-    (total, character) => total + finiteNonNegative(character.power),
-    0
+  const weekBaseline = normalized.find(
+    (snapshot) => snapshot.timestamp <= now.getTime() - WEEK_DAYS * DAY_MS
   );
-  const previousPower = previous.reduce(
-    (total, character) => total + finiteNonNegative(character.power),
-    0
+  const monthBaseline = normalized.find(
+    (snapshot) => snapshot.timestamp <= now.getTime() - MONTH_DAYS * DAY_MS
   );
-  const snapshotAt = new Date(currentSnapshot.createdAt);
-  const snapshotAgeMs = now.getTime() - snapshotAt.getTime();
+  const snapshotAgeMs = now.getTime() - current.timestamp;
 
   return {
-    rosterSize: current.length,
-    totalPower,
-    averagePower: Math.round(totalPower / current.length),
-    sevenStarCharacters: current.filter((character) => character.yellowStars === 7).length,
-    snapshotAt: snapshotAt.toISOString(),
-    powerChange: previous.length ? totalPower - previousPower : null,
-    rosterChange: previous.length ? current.length - previous.length : null,
-    topCharacters: [...current]
+    rosterSize: current.rosterSize,
+    totalPower: current.totalPower,
+    averagePower: Math.round(current.totalPower / current.rosterSize),
+    sevenStarCharacters: current.characters.filter(
+      (character) => character.yellowStars === 7
+    ).length,
+    snapshotAt: current.snapshotAt,
+    weekChange: buildRosterChange(current, weekBaseline),
+    monthChange: buildRosterChange(current, monthBaseline),
+    progress: buildProgressPoints(normalized, current, monthBaseline, now),
+    topCharacters: [...current.characters]
       .sort((a, b) => finiteNonNegative(b.power) - finiteNonNegative(a.power))
       .slice(0, 3)
       .map((character) => ({
         name: character.name || "Unknown",
         power: finiteNonNegative(character.power),
       })),
-    isStale: snapshotAgeMs > ROSTER_STALE_DAYS * 86_400_000,
+    isStale: snapshotAgeMs > ROSTER_STALE_DAYS * DAY_MS,
   };
+}
+
+function normalizeSnapshot(snapshot: SnapshotInput): NormalizedSnapshot | null {
+  const timestamp = new Date(snapshot.createdAt).getTime();
+  const characters = normalizeAdvisorRosterSnapshot(snapshot.snapshotData);
+  if (!Number.isFinite(timestamp) || !characters.length) return null;
+  const totalPower = characters.reduce(
+    (total, character) => total + finiteNonNegative(character.power),
+    0
+  );
+  return {
+    characters,
+    timestamp,
+    snapshotAt: new Date(timestamp).toISOString(),
+    totalPower,
+    rosterSize: characters.length,
+  };
+}
+
+function buildRosterChange(
+  current: NormalizedSnapshot,
+  baseline: NormalizedSnapshot | undefined
+): DigestRosterChange | null {
+  if (!baseline || baseline.snapshotAt === current.snapshotAt) return null;
+  return {
+    powerChange: current.totalPower - baseline.totalPower,
+    rosterChange: current.rosterSize - baseline.rosterSize,
+    baselineAt: baseline.snapshotAt,
+    elapsedDays: Math.max(1, Math.round((current.timestamp - baseline.timestamp) / DAY_MS)),
+  };
+}
+
+function buildProgressPoints(
+  snapshots: NormalizedSnapshot[],
+  current: NormalizedSnapshot,
+  monthBaseline: NormalizedSnapshot | undefined,
+  now: Date
+): DigestProgressPoint[] {
+  const cutoff = now.getTime() - MONTH_DAYS * DAY_MS;
+  const candidates = snapshots
+    .filter(
+      (snapshot) =>
+        snapshot.timestamp >= cutoff || snapshot.snapshotAt === monthBaseline?.snapshotAt
+    )
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const stateChanges: NormalizedSnapshot[] = [];
+  for (const snapshot of candidates) {
+    const previous = stateChanges.at(-1);
+    if (
+      !previous ||
+      previous.totalPower !== snapshot.totalPower ||
+      previous.rosterSize !== snapshot.rosterSize
+    ) {
+      stateChanges.push(snapshot);
+    }
+  }
+  if (stateChanges.at(-1)?.snapshotAt !== current.snapshotAt) {
+    stateChanges.push(current);
+  }
+
+  return sampleProgressPoints(stateChanges, MAX_PROGRESS_POINTS).map(
+    ({ snapshotAt, totalPower, rosterSize }) => ({
+      snapshotAt,
+      totalPower,
+      rosterSize,
+    })
+  );
+}
+
+function sampleProgressPoints(
+  points: NormalizedSnapshot[],
+  maximum: number
+): NormalizedSnapshot[] {
+  if (points.length <= maximum) return points;
+  const selected = new Set<number>([0, points.length - 1]);
+  const interval = (points.length - 1) / (maximum - 1);
+  for (let index = 1; index < maximum - 1; index++) {
+    selected.add(Math.round(index * interval));
+  }
+  return [...selected].sort((a, b) => a - b).map((index) => points[index]);
 }
 
 export function isUsefulDigestNotification(notification: DigestNotification): boolean {

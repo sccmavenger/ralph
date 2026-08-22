@@ -10,7 +10,7 @@ MSF Companion sends email through the web application and Resend. The stopped le
 | Premium welcome | Stripe reports the first successful subscription invoice | Transactional |
 | Payment failure | Stripe reports a failed invoice, with a seven-day cooldown | Transactional |
 | New character | Official game-data sync detects a character not in `GameCharacter` | New character alerts |
-| Weekly progress report | Monday GitHub Actions schedule; includes roster progress, recent Advisor activity, fresh official MSF updates, and genuine recent unread alerts | Weekly digest |
+| Weekly progress report | Monday GitHub Actions schedule; includes dated 7+ and 30+ day roster comparisons, an email-safe collection-power chart, recent Advisor activity, fresh official MSF updates, and genuine recent unread alerts | Weekly digest |
 | Premium lifecycle | Daily GitHub Actions schedule and enabled `churn_prevention` feature flag | Account and progress reminders |
 | Inactive/free and cancellation win-back | Daily GitHub Actions schedule and eligibility/cooldown rules | Account and progress reminders |
 
@@ -22,6 +22,12 @@ MSF Companion sends email through the web application and Resend. The stopped le
 - Every delivery has a database and Resend idempotency key.
 - Verification and test notifications never qualify as weekly digest content.
 - Weekly reports skip delivery when no roster, activity, current official update, or genuine alert is available.
+- Login can create duplicate roster snapshots. Weekly reports compare against the
+  newest snapshot on or before each 7-day and 30-day cutoff, label the exact
+  baseline date and elapsed days, and describe a flat period in words instead
+  of emitting a cryptic `0 · 0` delta.
+- Progress charts use a relative bar scale across at most six dated snapshots;
+  the exact collection-power total remains visible beside every bar.
 - Official update links are limited to active Scopely posts published within the previous seven days.
 - Marketing mail is checked against the category preference again at send time.
 - Signed unsubscribe links render a confirmation on `GET`; only signed `POST` requests change preferences.

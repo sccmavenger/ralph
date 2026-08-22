@@ -12,7 +12,7 @@ import {
 } from "@/lib/weekly-digest";
 
 export const dynamic = "force-dynamic";
-const DIGEST_CONTENT_VERSION = "v2";
+const DIGEST_CONTENT_VERSION = "v3";
 
 function utcWeekKey(date = new Date()): string {
   const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -44,17 +44,29 @@ export async function POST(request: Request) {
     select: { id: true, email: true, displayName: true },
   });
 
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const runAt = new Date();
+  const since = new Date(runAt.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthSince = new Date(runAt.getTime() - 30 * 24 * 60 * 60 * 1000);
   const officialUpdates = await getFreshOfficialUpdates().catch(() => []);
   let sent = 0;
   let skipped = 0;
   for (const commander of commanders) {
     if (!commander.email) continue;
-    const [snapshots, notificationCandidates, advisorQuestions] = await Promise.all([
+    const [recentSnapshots, weekBaseline, monthBaseline, notificationCandidates, advisorQuestions] = await Promise.all([
       prisma.rosterSnapshot.findMany({
         where: { commanderId: commander.id },
         orderBy: { createdAt: "desc" },
-        take: 2,
+        take: 32,
+        select: { snapshotData: true, createdAt: true },
+      }),
+      prisma.rosterSnapshot.findFirst({
+        where: { commanderId: commander.id, createdAt: { lte: since } },
+        orderBy: { createdAt: "desc" },
+        select: { snapshotData: true, createdAt: true },
+      }),
+      prisma.rosterSnapshot.findFirst({
+        where: { commanderId: commander.id, createdAt: { lte: monthSince } },
+        orderBy: { createdAt: "desc" },
         select: { snapshotData: true, createdAt: true },
       }),
       prisma.commanderNotification.findMany({
@@ -71,7 +83,12 @@ export async function POST(request: Request) {
         },
       }),
     ]);
-    const roster = summarizeDigestRoster(snapshots);
+    const snapshots = [
+      ...recentSnapshots,
+      ...(weekBaseline ? [weekBaseline] : []),
+      ...(monthBaseline ? [monthBaseline] : []),
+    ];
+    const roster = summarizeDigestRoster(snapshots, runAt);
     const notifications = notificationCandidates.filter(isUsefulDigestNotification).slice(0, 5);
     const digestContent = { roster, officialUpdates, notifications, advisorQuestions };
     if (!hasUsefulWeeklyDigestContent(digestContent)) {

@@ -31,8 +31,23 @@ describe("email content safety", () => {
         averagePower: 511_500,
         sevenStarCharacters: 265,
         snapshotAt: "2026-08-22T00:00:00Z",
-        powerChange: 2_400_000,
-        rosterChange: 1,
+        weekChange: {
+          powerChange: 84,
+          rosterChange: 1,
+          baselineAt: "2026-08-10T00:00:00Z",
+          elapsedDays: 12,
+        },
+        monthChange: {
+          powerChange: 1_434_183,
+          rosterChange: 1,
+          baselineAt: "2026-07-08T00:00:00Z",
+          elapsedDays: 45,
+        },
+        progress: [
+          { snapshotAt: "2026-07-08T00:00:00Z", totalPower: 186_765_817, rosterSize: 367 },
+          { snapshotAt: "2026-08-10T00:00:00Z", totalPower: 188_199_916, rosterSize: 367 },
+          { snapshotAt: "2026-08-22T00:00:00Z", totalPower: 188_200_000, rosterSize: 368 },
+        ],
         topCharacters: [{ name: "Iron Man", power: 1_200_000 }],
         isStale: false,
       },
@@ -42,9 +57,44 @@ describe("email content safety", () => {
     });
     expect(html).toContain("188.2M");
     expect(html).toContain("368");
-    expect(html).toContain("+2.4M collection power");
+    expect(html).toContain("7+ day change");
+    expect(html).toContain("+84 collection power");
+    expect(html).toContain("30+ day change");
+    expect(html).toContain("+1.4M collection power");
+    expect(html).toContain("Collection power progression");
+    expect(html).toContain("Bars use a relative scale");
+    expect(html).not.toContain("Since your previous snapshot");
     expect(html).toContain("Iron Man (1.2M)");
     expect(html).toContain("Open your dashboard");
+  });
+
+  it("describes a flat baseline clearly instead of emitting a cryptic zero delta", () => {
+    const html = buildWeeklyDigestHtml({
+      displayName: "Commander",
+      roster: {
+        rosterSize: 368,
+        totalPower: 188_219_378,
+        averagePower: 511_465,
+        sevenStarCharacters: 265,
+        snapshotAt: "2026-08-22T00:00:00Z",
+        weekChange: {
+          powerChange: 0,
+          rosterChange: 0,
+          baselineAt: "2026-08-15T00:00:00Z",
+          elapsedDays: 7,
+        },
+        monthChange: null,
+        progress: [],
+        topCharacters: [],
+        isStale: false,
+      },
+      officialUpdates: [],
+      notifications: [],
+      advisorQuestions: 0,
+    });
+
+    expect(html).toContain("No collection-power or roster-size change recorded");
+    expect(html).not.toContain("0 collection power");
   });
 
   it("adds a category-specific management link and a readable text fallback", () => {

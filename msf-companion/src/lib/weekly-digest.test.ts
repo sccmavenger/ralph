@@ -11,7 +11,7 @@ describe("weekly digest content", () => {
     vi.unstubAllGlobals();
   });
 
-  it("summarizes roster progress from the two latest snapshots", () => {
+  it("uses dated weekly and monthly baselines instead of an identical prior login", () => {
     const summary = summarizeDigestRoster(
       [
         {
@@ -22,8 +22,19 @@ describe("weekly digest content", () => {
           ],
         },
         {
-          createdAt: "2026-08-15T12:00:00Z",
+          createdAt: "2026-08-20T12:00:00Z",
+          snapshotData: [
+            { name: "Iron Man", power: 1_200_000, yellowStars: 7 },
+            { name: "Rescue", power: 800_000, yellowStars: 6 },
+          ],
+        },
+        {
+          createdAt: "2026-08-15T10:00:00Z",
           snapshotData: [{ name: "Iron Man", power: 1_000_000, yellowStars: 7 }],
+        },
+        {
+          createdAt: "2026-07-20T12:00:00Z",
+          snapshotData: [{ name: "Iron Man", power: 800_000, yellowStars: 6 }],
         },
       ],
       new Date("2026-08-22T18:00:00Z")
@@ -34,9 +45,24 @@ describe("weekly digest content", () => {
       totalPower: 2_000_000,
       averagePower: 1_000_000,
       sevenStarCharacters: 1,
-      powerChange: 1_000_000,
-      rosterChange: 1,
+      weekChange: {
+        powerChange: 1_000_000,
+        rosterChange: 1,
+        baselineAt: "2026-08-15T10:00:00.000Z",
+        elapsedDays: 7,
+      },
+      monthChange: {
+        powerChange: 1_200_000,
+        rosterChange: 1,
+        baselineAt: "2026-07-20T12:00:00.000Z",
+        elapsedDays: 33,
+      },
       isStale: false,
+    });
+    expect(summary?.progress).toHaveLength(4);
+    expect(summary?.progress.at(-1)).toMatchObject({
+      snapshotAt: "2026-08-22T12:00:00.000Z",
+      totalPower: 2_000_000,
     });
     expect(summary?.topCharacters[0]).toEqual({ name: "Iron Man", power: 1_200_000 });
   });
