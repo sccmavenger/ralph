@@ -36,7 +36,7 @@ const { rows } = await pool.query(`
   WHERE email IS NOT NULL
     AND email != ''
     AND disabled = false
-    AND "emailDigestOptOut" = false
+    AND "emailAnnouncements" = true
   ORDER BY "createdAt"
 `);
 await pool.end();

@@ -1,10 +1,12 @@
+import { escapeEmailHtml } from "@/lib/email-content";
+
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://themsftoolkit.com";
 const DISCORD_INVITE = "https://discord.gg/2ptFQ2Vefk";
 const FAQ_URL = `${BASE_URL}/faq`;
 const CONTACT_EMAIL = "info@themsftoolkit.com";
 
 export function buildWelcomeEmailHtml(displayName: string): string {
-  const name = displayName || "Commander";
+  const name = escapeEmailHtml(displayName || "Commander");
 
   return `<!DOCTYPE html>
 <html lang="en">

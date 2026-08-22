@@ -49,7 +49,7 @@ export default async function ProfilePage() {
   // Get snapshot counts and subscription data
   let rosterSnapshotCount = 0;
   let inventorySnapshotCount = 0;
-  let subscriptionTier = commander?.subscriptionTier ?? "FREE";
+  const subscriptionTier = commander?.subscriptionTier ?? "FREE";
   let cancelAtPeriodEnd = false;
   let currentPeriodEnd: string | null = null;
 
@@ -84,6 +84,12 @@ export default async function ProfilePage() {
       tcp={tcp}
       allianceName={allianceName}
       email={commander?.email ?? null}
+      emailPreferences={{
+        weeklyDigest: commander?.emailWeeklyDigest ?? true,
+        newCharacters: commander?.emailNewCharacters ?? true,
+        announcements: commander?.emailAnnouncements ?? true,
+        reengagement: commander?.emailReengagement ?? true,
+      }}
       rosterSnapshotCount={rosterSnapshotCount}
       inventorySnapshotCount={inventorySnapshotCount}
       subscriptionTier={subscriptionTier}

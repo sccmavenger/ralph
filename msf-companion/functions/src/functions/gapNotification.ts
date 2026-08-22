@@ -204,7 +204,7 @@ app.timer("gapNotification", {
           return;
         }
         const html = formatEmailHtml(report);
-        const fromAddress = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+        const fromAddress = process.env.EMAIL_FROM || "MSF Companion <info@themsftoolkit.com>";
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },

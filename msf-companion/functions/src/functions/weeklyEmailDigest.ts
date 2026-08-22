@@ -110,7 +110,7 @@ export function formatDigestEmail(data: DigestData): string {
   // Footer with unsubscribe
   html += `<div style="text-align: center; padding: 20px 0; border-top: 1px solid #333; font-size: 12px; color: #666;">`;
   html += `<p>MSF Companion — Your Marvel Strike Force Assistant</p>`;
-  html += `<a href="https://themsftoolkit.com/api/email/unsubscribe?token=${encodeURIComponent(data.email)}" style="color: #888; text-decoration: underline;">Unsubscribe from weekly digest</a>`;
+  html += `<a href="https://themsftoolkit.com/profile" data-action="unsubscribe" style="color: #888; text-decoration: underline;">Unsubscribe or manage email preferences</a>`;
   html += `</div>`;
 
   html += `</div></body></html>`;
@@ -124,7 +124,7 @@ app.timer("weeklyEmailDigest", {
 
     const pool = getPool();
     const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-    const EMAIL_FROM = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+    const EMAIL_FROM = process.env.EMAIL_FROM || "MSF Companion <info@themsftoolkit.com>";
     // Testing phase: only send to admin until validated
     const TEST_RECIPIENT = process.env.DIGEST_TEST_EMAIL || "";
 

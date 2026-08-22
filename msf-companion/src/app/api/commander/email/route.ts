@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getScopelyId } from "@/lib/scopely-id";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { hashEmailAddress, sendTrackedEmail } from "@/lib/email";
+import { escapeEmailHtml } from "@/lib/email-content";
 
 export const dynamic = "force-dynamic";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function buildEmailSignupWelcomeHtml(displayName: string): string {
-  const name = displayName || "Commander";
+  const name = escapeEmailHtml(displayName || "Commander");
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as { email?: string };
+  const body = (await request.json()) as { email?: string; source?: string };
   const email = body.email?.trim();
 
   if (!email || !EMAIL_REGEX.test(email)) {
@@ -68,22 +69,36 @@ export async function POST(request: NextRequest) {
   });
   const isFirstEmail = !existing?.email;
 
-  await prisma.commander.upsert({
+  const commander = await prisma.commander.upsert({
     where: { scopelyId },
-    create: { scopelyId, email },
-    update: { email },
+    create: {
+      scopelyId,
+      email,
+      emailConsentAt: new Date(),
+      emailConsentSource: body.source === "modal" ? "modal" : "profile",
+    },
+    update: {
+      email,
+      emailConsentAt: new Date(),
+      emailConsentSource: body.source === "modal" ? "modal" : "profile",
+    },
   });
 
   // Send welcome email on first email registration
   if (isFirstEmail) {
     try {
-      await sendEmail(
-        email,
-        "Welcome to MSF Companion! 👋",
-        buildEmailSignupWelcomeHtml(existing?.displayName ?? "")
-      );
+      await sendTrackedEmail({
+        commanderId: commander.id,
+        to: email,
+        subject: "Welcome to MSF Companion! 👋",
+        html: buildEmailSignupWelcomeHtml(existing?.displayName ?? ""),
+        messageType: "signup_welcome",
+        idempotencyKey: `signup-welcome:${commander.id}:${hashEmailAddress(email)}`,
+      });
     } catch (err) {
-      console.warn(`[Email] Welcome email failed for ${email}: ${err}`);
+      console.warn(
+        `[Email] Welcome email failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 

@@ -27,6 +27,7 @@ const { rows } = await pool.query(`
   SELECT email, "displayName", "subscriptionTier"
   FROM "Commander"
   WHERE email IS NOT NULL AND email != '' AND disabled = false
+    AND "emailAnnouncements" = true
   ORDER BY "createdAt"
 `);
 await pool.end();

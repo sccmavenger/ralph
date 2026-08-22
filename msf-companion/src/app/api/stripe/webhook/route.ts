@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { sendTrackedEmail } from "@/lib/email";
 import { buildWelcomeEmailHtml } from "@/lib/welcome-email";
 import Stripe from "stripe";
 
@@ -13,6 +13,41 @@ function getPeriodEnd(sub: Stripe.Subscription): Date {
   // In Stripe v22, current_period_end is on subscription items
   const item = sub.items.data[0];
   return new Date((item?.current_period_end ?? sub.start_date) * 1000);
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
+}
+
+async function acquireEvent(event: Stripe.Event): Promise<boolean> {
+  const existing = await prisma.stripeWebhookEvent.findUnique({
+    where: { id: event.id },
+  });
+  if (existing?.status === "processed" || existing?.status === "processing") {
+    return false;
+  }
+  if (existing) {
+    await prisma.stripeWebhookEvent.update({
+      where: { id: event.id },
+      data: { status: "processing", attempts: { increment: 1 }, lastError: null },
+    });
+    return true;
+  }
+
+  try {
+    await prisma.stripeWebhookEvent.create({
+      data: { id: event.id, type: event.type },
+    });
+    return true;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return false;
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -38,7 +73,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  switch (event.type) {
+  if (!(await acquireEvent(event))) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  try {
+    switch (event.type) {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer
@@ -55,12 +95,11 @@ export async function POST(request: Request) {
             : subscriptionId.id;
         const sub = await stripe.subscriptions.retrieve(subId);
 
-        // Check if this is a new subscription (commander was FREE) to send welcome email
         const commander = await prisma.commander.findFirst({
           where: { stripeCustomerId: customerId },
-          select: { subscriptionTier: true, email: true, displayName: true },
+          select: { id: true, email: true, displayName: true },
         });
-        const isNewSubscription = commander?.subscriptionTier !== "PREMIUM";
+        const isNewSubscription = invoice.billing_reason === "subscription_create";
 
         await prisma.commander.updateMany({
           where: { stripeCustomerId: customerId },
@@ -72,16 +111,14 @@ export async function POST(request: Request) {
 
         // Send welcome email for new subscribers
         if (isNewSubscription && commander?.email) {
-          try {
-            const html = buildWelcomeEmailHtml(commander.displayName ?? "");
-            await sendEmail(
-              commander.email,
-              "Welcome to MSF Companion Premium! 🎉",
-              html
-            );
-          } catch (err) {
-            console.warn(`[Stripe] Welcome email failed: ${err}`);
-          }
+          await sendTrackedEmail({
+            commanderId: commander.id,
+            to: commander.email,
+            subject: "Welcome to MSF Companion Premium! 🎉",
+            html: buildWelcomeEmailHtml(commander.displayName ?? ""),
+            messageType: "premium_welcome",
+            idempotencyKey: `stripe:${event.id}:premium-welcome`,
+          });
         }
       }
       break;
@@ -105,14 +142,17 @@ export async function POST(request: Request) {
       });
       if (cancelledCommander) {
         const winBackDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-        await prisma.churnIntervention.create({
-          data: {
+        await prisma.churnIntervention.upsert({
+          where: { sourceEventId: event.id },
+          update: {},
+          create: {
             commanderId: cancelledCommander.id,
             type: "win-back",
             channel: "email",
             riskScore: null,
             scheduledAt: winBackDate,
             delivered: false,
+            sourceEventId: event.id,
           },
         });
 
@@ -180,16 +220,15 @@ export async function POST(request: Request) {
           if (cooldownExpired) {
             // Send dunning email
             if (failedCommander.email) {
-              try {
-                const { buildDunningEmailHtml } = await import("@/lib/churn-emails");
-                await sendEmail(
-                  failedCommander.email,
-                  "Action needed: update your payment method",
-                  buildDunningEmailHtml(failedCommander.displayName ?? "")
-                );
-              } catch (err) {
-                console.warn(`[Stripe] Dunning email failed: ${err}`);
-              }
+              const { buildDunningEmailHtml } = await import("@/lib/churn-emails");
+              await sendTrackedEmail({
+                commanderId: failedCommander.id,
+                to: failedCommander.email,
+                subject: "Action needed: update your payment method",
+                html: buildDunningEmailHtml(failedCommander.displayName ?? ""),
+                messageType: "payment_failed",
+                idempotencyKey: `stripe:${event.id}:payment-failed`,
+              });
             }
 
             // Create notification
@@ -204,27 +243,41 @@ export async function POST(request: Request) {
             });
 
             // Log intervention
-            await prisma.churnIntervention.create({
-              data: {
+            await prisma.churnIntervention.upsert({
+              where: { sourceEventId: event.id },
+              update: {},
+              create: {
                 commanderId: failedCommander.id,
                 type: "dunning",
                 channel: failedCommander.email ? "both" : "notification",
                 riskScore: null,
                 delivered: true,
+                sourceEventId: event.id,
               },
             });
           }
         }
       }
-
-      console.warn(`[Stripe] Payment failed for customer ${customerId ?? "unknown"}`);
       break;
     }
 
     default:
       // Acknowledge but ignore unhandled event types
       break;
-  }
+    }
 
-  return NextResponse.json({ received: true });
+    await prisma.stripeWebhookEvent.update({
+      where: { id: event.id },
+      data: { status: "processed", processedAt: new Date(), lastError: null },
+    });
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await prisma.stripeWebhookEvent.update({
+      where: { id: event.id },
+      data: { status: "failed", lastError: message.slice(0, 1000) },
+    });
+    console.error(`[Stripe] Webhook ${event.type} failed: ${message}`);
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
+  }
 }

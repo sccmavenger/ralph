@@ -153,6 +153,8 @@ azd deploy web
 
 Do not use a bare `azd deploy` for routine web releases: the Function App uses a separate package-based deployment path and can stop the combined deployment before the web service is updated. See [`.github/prompts/deploy-production.prompt.md`](../.github/prompts/deploy-production.prompt.md) for the current production procedure.
 
+Email delivery, triggers, consent controls, monitoring, and safe rollout are documented in [`docs/email-operations.md`](docs/email-operations.md).
+
 ## API reference
 
 MSF integration work should begin with:

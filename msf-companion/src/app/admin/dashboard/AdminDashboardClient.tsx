@@ -305,6 +305,12 @@ export default function AdminDashboardClient({
           >
             Monetization
           </a>
+          <a
+            href="/admin/email-health"
+            className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors"
+          >
+            Email Health
+          </a>
         </nav>
       </header>
 

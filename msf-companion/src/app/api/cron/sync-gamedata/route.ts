@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { sendTrackedEmail } from "@/lib/email";
+import { emailAutomationMode, emailTestRecipient } from "@/lib/email-automation";
 import { runOfficialKnowledgeSync, type SyncedCharacter } from "@/lib/kb-official-sync";
 
 interface SyncResult {
@@ -29,18 +30,37 @@ function buildNewCharacterEmailHtml(character: SyncedCharacter): string {
 }
 
 async function sendNewCharacterEmails(characters: SyncedCharacter[]): Promise<number> {
-  const testEmail = process.env.NEW_CHARACTER_EMAIL_TEST || "";
-  const recipients = testEmail ? [{ email: testEmail }] : await prisma.commander.findMany({
-    where: { disabled: false, email: { not: null }, emailDigestOptOut: false },
-    select: { email: true },
-  });
+  const mode = emailAutomationMode();
+  if (mode === "disabled") return 0;
+
+  const testEmail = emailTestRecipient();
+  const recipients = mode === "test"
+    ? testEmail
+      ? await prisma.commander.findMany({
+          where: { disabled: false, email: { equals: testEmail, mode: "insensitive" } },
+          select: { id: true, email: true },
+        })
+      : []
+    : await prisma.commander.findMany({
+        where: { disabled: false, email: { not: null }, emailNewCharacters: true },
+        select: { id: true, email: true },
+      });
   let sent = 0;
   for (const character of characters) {
     for (const recipient of recipients) {
       if (!recipient.email) continue;
       try {
-        await sendEmail(recipient.email, `New Character Detected: ${character.name}`, buildNewCharacterEmailHtml(character));
-        sent++;
+        const result = await sendTrackedEmail({
+          commanderId: recipient.id,
+          to: recipient.email,
+          subject: `New Character Detected: ${character.name}`,
+          html: buildNewCharacterEmailHtml(character),
+          messageType: "new_character",
+          idempotencyKey: `new-character:${character.id}:${recipient.id}`,
+          preference: "newCharacters",
+          metadata: { characterId: character.id, automationMode: mode },
+        });
+        if (result.status === "sent") sent++;
       } catch (error) {
         console.warn(`[KB Sync] New-character email failed: ${error instanceof Error ? error.message : String(error)}`);
       }

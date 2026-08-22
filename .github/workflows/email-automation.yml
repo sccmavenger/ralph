@@ -1,0 +1,46 @@
+name: Email Automation
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Email job to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - weekly
+          - lifecycle
+
+concurrency:
+  group: email-automation
+  cancel-in-progress: false
+
+jobs:
+  weekly-digest:
+    if: github.event.schedule == '0 9 * * 1' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'weekly'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Send eligible weekly digests
+        run: |
+          curl --fail-with-body --show-error --silent -X POST \
+            "https://themsftoolkit.com/api/cron/email/weekly" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
+
+  lifecycle:
+    if: github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'lifecycle'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run lifecycle email checks
+        run: |
+          curl --fail-with-body --show-error --silent -X POST \
+            "https://themsftoolkit.com/api/cron/email/lifecycle" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"

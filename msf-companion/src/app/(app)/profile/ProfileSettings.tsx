@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { EmailPreferenceKey, EmailPreferences } from "@/lib/email-preferences";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,6 +17,7 @@ export default function ProfileSettings({
   tcp,
   allianceName,
   email: initialEmail,
+  emailPreferences: initialEmailPreferences,
   rosterSnapshotCount,
   inventorySnapshotCount,
   subscriptionTier,
@@ -28,6 +30,7 @@ export default function ProfileSettings({
   tcp: number | null;
   allianceName: string | null;
   email: string | null;
+  emailPreferences: EmailPreferences;
   rosterSnapshotCount: number;
   inventorySnapshotCount: number;
   subscriptionTier: string;
@@ -45,13 +48,16 @@ export default function ProfileSettings({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const [emailPreferences, setEmailPreferences] = useState(initialEmailPreferences);
+  const [savingPreference, setSavingPreference] = useState<EmailPreferenceKey | null>(null);
+  const [preferenceError, setPreferenceError] = useState("");
   const [towerNotifications, setTowerNotifications] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("tower-notifications") !== "false";
     }
     return true;
   });
-  const [snapshotCounts, setSnapshotCounts] = useState({
+  const [snapshotCounts] = useState({
     roster: rosterSnapshotCount,
     inventory: inventorySnapshotCount,
   });
@@ -71,7 +77,7 @@ export default function ProfileSettings({
       const res = await fetch("/api/commander/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, source: "profile" }),
       });
 
       if (!res.ok) {
@@ -87,6 +93,28 @@ export default function ProfileSettings({
       setError("Something went wrong");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function updateEmailPreference(key: EmailPreferenceKey, enabled: boolean) {
+    const previous = emailPreferences;
+    setEmailPreferences({ ...previous, [key]: enabled });
+    setSavingPreference(key);
+    setPreferenceError("");
+    try {
+      const res = await fetch("/api/commander/email/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: { [key]: enabled } }),
+      });
+      if (!res.ok) throw new Error("Preference update failed");
+      const data = (await res.json()) as { preferences: EmailPreferences };
+      setEmailPreferences(data.preferences);
+    } catch {
+      setEmailPreferences(previous);
+      setPreferenceError("Could not save your email preference. Please try again.");
+    } finally {
+      setSavingPreference(null);
     }
   }
 
@@ -186,6 +214,9 @@ export default function ProfileSettings({
             )}
           </div>
         )}
+        <p className="mt-3 text-[11px] leading-relaxed text-[var(--color-muted)]">
+          Your address is used only for the categories you enable below. Every optional email includes a one-click unsubscribe link.
+        </p>
       </div>
 
       {/* Subscription Status */}
@@ -362,6 +393,40 @@ export default function ProfileSettings({
             data-testid="tower-notifications-toggle"
           />
         </label>
+        <div className="my-4 border-t border-[var(--color-surface-light)]" />
+        <h4 className="mb-1 text-xs font-semibold text-[var(--color-foreground)]">
+          Email preferences
+        </h4>
+        <p className="mb-3 text-[11px] text-[var(--color-muted)]">
+          Billing and account-security messages are always sent when required.
+        </p>
+        <div className="space-y-3">
+          {([
+            ["weeklyDigest", "Weekly digest", "A weekly summary of roster priorities and game updates."],
+            ["newCharacters", "New character alerts", "A notice when the official game data adds a character."],
+            ["announcements", "Product and community announcements", "Important MSF Companion news and community updates."],
+            ["reengagement", "Account and progress reminders", "Occasional reminders when your saved progress needs attention."],
+          ] as const).map(([key, label, description]) => (
+            <label key={key} className="flex items-start justify-between gap-4">
+              <span>
+                <span className="block text-xs text-[var(--color-foreground)]">{label}</span>
+                <span className="mt-0.5 block text-[10px] leading-relaxed text-[var(--color-muted)]">{description}</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={emailPreferences[key]}
+                disabled={!savedEmail || savingPreference !== null}
+                onChange={(event) => updateEmailPreference(key, event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded accent-blue-500 disabled:opacity-50"
+                aria-label={label}
+              />
+            </label>
+          ))}
+        </div>
+        {!savedEmail && (
+          <p className="mt-3 text-[11px] text-yellow-400">Add an email address to use email notifications.</p>
+        )}
+        {preferenceError && <p className="mt-3 text-[11px] text-red-400">{preferenceError}</p>}
       </div>
 
       {/* FAQ Link */}

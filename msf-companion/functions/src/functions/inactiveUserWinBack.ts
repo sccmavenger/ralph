@@ -1,9 +1,9 @@
 import { app, InvocationContext, Timer } from "@azure/functions";
 import { getPool } from "../lib/pgClient.js";
 
-function buildInactiveWinBackHtml(displayName: string, email: string): string {
+function buildInactiveWinBackHtml(displayName: string): string {
   const name = displayName || "Commander";
-  const unsubscribeUrl = `https://themsftoolkit.com/api/email/unsubscribe?token=${encodeURIComponent(email)}`;
+  const unsubscribeUrl = "https://themsftoolkit.com/profile";
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -47,7 +47,7 @@ app.timer("inactiveUserWinBack", {
 
     const pool = getPool();
     const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-    const EMAIL_FROM = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+    const EMAIL_FROM = process.env.EMAIL_FROM || "MSF Companion <info@themsftoolkit.com>";
 
     if (!RESEND_API_KEY) {
       context.log("RESEND_API_KEY not configured — skipping");
@@ -83,7 +83,7 @@ app.timer("inactiveUserWinBack", {
     let sent = 0;
     for (const row of res.rows) {
       try {
-        const html = buildInactiveWinBackHtml(row.displayName || "", row.email);
+        const html = buildInactiveWinBackHtml(row.displayName || "");
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },

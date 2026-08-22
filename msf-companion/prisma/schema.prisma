@@ -13,36 +13,43 @@ datasource db {
 }
 
 model Commander {
-  id                       String              @id @default(cuid())
-  scopelyId                String              @unique
-  email                    String?
-  displayName              String?
-  hasCompletedOnboarding   Boolean             @default(false)
-  onboardingLastShownAt    DateTime?
-  emailPromptSkippedAt     DateTime?
-  subscriptionTier         String              @default("FREE")
-  stripeCustomerId         String?             @unique
-  stripeSubscriptionId     String?             @unique
-  stripeCurrentPeriodEnd   DateTime?
-  lastLoginAt              DateTime?
-  disabled                 Boolean             @default(false)
-  advisorQuestionsToday    Int                 @default(0)
-  advisorQuestionsResetAt  DateTime?
-  emailDigestOptOut        Boolean             @default(false)
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
-  rosterSnapshots          RosterSnapshot[]
-  inventorySnapshots       InventorySnapshot[]
-  advisorConversations     AdvisorConversation[]
-  advisorQuestionLogs      AdvisorQuestionLog[]
-  notifications            CommanderNotification[]
-  dailyTips                DailyTip[]
-  pushSubscriptions        PushSubscription[]
-  dailyTokenUsages         DailyTokenUsage[]
-  usageEvents              UsageEvent[]
-  churnInterventions       ChurnIntervention[]
-  towerResults             TowerResult[]
-  wallet                   CommanderWallet?
+  id                      String                  @id @default(cuid())
+  scopelyId               String                  @unique
+  email                   String?
+  displayName             String?
+  hasCompletedOnboarding  Boolean                 @default(false)
+  onboardingLastShownAt   DateTime?
+  emailPromptSkippedAt    DateTime?
+  subscriptionTier        String                  @default("FREE")
+  stripeCustomerId        String?                 @unique
+  stripeSubscriptionId    String?                 @unique
+  stripeCurrentPeriodEnd  DateTime?
+  lastLoginAt             DateTime?
+  disabled                Boolean                 @default(false)
+  advisorQuestionsToday   Int                     @default(0)
+  advisorQuestionsResetAt DateTime?
+  emailDigestOptOut       Boolean                 @default(false)
+  emailWeeklyDigest       Boolean                 @default(true)
+  emailNewCharacters      Boolean                 @default(true)
+  emailAnnouncements      Boolean                 @default(true)
+  emailReengagement       Boolean                 @default(true)
+  emailConsentAt          DateTime?
+  emailConsentSource      String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  rosterSnapshots         RosterSnapshot[]
+  inventorySnapshots      InventorySnapshot[]
+  advisorConversations    AdvisorConversation[]
+  advisorQuestionLogs     AdvisorQuestionLog[]
+  notifications           CommanderNotification[]
+  dailyTips               DailyTip[]
+  pushSubscriptions       PushSubscription[]
+  dailyTokenUsages        DailyTokenUsage[]
+  usageEvents             UsageEvent[]
+  churnInterventions      ChurnIntervention[]
+  emailDeliveries         EmailDelivery[]
+  towerResults            TowerResult[]
+  wallet                  CommanderWallet?
 }
 
 model RosterSnapshot {
@@ -95,14 +102,14 @@ model AdvisorMessage {
 }
 
 model AdvisorQuestionLog {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   commanderId          String
   question             String
   category             String
   confidenceScore      Int
   answeredSuccessfully Boolean
   knowledgeSourcesUsed Json?
-  createdAt            DateTime @default(now())
+  createdAt            DateTime  @default(now())
   commander            Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
   @@index([commanderId])
@@ -123,15 +130,15 @@ model KnowledgeGap {
 }
 
 model CommanderNotification {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   commanderId String
   type        String
   title       String
   message     String
   linkUrl     String?
   metadata    Json?
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
   commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
   @@index([commanderId])
@@ -152,23 +159,23 @@ model DailyTip {
 }
 
 model PushSubscription {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   commanderId String
   endpoint    String
   p256dh      String
   auth        String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
-  @@index([commanderId])
   @@unique([commanderId, endpoint])
+  @@index([commanderId])
 }
 
 model DailyTokenUsage {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   commanderId String
-  date        DateTime @db.Date
-  tokensUsed  Int      @default(0)
+  date        DateTime  @db.Date
+  tokensUsed  Int       @default(0)
   commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
   @@unique([commanderId, date])
@@ -205,18 +212,56 @@ model UsageEvent {
 }
 
 model ChurnIntervention {
-  id          String    @id @default(cuid())
-  commanderId String
-  type        String    // "nudge" | "re-engage" | "retention" | "dunning" | "win-back"
-  channel     String    // "email" | "notification" | "both"
-  riskScore   Int?
-  sentAt      DateTime  @default(now())
-  scheduledAt DateTime?
-  delivered   Boolean   @default(false)
-  commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  commanderId   String
+  type          String // "nudge" | "re-engage" | "retention" | "dunning" | "win-back"
+  channel       String // "email" | "notification" | "both"
+  riskScore     Int?
+  sentAt        DateTime  @default(now())
+  scheduledAt   DateTime?
+  delivered     Boolean   @default(false)
+  sourceEventId String?   @unique
+  commander     Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
   @@index([commanderId, type, sentAt])
   @@index([scheduledAt, delivered])
+}
+
+model EmailDelivery {
+  id                String     @id @default(cuid())
+  commanderId       String?
+  recipientHash     String
+  messageType       String
+  subject           String
+  provider          String     @default("resend")
+  providerMessageId String?    @unique
+  idempotencyKey    String     @unique
+  status            String     @default("pending")
+  attemptCount      Int        @default(0)
+  lastError         String?
+  metadata          Json?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  commander         Commander? @relation(fields: [commanderId], references: [id], onDelete: SetNull)
+
+  @@index([commanderId, messageType, createdAt])
+  @@index([status, createdAt])
+  @@index([recipientHash, createdAt])
+}
+
+model StripeWebhookEvent {
+  id          String    @id
+  type        String
+  status      String    @default("processing")
+  attempts    Int       @default(1)
+  lastError   String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, receivedAt])
 }
 
 model GameCharacter {
@@ -230,16 +275,16 @@ model GameCharacter {
 }
 
 model TowerResult {
-  id            String    @id @default(cuid())
-  commanderId   String
-  towerEventId  String
-  towerName     String
-  roomsCleared  Int
-  totalRooms    Int
-  week1Cleared  Int
-  week2Cleared  Int
-  completedAt   DateTime
-  commander     Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  commanderId  String
+  towerEventId String
+  towerName    String
+  roomsCleared Int
+  totalRooms   Int
+  week1Cleared Int
+  week2Cleared Int
+  completedAt  DateTime
+  commander    Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 
   @@unique([commanderId, towerEventId])
   @@index([commanderId])

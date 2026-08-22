@@ -27,7 +27,7 @@ export default function EmailModal({
       const res = await fetch("/api/commander/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, source: "modal" }),
       });
 
       if (!res.ok) {
@@ -60,7 +60,7 @@ export default function EmailModal({
           Stay in the loop
         </h2>
         <p className="mb-4 text-sm text-[var(--color-muted)]">
-          Enter your email for community updates and important announcements.
+          Get the weekly roster digest, new-character alerts, community announcements, and occasional progress reminders. You can choose each category or unsubscribe at any time from Profile.
         </p>
 
         <input

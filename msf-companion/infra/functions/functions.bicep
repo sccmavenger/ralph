@@ -49,7 +49,7 @@ param databaseUrl string
 param resendApiKey string = ''
 
 @description('Email from address')
-param emailFrom string = 'MSF Companion <info@msftoolkit.com>'
+param emailFrom string = 'MSF Companion <info@themsftoolkit.com>'
 
 @description('Admin email address')
 param adminEmail string = ''

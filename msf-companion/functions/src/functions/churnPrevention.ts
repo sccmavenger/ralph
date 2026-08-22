@@ -434,7 +434,7 @@ app.timer("churnPrevention", {
           context.log(`[Email] RESEND_API_KEY not configured — skipping send to ${to}`);
           return;
         }
-        const fromAddress = process.env.EMAIL_FROM || "MSF Companion <info@msftoolkit.com>";
+        const fromAddress = process.env.EMAIL_FROM || "MSF Companion <info@themsftoolkit.com>";
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },

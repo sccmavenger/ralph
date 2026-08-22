@@ -14,7 +14,7 @@
     "YOUTUBE_API_KEY": "",
     "DATABASE_URL": "",
     "RESEND_API_KEY": "",
-    "EMAIL_FROM": "MSF Companion <info@msftoolkit.com>",
+    "EMAIL_FROM": "MSF Companion <info@themsftoolkit.com>",
     "ADMIN_EMAIL": "dguilloryjr@msn.com",
     "DIGEST_TEST_EMAIL": "dguilloryjr@msn.com",
     "DISCORD_WEBHOOK_URL": ""
