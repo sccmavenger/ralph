@@ -12,7 +12,8 @@ import {
 } from "@/lib/weekly-digest";
 
 export const dynamic = "force-dynamic";
-const DIGEST_CONTENT_VERSION = "v3";
+const DIGEST_CONTENT_VERSION = "v4";
+const LIVE_SEND_INTERVAL_MS = 300;
 
 function utcWeekKey(date = new Date()): string {
   const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
           : { equals: "" }
         : { not: null },
       emailWeeklyDigest: true,
+      emailConsentSource: { not: null },
     },
     select: { id: true, email: true, displayName: true },
   });
@@ -50,6 +52,8 @@ export async function POST(request: Request) {
   const officialUpdates = await getFreshOfficialUpdates().catch(() => []);
   let sent = 0;
   let skipped = 0;
+  let failed = 0;
+  let attempted = 0;
   for (const commander of commanders) {
     if (!commander.email) continue;
     const [recentSnapshots, weekBaseline, monthBaseline, notificationCandidates, advisorQuestions] = await Promise.all([
@@ -96,22 +100,41 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const result = await sendTrackedEmail({
-      commanderId: commander.id,
-      to: commander.email,
-      subject: "Your Weekly MSF Progress Report",
-      html: buildWeeklyDigestHtml({
-        displayName: commander.displayName ?? "Commander",
-        ...digestContent,
-      }),
-      messageType: "weekly_digest",
-      idempotencyKey: `weekly-digest:${DIGEST_CONTENT_VERSION}:${utcWeekKey()}:${commander.id}`,
-      preference: "weeklyDigest",
-      metadata: { automationMode: mode, week: utcWeekKey(), contentVersion: DIGEST_CONTENT_VERSION },
-    });
-    if (result.status === "sent") sent++;
-    else skipped++;
+    if (mode === "live" && attempted > 0) {
+      await new Promise((resolve) => setTimeout(resolve, LIVE_SEND_INTERVAL_MS));
+    }
+    attempted++;
+    try {
+      const result = await sendTrackedEmail({
+        commanderId: commander.id,
+        to: commander.email,
+        subject: "Your Weekly MSF Progress Report",
+        html: buildWeeklyDigestHtml({
+          displayName: commander.displayName ?? "Commander",
+          ...digestContent,
+        }),
+        messageType: "weekly_digest",
+        idempotencyKey: `weekly-digest:${DIGEST_CONTENT_VERSION}:${utcWeekKey()}:${commander.id}`,
+        preference: "weeklyDigest",
+        metadata: { automationMode: mode, week: utcWeekKey(), contentVersion: DIGEST_CONTENT_VERSION },
+      });
+      if (result.status === "sent") sent++;
+      else skipped++;
+    } catch (error) {
+      failed++;
+      console.error(
+        `[Weekly email] Delivery failed for commander ${commander.id}: ${safeDeliveryError(error, commander.email)}`
+      );
+    }
   }
 
-  return NextResponse.json({ mode, candidates: commanders.length, sent, skipped });
+  return NextResponse.json(
+    { mode, candidates: commanders.length, sent, skipped, failed },
+    { status: failed > 0 ? 502 : 200 }
+  );
+}
+
+function safeDeliveryError(error: unknown, recipient: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replaceAll(recipient, "[recipient]").slice(0, 500);
 }

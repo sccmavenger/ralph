@@ -10,7 +10,7 @@ MSF Companion sends email through the web application and Resend. The stopped le
 | Premium welcome | Stripe reports the first successful subscription invoice | Transactional |
 | Payment failure | Stripe reports a failed invoice, with a seven-day cooldown | Transactional |
 | New character | Official game-data sync detects a character not in `GameCharacter` | New character alerts |
-| Weekly progress report | Monday GitHub Actions schedule; includes dated 7+ and 30+ day roster comparisons, an email-safe collection-power chart, recent Advisor activity, fresh official MSF updates, and genuine recent unread alerts | Weekly digest |
+| Weekly progress report | Monday GitHub Actions schedule; includes dated 7+ and 30+ day roster comparisons, an email-safe collection-power chart, recent Advisor activity, fresh official MSF updates, genuine recent unread alerts, and a Discord feedback invitation | Weekly digest |
 | Premium lifecycle | Daily GitHub Actions schedule and enabled `churn_prevention` feature flag | Account and progress reminders |
 | Inactive/free and cancellation win-back | Daily GitHub Actions schedule and eligibility/cooldown rules | Account and progress reminders |
 
@@ -28,6 +28,13 @@ MSF Companion sends email through the web application and Resend. The stopped le
   of emitting a cryptic `0 · 0` delta.
 - Progress charts use a relative bar scale across at most six dated snapshots;
   the exact collection-power total remains visible beside every bar.
+- Weekly candidates need recorded consent provenance in addition to an enabled
+  weekly preference. Live delivery is paced to remain below the provider's
+  request rate, continues after an individual failure, and returns a failed HTTP
+  status after processing when any recipient failed so the idempotent job can be
+  retried safely.
+- The weekly Discord invitation uses the established MSF Companion community
+  invite: `https://discord.gg/2ptFQ2Vefk`.
 - Official update links are limited to active Scopely posts published within the previous seven days.
 - Marketing mail is checked against the category preference again at send time.
 - Signed unsubscribe links render a confirmation on `GET`; only signed `POST` requests change preferences.

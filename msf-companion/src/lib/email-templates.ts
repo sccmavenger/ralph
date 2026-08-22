@@ -6,6 +6,7 @@ import type {
 } from "@/lib/weekly-digest";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://themsftoolkit.com";
+const DISCORD_INVITE_URL = "https://discord.gg/2ptFQ2Vefk";
 
 function shell(title: string, body: string, ctaLabel: string, ctaPath: string): string {
   return `<!doctype html><html lang="en"><body style="margin:0;background:#0f0f23;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e5e7eb"><div style="max-width:600px;margin:0 auto;padding:32px 20px"><div style="text-align:center;padding:20px 0;border-bottom:1px solid #333"><div style="display:inline-block;background:#dc2626;color:#fff;font-weight:800;padding:9px 14px;border-radius:7px;font-size:12px">MSF</div><h1 style="color:#4f9cf7;font-size:24px;margin:14px 0 0">${escapeEmailHtml(title)}</h1></div>${body}<div style="text-align:center;padding:24px 0"><a href="${BASE_URL}${ctaPath}" style="display:inline-block;background:#4f9cf7;color:#fff;padding:12px 26px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:14px">${escapeEmailHtml(ctaLabel)} →</a></div></div></body></html>`;
@@ -32,8 +33,12 @@ export function buildWeeklyDigestHtml(content: WeeklyDigestContent): string {
   const notifications = content.notifications.length
     ? `<div style="padding:4px 0 20px"><h2 style="color:#ef4444;font-size:16px">Recent unread alerts</h2>${content.notifications.map((notification) => `<div style="background:#1a1a2e;border-radius:8px;padding:12px;margin:8px 0"><p style="margin:0;font-size:14px"><strong>${escapeEmailHtml(notification.title)}</strong></p><p style="margin:5px 0 0;font-size:13px;color:#cbd5e1">${escapeEmailHtml(notification.message)}</p></div>`).join("")}</div>`
     : "";
-  const body = `<p style="font-size:15px;line-height:1.7;padding-top:18px">Hey ${escapeEmailHtml(content.displayName || "Commander")}, here is your roster progress and the latest verified MSF information from this week.</p>${roster}${advisorActivity}${officialUpdates}${notifications}`;
+  const body = `<p style="font-size:15px;line-height:1.7;padding-top:18px">Hey ${escapeEmailHtml(content.displayName || "Commander")}, here is your roster progress and the latest verified MSF information from this week.</p>${roster}${advisorActivity}${officialUpdates}${notifications}${buildDiscordFeedbackSection()}`;
   return shell("Your weekly MSF progress report", body, "Open your dashboard", "/dashboard");
+}
+
+function buildDiscordFeedbackSection(): string {
+  return `<div style="margin:4px 0 20px;padding:20px;background:#5865f2;border-radius:12px;text-align:center"><h2 style="margin:0 0 9px;color:#fff;font-size:17px">Help shape MSF Companion</h2><p style="margin:0 auto 15px;max-width:470px;color:#f3f4f6;font-size:13px;line-height:1.6">Have feedback, praise, a feature suggestion, a bug report, or even a complaint? Yes, complaints too—we can take it. Join us on Discord and tell us what would make the toolkit better for you.</p><a href="${DISCORD_INVITE_URL}" style="display:inline-block;background:#fff;color:#4752c4;padding:11px 24px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:13px">Join the Discord →</a></div>`;
 }
 
 function buildRosterSection(roster: DigestRosterSummary): string {

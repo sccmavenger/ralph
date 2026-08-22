@@ -156,5 +156,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Email progression visuals must use broadly supported table/div markup rather
   than canvas or JavaScript. If bars use a relative scale, say so and display
   the exact numeric total beside every bar.
+- Bulk weekly delivery must require recorded consent provenance and the weekly
+  preference, pace provider calls, isolate per-recipient failures, and return a
+  failed job status after processing if any delivery failed. Keep idempotency
+  versioned so retries cannot duplicate successful sends.
+- The established MSF Companion Discord invite is
+  `https://discord.gg/2ptFQ2Vefk`; weekly feedback invitations should cover
+  praise, suggestions, bug reports, and complaints without displacing the
+  personalized roster content.
 - Only include active official posts published within the last seven days; if
   no useful section can be built, skip the email instead of sending a shell.

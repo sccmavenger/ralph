@@ -63,6 +63,10 @@ describe("email content safety", () => {
     expect(html).toContain("+1.4M collection power");
     expect(html).toContain("Collection power progression");
     expect(html).toContain("Bars use a relative scale");
+    expect(html).toContain("Help shape MSF Companion");
+    expect(html).toContain("feedback, praise, a feature suggestion");
+    expect(html).toContain("https://discord.gg/2ptFQ2Vefk");
+    expect(html).toContain("Join the Discord");
     expect(html).not.toContain("Since your previous snapshot");
     expect(html).toContain("Iron Man (1.2M)");
     expect(html).toContain("Open your dashboard");

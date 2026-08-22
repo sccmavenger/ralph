@@ -76,10 +76,50 @@ describe("weekly email route", () => {
     expect(mocks.sendTrackedEmail).toHaveBeenCalledOnce();
     const delivery = mocks.sendTrackedEmail.mock.calls[0][0];
     expect(delivery.subject).toBe("Your Weekly MSF Progress Report");
-    expect(delivery.idempotencyKey).toContain("weekly-digest:v3:");
-    expect(delivery.metadata).toMatchObject({ contentVersion: "v3" });
+    expect(delivery.idempotencyKey).toContain("weekly-digest:v4:");
+    expect(delivery.metadata).toMatchObject({ contentVersion: "v4" });
     expect(delivery.html).toContain("Your roster at a glance");
     expect(delivery.html).toContain("Advisor activity");
+    expect(delivery.html).toContain("Join the Discord");
     expect(delivery.html).not.toContain("Email delivery verification");
+    expect(mocks.findCommanders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ emailConsentSource: { not: null } }),
+      })
+    );
+  });
+
+  it("continues personalized delivery after one commander fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.findCommanders.mockResolvedValue([
+      { id: "commander-1", email: "first@example.test", displayName: "First" },
+      { id: "commander-2", email: "second@example.test", displayName: "Second" },
+    ]);
+    mocks.findSnapshots.mockResolvedValue([
+      {
+        createdAt: new Date(),
+        snapshotData: [{ name: "Iron Man", power: 1_200_000, yellowStars: 7 }],
+      },
+    ]);
+    mocks.sendTrackedEmail
+      .mockRejectedValueOnce(new Error("Provider rejected first@example.test"))
+      .mockResolvedValueOnce({ status: "sent", providerMessageId: "email-2" });
+
+    try {
+      const response = await POST(new Request("https://example.test/api/cron/email/weekly", { method: "POST" }));
+      expect(response.status).toBe(502);
+      await expect(response.json()).resolves.toMatchObject({
+        candidates: 2,
+        sent: 1,
+        skipped: 0,
+        failed: 1,
+      });
+      expect(mocks.sendTrackedEmail).toHaveBeenCalledTimes(2);
+      expect(mocks.sendTrackedEmail.mock.calls[0][0].html).toContain("Hey First");
+      expect(mocks.sendTrackedEmail.mock.calls[1][0].html).toContain("Hey Second");
+      expect(consoleError.mock.calls.flat().join(" ")).not.toContain("first@example.test");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
