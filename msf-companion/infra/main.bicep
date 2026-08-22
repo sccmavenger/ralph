@@ -143,10 +143,9 @@ module web './app/web.bicep' = {
     tags: tags
     name: !empty(webServiceName) ? webServiceName : '${abbrs.appContainerApps}web-${resourceToken}'
     containerAppsEnvironmentName: '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: registry.outputs.name
+    keyVaultName: keyVault.outputs.name
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
-    databaseUrl: database.outputs.connectionString
     msfApiKey: msfApiKey
     scopelyClientId: scopelyClientId
     scopelyClientSecret: scopelyClientSecret
@@ -161,6 +160,26 @@ module web './app/web.bicep' = {
     openAiKey: openAi.outputs.key
     searchEndpoint: searchEndpoint
     searchKey: searchKey
+  }
+}
+
+// Managed-identity data-plane roles are deployed as separate modules so the
+// Container App can establish its system-assigned principal first.
+module webAcrPullRole './app/acr-pull-role.bicep' = {
+  name: 'webAcrPullRole'
+  scope: rg
+  params: {
+    acrName: registry.outputs.name
+    principalId: web.outputs.principalId
+  }
+}
+
+module webKeyVaultSecretsRole './app/keyvault-secrets-role.bicep' = {
+  name: 'webKeyVaultSecretsRole'
+  scope: rg
+  params: {
+    keyVaultName: keyVault.outputs.name
+    principalId: web.outputs.principalId
   }
 }
 

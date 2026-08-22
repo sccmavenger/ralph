@@ -58,6 +58,17 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
+// Persist the administrator password under the same name used by azd's
+// secretOrRandomPassword expression. Without this secret, every subsequent
+// provision can generate a different password and rotate the live server.
+resource databasePasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'database-password'
+  properties: {
+    value: administratorPassword
+  }
+}
+
 resource connectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'database-connection-string'

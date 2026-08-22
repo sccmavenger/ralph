@@ -2,12 +2,9 @@ param location string
 param tags object
 param name string
 param containerAppsEnvironmentName string
-param containerRegistryName string
+param keyVaultName string
 param logAnalyticsWorkspaceId string
 param applicationInsightsConnectionString string
-
-@secure()
-param databaseUrl string
 
 @secure()
 param msfApiKey string
@@ -51,8 +48,8 @@ param scopelyRedirectUri string
 @description('Container image to deploy (set by azd deploy)')
 param webImageName string = ''
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: containerRegistryName
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
 }
 
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
@@ -74,6 +71,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
   location: location
   tags: union(tags, { 'azd-service-name': 'web' })
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     managedEnvironmentId: containerAppsEnvironment.id
     configuration: {
@@ -84,21 +84,11 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'auto'
         allowInsecure: false
       }
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          username: containerRegistry.listCredentials().username
-          passwordSecretRef: 'registry-password'
-        }
-      ]
       secrets: [
         {
-          name: 'registry-password'
-          value: containerRegistry.listCredentials().passwords[0].value
-        }
-        {
-          name: 'database-url'
-          value: databaseUrl
+          name: 'database-url-kv'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/database-connection-string'
+          identity: 'system'
         }
         {
           name: 'msf-api-key'
@@ -154,7 +144,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           env: [
             {
               name: 'DATABASE_URL'
-              secretRef: 'database-url'
+              secretRef: 'database-url-kv'
             }
             {
               name: 'MSF_API_KEY'
@@ -244,3 +234,4 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
 output name string = containerApp.name
 output uri string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output id string = containerApp.id
+output principalId string = containerApp.identity.principalId

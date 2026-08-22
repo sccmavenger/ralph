@@ -16,6 +16,11 @@ Navigate to the `msf-companion` folder and deploy the **`web`** service (Next.js
 
 **Always deploy `web` explicitly. Never run a bare `azd deploy` here.**
 
+Full infrastructure provisioning is also guarded. `azd provision` and `azd up`
+run `scripts/guard-infra-provision.ps1` and are blocked for production unless a
+clean full what-if has been reviewed and a process-scoped override is supplied.
+Use targeted Bicep deployments for approved infrastructure repairs.
+
 ## Steps
 
 1. **Navigate to msf-companion**:
@@ -42,6 +47,7 @@ Navigate to the `msf-companion` folder and deploy the **`web`** service (Next.js
 ## Important notes
 
 - **DO NOT run `azd deploy` (bare).** It will try to deploy the `functions` service first, hit HTTP 409 from `WEBSITE_RUN_FROM_PACKAGE`, and abort before touching `web`. This is a known and intentional config of the functions app — do not toggle the setting to work around it.
+- **DO NOT bypass the production infrastructure guard.** The full stack has known drift in services unrelated to routine web releases. Never persist `ALLOW_FULL_INFRA_PROVISION` in the azd environment.
 - If function-app code changes are ever needed, they ship out-of-band by updating the remote ZIP at the URL set in `WEBSITE_RUN_FROM_PACKAGE`, then restarting the Function App. That workflow is **not** part of this prompt.
 - The `DATABASE_URL` env var must point at production PostgreSQL when running `npx prisma migrate deploy`. Check this before running migrations.
 - Prisma migrations apply forward only and use a migration lock — safe to re-run.

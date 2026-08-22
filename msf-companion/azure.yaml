@@ -2,6 +2,15 @@
 name: msf-companion
 metadata:
   template: msf-companion
+hooks:
+  preprovision:
+    shell: pwsh
+    run: ./scripts/guard-infra-provision.ps1
+    interactive: false
+  preup:
+    shell: pwsh
+    run: ./scripts/guard-infra-provision.ps1
+    interactive: false
 services:
   web:
     project: .
