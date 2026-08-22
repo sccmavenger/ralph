@@ -1,4 +1,9 @@
 import { escapeEmailHtml } from "@/lib/email-content";
+import type {
+  DigestNotification,
+  DigestOfficialUpdate,
+  DigestRosterSummary,
+} from "@/lib/weekly-digest";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://themsftoolkit.com";
 
@@ -8,19 +13,63 @@ function shell(title: string, body: string, ctaLabel: string, ctaPath: string): 
 
 export interface WeeklyDigestContent {
   displayName: string;
-  tips: Array<{ content: string; sourceCreatorName: string | null }>;
-  notifications: Array<{ type: string; title: string; message: string }>;
+  roster: DigestRosterSummary | null;
+  officialUpdates: DigestOfficialUpdate[];
+  notifications: DigestNotification[];
+  advisorQuestions: number;
 }
 
 export function buildWeeklyDigestHtml(content: WeeklyDigestContent): string {
-  const tips = content.tips.length
-    ? `<div style="padding:20px 0"><h2 style="color:#f59e0b;font-size:16px">Top tips this week</h2>${content.tips.map((tip) => `<div style="background:#1a1a2e;border-radius:8px;padding:12px;margin:8px 0"><p style="margin:0;font-size:14px;line-height:1.5">${escapeEmailHtml(tip.content)}</p>${tip.sourceCreatorName ? `<p style="margin:5px 0 0;font-size:12px;color:#9ca3af">— ${escapeEmailHtml(tip.sourceCreatorName)}</p>` : ""}</div>`).join("")}</div>`
+  const roster = content.roster
+    ? buildRosterSection(content.roster)
+    : "";
+  const officialUpdates = content.officialUpdates.length
+    ? `<div style="padding:4px 0 20px"><h2 style="color:#f59e0b;font-size:16px">Fresh from official MSF</h2>${content.officialUpdates.map((update) => `<div style="background:#1a1a2e;border-radius:8px;padding:12px;margin:8px 0"><a href="${escapeEmailHtml(update.url)}" style="color:#60a5fa;text-decoration:none;font-size:14px;font-weight:700">${escapeEmailHtml(update.title)}</a><p style="margin:5px 0 0;font-size:12px;color:#9ca3af">Published ${formatEmailDate(update.publishedAt)}</p></div>`).join("")}</div>`
+    : "";
+  const advisorActivity = content.advisorQuestions > 0
+    ? `<div style="background:#1a1a2e;border-radius:8px;padding:14px;margin:0 0 20px"><p style="margin:0;font-size:14px"><strong style="color:#a78bfa">Advisor activity:</strong> You asked ${content.advisorQuestions} ${content.advisorQuestions === 1 ? "question" : "questions"} this week.</p></div>`
     : "";
   const notifications = content.notifications.length
-    ? `<div style="padding:4px 0 20px"><h2 style="color:#ef4444;font-size:16px">Unread alerts</h2>${content.notifications.map((notification) => `<div style="background:#1a1a2e;border-radius:8px;padding:12px;margin:8px 0"><p style="margin:0;font-size:14px"><strong>${escapeEmailHtml(notification.title)}</strong></p><p style="margin:5px 0 0;font-size:13px;color:#cbd5e1">${escapeEmailHtml(notification.message)}</p></div>`).join("")}</div>`
+    ? `<div style="padding:4px 0 20px"><h2 style="color:#ef4444;font-size:16px">Recent unread alerts</h2>${content.notifications.map((notification) => `<div style="background:#1a1a2e;border-radius:8px;padding:12px;margin:8px 0"><p style="margin:0;font-size:14px"><strong>${escapeEmailHtml(notification.title)}</strong></p><p style="margin:5px 0 0;font-size:13px;color:#cbd5e1">${escapeEmailHtml(notification.message)}</p></div>`).join("")}</div>`
     : "";
-  const body = `<p style="font-size:15px;line-height:1.7;padding-top:18px">Hey ${escapeEmailHtml(content.displayName || "Commander")}, here is the latest information already waiting in your MSF Companion account.</p>${tips}${notifications}`;
-  return shell("Your weekly MSF Companion digest", body, "Open your Advisor", "/advisor");
+  const body = `<p style="font-size:15px;line-height:1.7;padding-top:18px">Hey ${escapeEmailHtml(content.displayName || "Commander")}, here is your roster progress and the latest verified MSF information from this week.</p>${roster}${advisorActivity}${officialUpdates}${notifications}`;
+  return shell("Your weekly MSF progress report", body, "Open your dashboard", "/dashboard");
+}
+
+function buildRosterSection(roster: DigestRosterSummary): string {
+  const changeParts = [
+    roster.powerChange === null ? "" : `${formatSignedNumber(roster.powerChange)} collection power`,
+    roster.rosterChange === null ? "" : `${formatSignedNumber(roster.rosterChange)} characters`,
+  ].filter(Boolean);
+  const change = changeParts.length
+    ? `<p style="margin:10px 0 0;font-size:12px;color:#9ca3af">Since your previous snapshot: ${changeParts.join(" · ")}</p>`
+    : "";
+  const topCharacters = roster.topCharacters.length
+    ? `<p style="margin:10px 0 0;font-size:12px;color:#cbd5e1">Top characters: ${roster.topCharacters.map((character) => `${escapeEmailHtml(character.name)} (${formatCompactNumber(character.power)})`).join(" · ")}</p>`
+    : "";
+  const freshness = roster.isStale
+    ? `<p style="margin:10px 0 0;font-size:12px;color:#f59e0b">This roster snapshot is more than seven days old. Refresh it before making investment decisions.</p>`
+    : `<p style="margin:10px 0 0;font-size:12px;color:#9ca3af">Roster snapshot: ${formatEmailDate(roster.snapshotAt)}</p>`;
+  return `<div style="padding:4px 0 20px"><h2 style="color:#22c55e;font-size:16px">Your roster at a glance</h2><div style="background:#1a1a2e;border-radius:8px;padding:14px"><table role="presentation" style="width:100%;text-align:center"><tr><td style="padding:6px"><strong style="display:block;color:#22c55e;font-size:18px">${formatCompactNumber(roster.totalPower)}</strong><span style="font-size:11px;color:#9ca3af">Collection power</span></td><td style="padding:6px"><strong style="display:block;color:#60a5fa;font-size:18px">${roster.rosterSize}</strong><span style="font-size:11px;color:#9ca3af">Characters</span></td></tr><tr><td style="padding:6px"><strong style="display:block;color:#f59e0b;font-size:18px">${formatCompactNumber(roster.averagePower)}</strong><span style="font-size:11px;color:#9ca3af">Average power</span></td><td style="padding:6px"><strong style="display:block;color:#f472b6;font-size:18px">${roster.sevenStarCharacters}</strong><span style="font-size:11px;color:#9ca3af">At 7 stars</span></td></tr></table>${change}${topCharacters}${freshness}</div></div>`;
+}
+
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatSignedNumber(value: number): string {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatCompactNumber(value)}`;
+}
+
+function formatEmailDate(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? "date unavailable"
+    : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
 export function buildLifecycleEmailHtml(

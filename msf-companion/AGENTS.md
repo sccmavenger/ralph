@@ -137,3 +137,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Advisor retrieval is hybrid only when an embedding deployment is configured;
   keyword retrieval is the availability fallback. Search must exclude system
   and non-active lifecycle documents and infer legacy provenance accurately.
+
+## Email digest patterns
+
+- A delivery or verification notification is test infrastructure, never weekly
+  digest content. Filter test and verification records before deciding whether
+  a commander has anything worth emailing.
+- Weekly reports must be assembled from data that is actually produced: roster
+  snapshots, recent Advisor activity, genuine recent alerts, and fresh official
+  MSF posts. Do not depend on `DailyTip` until a real producer exists.
+- Label roster snapshot dates and warn when they are more than seven days old.
+  Never present an old snapshot as current account progress.
+- Only include active official posts published within the last seven days; if
+  no useful section can be built, skip the email instead of sending a shell.

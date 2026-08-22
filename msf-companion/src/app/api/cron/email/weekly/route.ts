@@ -4,8 +4,15 @@ import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 import { emailAutomationMode, emailTestRecipient } from "@/lib/email-automation";
 import { sendTrackedEmail } from "@/lib/email";
 import { buildWeeklyDigestHtml } from "@/lib/email-templates";
+import {
+  getFreshOfficialUpdates,
+  hasUsefulWeeklyDigestContent,
+  isUsefulDigestNotification,
+  summarizeDigestRoster,
+} from "@/lib/weekly-digest";
 
 export const dynamic = "force-dynamic";
+const DIGEST_CONTENT_VERSION = "v2";
 
 function utcWeekKey(date = new Date()): string {
   const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -38,25 +45,36 @@ export async function POST(request: Request) {
   });
 
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const officialUpdates = await getFreshOfficialUpdates().catch(() => []);
   let sent = 0;
   let skipped = 0;
   for (const commander of commanders) {
     if (!commander.email) continue;
-    const [tips, notifications] = await Promise.all([
-      prisma.dailyTip.findMany({
-        where: { commanderId: commander.id, generatedAt: { gte: since } },
-        orderBy: { generatedAt: "desc" },
-        take: 3,
-        select: { content: true, sourceCreatorName: true },
+    const [snapshots, notificationCandidates, advisorQuestions] = await Promise.all([
+      prisma.rosterSnapshot.findMany({
+        where: { commanderId: commander.id },
+        orderBy: { createdAt: "desc" },
+        take: 2,
+        select: { snapshotData: true, createdAt: true },
       }),
       prisma.commanderNotification.findMany({
-        where: { commanderId: commander.id, read: false },
+        where: { commanderId: commander.id, read: false, createdAt: { gte: since } },
         orderBy: { createdAt: "desc" },
-        take: 10,
+        take: 20,
         select: { type: true, title: true, message: true },
       }),
+      prisma.advisorMessage.count({
+        where: {
+          conversation: { commanderId: commander.id },
+          role: "user",
+          createdAt: { gte: since },
+        },
+      }),
     ]);
-    if (!tips.length && !notifications.length) {
+    const roster = summarizeDigestRoster(snapshots);
+    const notifications = notificationCandidates.filter(isUsefulDigestNotification).slice(0, 5);
+    const digestContent = { roster, officialUpdates, notifications, advisorQuestions };
+    if (!hasUsefulWeeklyDigestContent(digestContent)) {
       skipped++;
       continue;
     }
@@ -64,16 +82,15 @@ export async function POST(request: Request) {
     const result = await sendTrackedEmail({
       commanderId: commander.id,
       to: commander.email,
-      subject: "Your Weekly MSF Companion Digest",
+      subject: "Your Weekly MSF Progress Report",
       html: buildWeeklyDigestHtml({
         displayName: commander.displayName ?? "Commander",
-        tips,
-        notifications,
+        ...digestContent,
       }),
       messageType: "weekly_digest",
-      idempotencyKey: `weekly-digest:${utcWeekKey()}:${commander.id}`,
+      idempotencyKey: `weekly-digest:${DIGEST_CONTENT_VERSION}:${utcWeekKey()}:${commander.id}`,
       preference: "weeklyDigest",
-      metadata: { automationMode: mode, week: utcWeekKey() },
+      metadata: { automationMode: mode, week: utcWeekKey(), contentVersion: DIGEST_CONTENT_VERSION },
     });
     if (result.status === "sent") sent++;
     else skipped++;

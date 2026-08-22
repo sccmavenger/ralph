@@ -10,7 +10,7 @@ MSF Companion sends email through the web application and Resend. The stopped le
 | Premium welcome | Stripe reports the first successful subscription invoice | Transactional |
 | Payment failure | Stripe reports a failed invoice, with a seven-day cooldown | Transactional |
 | New character | Official game-data sync detects a character not in `GameCharacter` | New character alerts |
-| Weekly digest | Monday GitHub Actions schedule; only sends when tips or unread alerts exist | Weekly digest |
+| Weekly progress report | Monday GitHub Actions schedule; includes roster progress, recent Advisor activity, fresh official MSF updates, and genuine recent unread alerts | Weekly digest |
 | Premium lifecycle | Daily GitHub Actions schedule and enabled `churn_prevention` feature flag | Account and progress reminders |
 | Inactive/free and cancellation win-back | Daily GitHub Actions schedule and eligibility/cooldown rules | Account and progress reminders |
 
@@ -20,6 +20,9 @@ MSF Companion sends email through the web application and Resend. The stopped le
 - `EMAIL_AUTOMATION_MODE=test` restricts scheduled marketing to the registered commander matching `EMAIL_AUTOMATION_TEST_RECIPIENT`.
 - `EMAIL_AUTOMATION_MODE=live` enables the preference-filtered production audience.
 - Every delivery has a database and Resend idempotency key.
+- Verification and test notifications never qualify as weekly digest content.
+- Weekly reports skip delivery when no roster, activity, current official update, or genuine alert is available.
+- Official update links are limited to active Scopely posts published within the previous seven days.
 - Marketing mail is checked against the category preference again at send time.
 - Signed unsubscribe links render a confirmation on `GET`; only signed `POST` requests change preferences.
 - Resend webhook signatures are verified before delivery status is updated.
