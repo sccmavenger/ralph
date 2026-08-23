@@ -118,7 +118,7 @@ export function formatDigestEmail(data: DigestData): string {
 }
 
 app.timer("weeklyEmailDigest", {
-  schedule: "0 0 9 * * 1", // Every Monday at 9 AM UTC
+  schedule: "0 0 9 * * 5", // Every Friday at 9 AM UTC
   handler: async (_timer: Timer, context: InvocationContext) => {
     context.log("Starting weekly email digest");
 

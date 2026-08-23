@@ -10,7 +10,7 @@ MSF Companion sends email through the web application and Resend. The stopped le
 | Premium welcome | Stripe reports the first successful subscription invoice | Transactional |
 | Payment failure | Stripe reports a failed invoice, with a seven-day cooldown | Transactional |
 | New character | Official game-data sync detects a character not in `GameCharacter` | New character alerts |
-| Weekly progress report | Monday GitHub Actions schedule; includes dated 7+ and 30+ day roster comparisons, an email-safe collection-power chart, recent Advisor activity, fresh official MSF updates, genuine recent unread alerts, and a Discord feedback invitation | Weekly digest |
+| Weekly progress report | Friday at 09:00 UTC through GitHub Actions; includes dated 7+ and 30+ day roster comparisons, an email-safe collection-power chart, recent Advisor activity, fresh official MSF updates, genuine recent unread alerts, and a Discord feedback invitation | Weekly digest |
 | Premium lifecycle | Daily GitHub Actions schedule and enabled `churn_prevention` feature flag | Account and progress reminders |
 | Inactive/free and cancellation win-back | Daily GitHub Actions schedule and eligibility/cooldown rules | Account and progress reminders |
 
@@ -45,6 +45,10 @@ MSF Companion sends email through the web application and Resend. The stopped le
 Administrators can review audience counts, recent delivery attempts, delivery status, failures, and configuration at `/admin/email-health`. Recipient addresses are not stored in the delivery log; only a SHA-256 hash is retained.
 
 The `Email Automation` GitHub Actions workflow runs the schedules and can be dispatched manually. Both endpoints require the repository `CRON_SECRET`, which must match the web application secret.
+
+Production weekly automation is configured in `live` mode. Its scheduled run is
+Friday at 09:00 UTC (04:00 Central during daylight saving time and 03:00 Central
+during standard time).
 
 ## Production rollout
 

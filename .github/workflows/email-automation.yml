@@ -2,7 +2,7 @@ name: Email Automation
 
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: "0 9 * * 5"
     - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   weekly-digest:
-    if: github.event.schedule == '0 9 * * 1' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'weekly'))
+    if: github.event.schedule == '0 9 * * 5' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'weekly'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
