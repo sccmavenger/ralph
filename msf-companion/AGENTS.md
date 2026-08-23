@@ -160,6 +160,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
   preference, pace provider calls, isolate per-recipient failures, and return a
   failed job status after processing if any delivery failed. Keep idempotency
   versioned so retries cannot duplicate successful sends.
+- Graduate weekly reports independently with `WEEKLY_EMAIL_AUTOMATION_MODE`;
+  do not enable the global automation mode when the request does not also cover
+  daily lifecycle, win-back, and new-character campaigns.
 - The established MSF Companion Discord invite is
   `https://discord.gg/2ptFQ2Vefk`; weekly feedback invitations should cover
   praise, suggestions, bug reports, and complaints without displacing the

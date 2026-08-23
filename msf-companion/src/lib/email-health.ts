@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { emailAutomationMode } from "@/lib/email-automation";
+import { emailAutomationMode, weeklyEmailAutomationMode } from "@/lib/email-automation";
 
 export async function getEmailHealth() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -43,6 +43,7 @@ export async function getEmailHealth() {
     generatedAt: new Date().toISOString(),
     periodDays: 7,
     automationMode: emailAutomationMode(),
+    weeklyAutomationMode: weeklyEmailAutomationMode(),
     providerConfigured: Boolean(process.env.RESEND_API_KEY),
     webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET),
     totals: { total, failures, failureRate: total ? Math.round((failures / total) * 1000) / 10 : 0 },

@@ -19,6 +19,9 @@ MSF Companion sends email through the web application and Resend. The stopped le
 - `EMAIL_AUTOMATION_MODE=disabled` sends no scheduled marketing.
 - `EMAIL_AUTOMATION_MODE=test` restricts scheduled marketing to the registered commander matching `EMAIL_AUTOMATION_TEST_RECIPIENT`.
 - `EMAIL_AUTOMATION_MODE=live` enables the preference-filtered production audience.
+- `WEEKLY_EMAIL_AUTOMATION_MODE` overrides the global mode for weekly reports.
+  Use this to graduate weekly delivery without activating daily lifecycle or
+  win-back campaigns; an invalid override fails closed as `disabled`.
 - Every delivery has a database and Resend idempotency key.
 - Verification and test notifications never qualify as weekly digest content.
 - Weekly reports skip delivery when no roster, activity, current official update, or genuine alert is available.
@@ -46,9 +49,10 @@ Administrators can review audience counts, recent delivery attempts, delivery st
 
 The `Email Automation` GitHub Actions workflow runs the schedules and can be dispatched manually. Both endpoints require the repository `CRON_SECRET`, which must match the web application secret.
 
-Production weekly automation is configured in `live` mode. Its scheduled run is
-Friday at 09:00 UTC (04:00 Central during daylight saving time and 03:00 Central
-during standard time).
+Production weekly automation is configured with
+`WEEKLY_EMAIL_AUTOMATION_MODE=live`, while other scheduled marketing remains in
+`test`. Its scheduled run is Friday at 09:00 UTC (04:00 Central during daylight
+saving time and 03:00 Central during standard time).
 
 ## Production rollout
 

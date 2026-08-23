@@ -15,7 +15,9 @@ export default async function EmailHealthPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Email health</h1>
-            <p className="text-xs text-[var(--color-muted)]">Last {health.periodDays} days · mode: {health.automationMode}</p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Last {health.periodDays} days · weekly: {health.weeklyAutomationMode} · other automation: {health.automationMode}
+            </p>
           </div>
           <a href="/admin/dashboard" className="text-sm text-[var(--color-accent)]">Back to admin</a>
         </div>
@@ -49,6 +51,8 @@ export default async function EmailHealthPage() {
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between"><dt>Resend provider</dt><dd>{health.providerConfigured ? "Configured" : "Missing"}</dd></div>
               <div className="flex justify-between"><dt>Delivery webhook</dt><dd>{health.webhookConfigured ? "Configured" : "Missing"}</dd></div>
+              <div className="flex justify-between"><dt>Weekly mode</dt><dd>{health.weeklyAutomationMode}</dd></div>
+              <div className="flex justify-between"><dt>Other automation</dt><dd>{health.automationMode}</dd></div>
               <div className="flex justify-between"><dt>Weekly opt-ins</dt><dd>{health.audience.weeklyDigest}</dd></div>
               <div className="flex justify-between"><dt>Character opt-ins</dt><dd>{health.audience.newCharacters}</dd></div>
               <div className="flex justify-between"><dt>Announcement opt-ins</dt><dd>{health.audience.announcements}</dd></div>

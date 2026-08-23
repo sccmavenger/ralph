@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthorizedCronRequest } from "@/lib/cron-auth";
-import { emailAutomationMode, emailTestRecipient } from "@/lib/email-automation";
+import { emailTestRecipient, weeklyEmailAutomationMode } from "@/lib/email-automation";
 import { sendTrackedEmail } from "@/lib/email";
 import { buildWeeklyDigestHtml } from "@/lib/email-templates";
 import {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const mode = emailAutomationMode();
+  const mode = weeklyEmailAutomationMode();
   if (mode === "disabled") {
     return NextResponse.json({ mode, sent: 0, skipped: 0 });
   }

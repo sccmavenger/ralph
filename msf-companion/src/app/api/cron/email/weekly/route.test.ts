@@ -23,7 +23,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/cron-auth", () => ({ isAuthorizedCronRequest: () => true }));
 vi.mock("@/lib/email-automation", () => ({
-  emailAutomationMode: () => "test",
+  weeklyEmailAutomationMode: () => "test",
   emailTestRecipient: () => "commander@example.test",
 }));
 vi.mock("@/lib/email", () => ({ sendTrackedEmail: mocks.sendTrackedEmail }));
