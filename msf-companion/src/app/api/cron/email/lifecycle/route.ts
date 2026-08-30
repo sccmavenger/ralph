@@ -155,43 +155,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const winBacks = await prisma.churnIntervention.findMany({
-    where: {
-      type: "win-back",
-      delivered: false,
-      scheduledAt: { lte: now },
-      ...(mode === "test"
-        ? { commander: { email: emailScope(mode, testRecipient) } }
-        : {}),
-    },
-    include: { commander: { select: { id: true, email: true, displayName: true } } },
-    take: 50,
-  });
-  for (const intervention of winBacks) {
-    try {
-      if (intervention.commander.email) {
-        const result = await sendTrackedEmail({
-          commanderId: intervention.commander.id,
-          to: intervention.commander.email,
-          subject: "Your MSF Companion intel is still here",
-          html: buildLifecycleEmailHtml("win-back", intervention.commander.displayName ?? "Commander"),
-          messageType: "subscription_winback",
-          idempotencyKey: `scheduled-winback:${intervention.id}`,
-          preference: "reengagement",
-          metadata: { automationMode: mode },
-        });
-        if (result.status === "sent") sent++;
-      }
-      await prisma.churnIntervention.update({
-        where: { id: intervention.id },
-        data: { delivered: true, sentAt: new Date() },
-      });
-    } catch (error) {
-      console.warn(`[Email lifecycle] Scheduled win-back failed: ${error instanceof Error ? error.message : String(error)}`);
-      skipped++;
-    }
-  }
-
   const inactiveCommanders = await prisma.commander.findMany({
     where: {
       disabled: false,
@@ -238,7 +201,7 @@ export async function POST(request: Request) {
     churnPreventionEnabled: churnFlag?.enabled ?? false,
     premiumScanned: premiumCommanders.length,
     inactiveScanned: inactiveCommanders.length,
-    scheduledWinBacks: winBacks.length,
+    scheduledWinBacks: 0,
     sent,
     notified,
     skipped,

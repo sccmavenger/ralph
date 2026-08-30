@@ -155,6 +155,9 @@ export async function GET(request: NextRequest) {
   session.tokenExpiresAt = Date.now() + tokenData.expires_in * 1000;
   session.scopelyId = scopelyId;
   session.codeVerifier = undefined; // Clean up
+  // Missing-email commanders get one prompt per OAuth login. The skip route
+  // clears this for the current session without suppressing the next login.
+  session.emailPromptRequired = true;
 
   await session.save();
   

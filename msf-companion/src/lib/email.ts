@@ -22,6 +22,7 @@ export type EmailMessageType =
   | "churn_reengage"
   | "churn_retention"
   | "subscription_winback"
+  | "cancellation_feedback"
   | "announcement";
 
 type EmailMetadata = Record<string, string | number | boolean | null>;
@@ -69,6 +70,9 @@ export async function sendTrackedEmail(
     const commander = await prisma.commander.findUnique({
       where: { id: options.commanderId },
       select: {
+        email: true,
+        disabled: true,
+        emailConsentSource: true,
         emailWeeklyDigest: true,
         emailNewCharacters: true,
         emailAnnouncements: true,
@@ -76,7 +80,28 @@ export async function sendTrackedEmail(
       },
     });
 
-    if (!commander || !preferenceEnabled(commander, options.preference)) {
+    const commanderEligible = Boolean(
+      commander &&
+      !commander.disabled &&
+      commander.emailConsentSource &&
+      commander.email &&
+      hashEmailAddress(commander.email) === recipientHash &&
+      preferenceEnabled(commander, options.preference)
+    );
+    const hardSuppression = commanderEligible
+      ? await prisma.emailDelivery.findFirst({
+          where: {
+            recipientHash,
+            OR: [
+              { status: { in: ["bounced", "complained"] } },
+              { status: "suppressed", attemptCount: { gt: 0 } },
+            ],
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (!commanderEligible || hardSuppression) {
       await prisma.emailDelivery.upsert({
         where: { idempotencyKey: options.idempotencyKey },
         create: {
@@ -86,9 +111,17 @@ export async function sendTrackedEmail(
           subject: options.subject,
           idempotencyKey: options.idempotencyKey,
           status: "suppressed",
+          lastError: hardSuppression
+            ? "recipient has a prior delivery suppression"
+            : "commander or category is no longer eligible",
           ...(options.metadata ? { metadata: options.metadata } : {}),
         },
-        update: { status: "suppressed", lastError: null },
+        update: {
+          status: "suppressed",
+          lastError: hardSuppression
+            ? "recipient has a prior delivery suppression"
+            : "commander or category is no longer eligible",
+        },
       });
       return { status: "suppressed" };
     }

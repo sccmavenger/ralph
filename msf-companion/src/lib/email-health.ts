@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { emailAutomationMode, weeklyEmailAutomationMode } from "@/lib/email-automation";
+import {
+  cancellationFeedbackEmailMode,
+  emailAutomationMode,
+  newCharacterEmailAutomationMode,
+  weeklyEmailAutomationMode,
+} from "@/lib/email-automation";
 
 export async function getEmailHealth() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -29,11 +34,11 @@ export async function getEmailHealth() {
         deliveredAt: true,
       },
     }),
-    prisma.commander.count({ where: { disabled: false, email: { not: null } } }),
-    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailWeeklyDigest: true } }),
-    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailNewCharacters: true } }),
-    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailAnnouncements: true } }),
-    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailReengagement: true } }),
+    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailConsentSource: { not: null } } }),
+    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailConsentSource: { not: null }, emailWeeklyDigest: true } }),
+    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailConsentSource: { not: null }, emailNewCharacters: true } }),
+    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailConsentSource: { not: null }, emailAnnouncements: true } }),
+    prisma.commander.count({ where: { disabled: false, email: { not: null }, emailConsentSource: { not: null }, emailReengagement: true } }),
   ]);
 
   const statuses = Object.fromEntries(byStatus.map((item) => [item.status, item._count._all]));
@@ -44,6 +49,8 @@ export async function getEmailHealth() {
     periodDays: 7,
     automationMode: emailAutomationMode(),
     weeklyAutomationMode: weeklyEmailAutomationMode(),
+    newCharacterAutomationMode: newCharacterEmailAutomationMode(),
+    cancellationFeedbackAutomationMode: cancellationFeedbackEmailMode(),
     providerConfigured: Boolean(process.env.RESEND_API_KEY),
     webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET),
     totals: { total, failures, failureRate: total ? Math.round((failures / total) * 1000) / 10 : 0 },

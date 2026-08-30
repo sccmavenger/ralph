@@ -6,8 +6,10 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const session = await getSession();
   const scopelyId = await getScopelyId(true);
+  // Read the session after getScopelyId, which can recover and persist an ID
+  // for opaque access tokens. This prevents a later save from overwriting it.
+  const session = await getSession();
 
   if (!session.accessToken || !scopelyId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +20,9 @@ export async function POST() {
     create: { scopelyId, emailPromptSkippedAt: new Date() },
     update: { emailPromptSkippedAt: new Date() },
   });
+
+  session.emailPromptRequired = false;
+  await session.save();
 
   return NextResponse.json({ success: true });
 }

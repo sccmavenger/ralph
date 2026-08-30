@@ -84,7 +84,7 @@ Common optional integrations:
 | `AZURE_AI_SEARCH_*` | Knowledge retrieval and indexing |
 | `AZURE_COSMOS_*` / `COSMOS_*` | Response cache and Function ingestion state |
 | `STRIPE_*` / `NEXT_PUBLIC_STRIPE_*` | Premium subscriptions |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Transactional email |
+| `RESEND_API_KEY`, `EMAIL_FROM`, email automation modes | Transactional and preference-aware scheduled email |
 | `DISCORD_*` | Announcements |
 | `YOUTUBE_API_KEY` | Creator discovery and knowledge ingestion |
 | `CRON_SECRET` | Authentication for web-hosted scheduled routes |

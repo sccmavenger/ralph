@@ -9,25 +9,39 @@ export default async function AdminDashboardPage() {
     redirect("/admin");
   }
 
-  const commanders = await prisma.commander.findMany({
-    select: {
-      id: true,
-      displayName: true,
-      scopelyId: true,
-      email: true,
-      subscriptionTier: true,
-      lastLoginAt: true,
-      disabled: true,
-    },
-    orderBy: [
-      { lastLoginAt: { sort: "desc", nulls: "last" } },
-    ],
-  });
+  const [commanders, cancellationQueued, cancellationResponses, cancellationUnreviewed] = await Promise.all([
+    prisma.commander.findMany({
+      select: {
+        id: true,
+        displayName: true,
+        scopelyId: true,
+        email: true,
+        subscriptionTier: true,
+        lastLoginAt: true,
+        disabled: true,
+      },
+      orderBy: [
+        { lastLoginAt: { sort: "desc", nulls: "last" } },
+      ],
+    }),
+    prisma.cancellationFeedbackCase.count({ where: { outreachStatus: "queued" } }),
+    prisma.cancellationFeedbackCase.count({ where: { firstRespondedAt: { not: null } } }),
+    prisma.cancellationFeedbackCase.count({ where: { reviewStatus: "new" } }),
+  ]);
 
   const serialized = commanders.map((c) => ({
     ...c,
     lastLoginAt: c.lastLoginAt ? c.lastLoginAt.toISOString() : null,
   }));
 
-  return <AdminDashboardClient commanders={serialized} />;
+  return (
+    <AdminDashboardClient
+      commanders={serialized}
+      cancellationSummary={{
+        queued: cancellationQueued,
+        responses: cancellationResponses,
+        unreviewed: cancellationUnreviewed,
+      }}
+    />
+  );
 }

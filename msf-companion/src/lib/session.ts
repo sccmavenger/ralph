@@ -7,6 +7,8 @@ export interface SessionData {
   tokenExpiresAt?: number;
   scopelyId?: string;
   codeVerifier?: string;
+  /** True after OAuth login until the email prompt is completed or skipped. */
+  emailPromptRequired?: boolean;
 }
 
 const sessionOptions: SessionOptions = {

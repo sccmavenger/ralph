@@ -163,6 +163,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Graduate weekly reports independently with `WEEKLY_EMAIL_AUTOMATION_MODE`;
   do not enable the global automation mode when the request does not also cover
   daily lifecycle, win-back, and new-character campaigns.
+- Graduate new-character alerts independently with
+  `NEW_CHARACTER_EMAIL_AUTOMATION_MODE`. Their live audience spans Free and
+  Premium tiers, but still requires an enabled account, a usable deduplicated
+  mailbox, recorded consent provenance, the category preference, and no prior
+  hard bounce, complaint, or provider suppression.
+- Cancellation feedback is a dedicated case workflow, not a generic lifecycle
+  win-back. Queue only voluntary Stripe cancellations, delay outreach 24 hours,
+  cancel it on reactivation, enforce a 180-day mailbox cooldown, and control it
+  with the independently fail-closed `CANCELLATION_FEEDBACK_EMAIL_MODE`. Track
+  form and manually entered inbox replies in `/admin/cancellation-feedback` so
+  feedback can move from new to reviewing, planned, actioned, and closed.
 - The established MSF Companion Discord invite is
   `https://discord.gg/2ptFQ2Vefk`; weekly feedback invitations should cover
   praise, suggestions, bug reports, and complaints without displacing the

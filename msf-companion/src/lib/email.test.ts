@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   commanderFindUnique: vi.fn(),
   deliveryUpsert: vi.fn(),
   deliveryUpdate: vi.fn(),
+  deliveryFindFirst: vi.fn(),
   resendSend: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
     emailDelivery: {
       upsert: (...args: unknown[]) => mocks.deliveryUpsert(...args),
       update: (...args: unknown[]) => mocks.deliveryUpdate(...args),
+      findFirst: (...args: unknown[]) => mocks.deliveryFindFirst(...args),
     },
   },
 }));
@@ -41,11 +43,15 @@ describe("sendTrackedEmail", () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET", "test-secret-with-enough-entropy");
     mocks.commanderFindUnique.mockResolvedValue({
+      email: "commander@example.com",
+      disabled: false,
+      emailConsentSource: "profile",
       emailWeeklyDigest: true,
       emailNewCharacters: true,
       emailAnnouncements: true,
       emailReengagement: true,
     });
+    mocks.deliveryFindFirst.mockResolvedValue(null);
     mocks.deliveryUpsert.mockResolvedValue({
       id: "delivery-1",
       status: "pending",
@@ -57,6 +63,9 @@ describe("sendTrackedEmail", () => {
 
   it("suppresses a disabled category before calling Resend", async () => {
     mocks.commanderFindUnique.mockResolvedValue({
+      email: "commander@example.com",
+      disabled: false,
+      emailConsentSource: "profile",
       emailWeeklyDigest: false,
       emailNewCharacters: true,
       emailAnnouncements: true,
@@ -68,6 +77,33 @@ describe("sendTrackedEmail", () => {
     expect(mocks.deliveryUpsert).toHaveBeenCalledWith(expect.objectContaining({
       create: expect.objectContaining({ status: "suppressed" }),
     }));
+  });
+
+  it("suppresses marketing when the mailbox changed or previously bounced", async () => {
+    mocks.commanderFindUnique.mockResolvedValue({
+      email: "new@example.com",
+      disabled: false,
+      emailConsentSource: "profile",
+      emailWeeklyDigest: true,
+      emailNewCharacters: true,
+      emailAnnouncements: true,
+      emailReengagement: true,
+    });
+    await expect(sendTrackedEmail(base)).resolves.toEqual({ status: "suppressed" });
+
+    mocks.commanderFindUnique.mockResolvedValue({
+      email: "commander@example.com",
+      disabled: false,
+      emailConsentSource: "profile",
+      emailWeeklyDigest: true,
+      emailNewCharacters: true,
+      emailAnnouncements: true,
+      emailReengagement: true,
+    });
+    mocks.deliveryFindFirst.mockResolvedValue({ id: "bounce-1" });
+    await expect(sendTrackedEmail({ ...base, idempotencyKey: "weekly:2:commander-1" }))
+      .resolves.toEqual({ status: "suppressed" });
+    expect(mocks.resendSend).not.toHaveBeenCalled();
   });
 
   it("sends with provider idempotency, text fallback, and one-click headers", async () => {

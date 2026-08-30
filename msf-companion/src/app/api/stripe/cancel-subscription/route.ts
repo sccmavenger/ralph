@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { queueCancellationFeedbackCase } from "@/lib/cancellation-feedback-cases";
 
 export async function POST() {
   const session = await getSession();
@@ -12,6 +13,7 @@ export async function POST() {
   const commander = await prisma.commander.findUnique({
     where: { scopelyId: session.scopelyId },
     select: {
+      id: true,
       stripeSubscriptionId: true,
     },
   });
@@ -27,6 +29,23 @@ export async function POST() {
     commander.stripeSubscriptionId,
     { cancel_at_period_end: true }
   );
+
+  if (subscription.cancel_at_period_end) {
+    try {
+      await queueCancellationFeedbackCase({
+        commanderId: commander.id,
+        subscription,
+      });
+    } catch (error) {
+      // Stripe is the source of truth and its webhook retries this write. Do
+      // not tell the commander cancellation failed after Stripe accepted it.
+      console.warn(
+        `[Cancellation feedback] Could not queue from cancel route: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
 
   // Get period end from the first subscription item
   const item = subscription.items.data[0];

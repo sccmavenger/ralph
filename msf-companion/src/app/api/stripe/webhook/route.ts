@@ -3,6 +3,11 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { sendTrackedEmail } from "@/lib/email";
 import { buildWelcomeEmailHtml } from "@/lib/welcome-email";
+import {
+  isVoluntaryCancellation,
+  markCancellationFeedbackReactivated,
+  queueCancellationFeedbackCase,
+} from "@/lib/cancellation-feedback-cases";
 import Stripe from "stripe";
 
 function getCustomerId(obj: { customer: string | Stripe.Customer | Stripe.DeletedCustomer }): string {
@@ -127,6 +132,32 @@ export async function POST(request: Request) {
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = getCustomerId(subscription);
+      const cancelledCommander = await prisma.commander.findFirst({
+        where: { stripeCustomerId: customerId },
+        select: { id: true },
+      });
+
+      if (cancelledCommander && isVoluntaryCancellation(subscription)) {
+        await queueCancellationFeedbackCase({
+          commanderId: cancelledCommander.id,
+          subscription,
+        });
+      }
+      if (cancelledCommander) {
+        await prisma.cancellationFeedbackCase.updateMany({
+          where: {
+            commanderId: cancelledCommander.id,
+            stripeSubscriptionId: subscription.id,
+            cancellationEffectiveAt: null,
+          },
+          data: {
+            cancellationEffectiveAt: subscription.ended_at
+              ? new Date(subscription.ended_at * 1000)
+              : new Date(),
+          },
+        });
+      }
+
       await prisma.commander.updateMany({
         where: { stripeCustomerId: customerId },
         data: {
@@ -135,35 +166,13 @@ export async function POST(request: Request) {
         },
       });
 
-      // Schedule win-back intervention (3 days later)
-      const cancelledCommander = await prisma.commander.findFirst({
-        where: { stripeCustomerId: customerId },
-        select: { id: true, displayName: true },
-      });
       if (cancelledCommander) {
-        const winBackDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-        await prisma.churnIntervention.upsert({
-          where: { sourceEventId: event.id },
-          update: {},
-          create: {
-            commanderId: cancelledCommander.id,
-            type: "win-back",
-            channel: "email",
-            riskScore: null,
-            scheduledAt: winBackDate,
-            delivered: false,
-            sourceEventId: event.id,
-          },
-        });
-
-        // Immediate farewell notification
         await prisma.commanderNotification.create({
           data: {
             commanderId: cancelledCommander.id,
             type: "churn_prevention",
             title: "We're sorry to see you go",
-            message: "Your premium features are now paused. You can resubscribe anytime to pick up where you left off.",
-            linkUrl: "/subscribe",
+            message: "Your premium access has ended. Thank you for giving The MSF Toolkit a try.",
           },
         });
       }
@@ -173,6 +182,34 @@ export async function POST(request: Request) {
     case "customer.subscription.updated": {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = getCustomerId(subscription);
+      const updatedCommander = await prisma.commander.findFirst({
+        where: { stripeCustomerId: customerId },
+        select: { id: true },
+      });
+      const previous = event.data.previous_attributes as
+        | { cancel_at_period_end?: boolean }
+        | undefined;
+
+      if (
+        updatedCommander &&
+        subscription.cancel_at_period_end &&
+        previous?.cancel_at_period_end === false
+      ) {
+        await queueCancellationFeedbackCase({
+          commanderId: updatedCommander.id,
+          subscription,
+        });
+      } else if (
+        updatedCommander &&
+        !subscription.cancel_at_period_end &&
+        previous?.cancel_at_period_end === true
+      ) {
+        await markCancellationFeedbackReactivated({
+          commanderId: updatedCommander.id,
+          stripeSubscriptionId: subscription.id,
+        });
+      }
+
       if (subscription.status === "active") {
         await prisma.commander.updateMany({
           where: { stripeCustomerId: customerId },

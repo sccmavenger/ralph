@@ -45,8 +45,10 @@ function buildEmailSignupWelcomeHtml(displayName: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
   const scopelyId = await getScopelyId(true);
+  // Read after getScopelyId so a recovered opaque-token identity is retained
+  // when this route saves the per-login prompt state below.
+  const session = await getSession();
 
   if (!session.accessToken || !scopelyId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -101,6 +103,9 @@ export async function POST(request: NextRequest) {
       );
     }
   }
+
+  session.emailPromptRequired = false;
+  await session.save();
 
   return NextResponse.json({ success: true });
 }

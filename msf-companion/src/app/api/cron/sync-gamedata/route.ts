@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTrackedEmail } from "@/lib/email";
-import { emailAutomationMode, emailTestRecipient } from "@/lib/email-automation";
 import { runOfficialKnowledgeSync, type SyncedCharacter } from "@/lib/kb-official-sync";
+import { sendNewCharacterEmails } from "@/lib/new-character-email";
 
 interface SyncResult {
   name: string;
@@ -13,60 +12,6 @@ interface SyncResult {
   notificationsCreated?: number;
   emailsSent?: number;
   error?: string;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-function buildNewCharacterEmailHtml(character: SyncedCharacter): string {
-  const name = escapeHtml(character.name);
-  const traits = escapeHtml(character.traits.join(", ") || "Unknown");
-  const teams = escapeHtml(character.teams.join(", ") || "Not yet assigned");
-  const abilityRows = character.abilities.map((ability) =>
-    `<tr><td style="color:#4f9cf7;padding:6px 10px 6px 0;font-weight:600;vertical-align:top">${escapeHtml(ability.name)}</td><td style="color:#ccc;padding:6px 0;line-height:1.5">${escapeHtml(ability.description)}</td></tr>`
-  ).join("");
-  return `<!doctype html><html lang="en"><body style="margin:0;background:#0f0f23;font-family:Arial,sans-serif"><div style="max-width:600px;margin:auto;padding:32px 20px"><h1 style="color:#4f9cf7;text-align:center">New MSF Character Detected</h1><div style="background:#1a1a3e;border-radius:16px;padding:28px;color:#fff"><h2 style="margin-top:0">${name}</h2><p>Traits: ${traits}</p><p>Team traits: ${teams}</p>${abilityRows ? `<table style="width:100%;font-size:14px">${abilityRows}</table>` : ""}</div><p style="text-align:center"><a href="https://themsftoolkit.com/heroes" style="display:inline-block;background:#4f9cf7;color:#fff;padding:12px 28px;border-radius:9999px;text-decoration:none">View Heroes Database</a></p></div></body></html>`;
-}
-
-async function sendNewCharacterEmails(characters: SyncedCharacter[]): Promise<number> {
-  const mode = emailAutomationMode();
-  if (mode === "disabled") return 0;
-
-  const testEmail = emailTestRecipient();
-  const recipients = mode === "test"
-    ? testEmail
-      ? await prisma.commander.findMany({
-          where: { disabled: false, email: { equals: testEmail, mode: "insensitive" } },
-          select: { id: true, email: true },
-        })
-      : []
-    : await prisma.commander.findMany({
-        where: { disabled: false, email: { not: null }, emailNewCharacters: true },
-        select: { id: true, email: true },
-      });
-  let sent = 0;
-  for (const character of characters) {
-    for (const recipient of recipients) {
-      if (!recipient.email) continue;
-      try {
-        const result = await sendTrackedEmail({
-          commanderId: recipient.id,
-          to: recipient.email,
-          subject: `New Character Detected: ${character.name}`,
-          html: buildNewCharacterEmailHtml(character),
-          messageType: "new_character",
-          idempotencyKey: `new-character:${character.id}:${recipient.id}`,
-          preference: "newCharacters",
-          metadata: { characterId: character.id, automationMode: mode },
-        });
-        if (result.status === "sent") sent++;
-      } catch (error) {
-        console.warn(`[KB Sync] New-character email failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  }
-  return sent;
 }
 
 async function detectNewCharacters(characters: SyncedCharacter[]): Promise<SyncResult> {

@@ -13,43 +13,44 @@ datasource db {
 }
 
 model Commander {
-  id                      String                  @id @default(cuid())
-  scopelyId               String                  @unique
-  email                   String?
-  displayName             String?
-  hasCompletedOnboarding  Boolean                 @default(false)
-  onboardingLastShownAt   DateTime?
-  emailPromptSkippedAt    DateTime?
-  subscriptionTier        String                  @default("FREE")
-  stripeCustomerId        String?                 @unique
-  stripeSubscriptionId    String?                 @unique
-  stripeCurrentPeriodEnd  DateTime?
-  lastLoginAt             DateTime?
-  disabled                Boolean                 @default(false)
-  advisorQuestionsToday   Int                     @default(0)
-  advisorQuestionsResetAt DateTime?
-  emailDigestOptOut       Boolean                 @default(false)
-  emailWeeklyDigest       Boolean                 @default(true)
-  emailNewCharacters      Boolean                 @default(true)
-  emailAnnouncements      Boolean                 @default(true)
-  emailReengagement       Boolean                 @default(true)
-  emailConsentAt          DateTime?
-  emailConsentSource      String?
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-  rosterSnapshots         RosterSnapshot[]
-  inventorySnapshots      InventorySnapshot[]
-  advisorConversations    AdvisorConversation[]
-  advisorQuestionLogs     AdvisorQuestionLog[]
-  notifications           CommanderNotification[]
-  dailyTips               DailyTip[]
-  pushSubscriptions       PushSubscription[]
-  dailyTokenUsages        DailyTokenUsage[]
-  usageEvents             UsageEvent[]
-  churnInterventions      ChurnIntervention[]
-  emailDeliveries         EmailDelivery[]
-  towerResults            TowerResult[]
-  wallet                  CommanderWallet?
+  id                        String                     @id @default(cuid())
+  scopelyId                 String                     @unique
+  email                     String?
+  displayName               String?
+  hasCompletedOnboarding    Boolean                    @default(false)
+  onboardingLastShownAt     DateTime?
+  emailPromptSkippedAt      DateTime?
+  subscriptionTier          String                     @default("FREE")
+  stripeCustomerId          String?                    @unique
+  stripeSubscriptionId      String?                    @unique
+  stripeCurrentPeriodEnd    DateTime?
+  lastLoginAt               DateTime?
+  disabled                  Boolean                    @default(false)
+  advisorQuestionsToday     Int                        @default(0)
+  advisorQuestionsResetAt   DateTime?
+  emailDigestOptOut         Boolean                    @default(false)
+  emailWeeklyDigest         Boolean                    @default(true)
+  emailNewCharacters        Boolean                    @default(true)
+  emailAnnouncements        Boolean                    @default(true)
+  emailReengagement         Boolean                    @default(true)
+  emailConsentAt            DateTime?
+  emailConsentSource        String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  rosterSnapshots           RosterSnapshot[]
+  inventorySnapshots        InventorySnapshot[]
+  advisorConversations      AdvisorConversation[]
+  advisorQuestionLogs       AdvisorQuestionLog[]
+  notifications             CommanderNotification[]
+  dailyTips                 DailyTip[]
+  pushSubscriptions         PushSubscription[]
+  dailyTokenUsages          DailyTokenUsage[]
+  usageEvents               UsageEvent[]
+  churnInterventions        ChurnIntervention[]
+  emailDeliveries           EmailDelivery[]
+  cancellationFeedbackCases CancellationFeedbackCase[]
+  towerResults              TowerResult[]
+  wallet                    CommanderWallet?
 }
 
 model RosterSnapshot {
@@ -249,6 +250,53 @@ model EmailDelivery {
   @@index([commanderId, messageType, createdAt])
   @@index([status, createdAt])
   @@index([recipientHash, createdAt])
+}
+
+model CancellationFeedbackCase {
+  id                      String                         @id @default(cuid())
+  commanderId             String?
+  cancellationKey         String                         @unique
+  stripeSubscriptionId    String
+  cancellationRequestedAt DateTime
+  cancellationEffectiveAt DateTime?
+  cancellationReversedAt  DateTime?
+  scheduledAt             DateTime
+  outreachStatus          String                         @default("queued")
+  suppressionReason       String?
+  reviewStatus            String                         @default("awaiting_response")
+  primaryReason           String?
+  theme                   String?
+  assignedTo              String?
+  adminNotes              String?
+  actionSummary           String?
+  actionUrl               String?
+  firstRespondedAt        DateTime?
+  actionedAt              DateTime?
+  closedAt                DateTime?
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  commander               Commander?                     @relation(fields: [commanderId], references: [id], onDelete: SetNull)
+  responses               CancellationFeedbackResponse[]
+
+  @@index([outreachStatus, scheduledAt])
+  @@index([reviewStatus, updatedAt])
+  @@index([primaryReason, firstRespondedAt])
+  @@index([stripeSubscriptionId, cancellationReversedAt], map: "CancellationFeedbackCase_subscription_reversed_idx")
+}
+
+model CancellationFeedbackResponse {
+  id              String                   @id @default(cuid())
+  caseId          String
+  source          String
+  reason          String?
+  body            String?
+  dedupeKey       String?                  @unique
+  providerEmailId String?                  @unique
+  senderHash      String?
+  receivedAt      DateTime                 @default(now())
+  case            CancellationFeedbackCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, receivedAt])
 }
 
 model StripeWebhookEvent {

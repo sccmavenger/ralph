@@ -5,6 +5,7 @@ import { getValidAccessToken } from "@/lib/auth";
 import { getScopelyId } from "@/lib/scopely-id";
 import { prisma } from "@/lib/prisma";
 import { trackPageView } from "@/lib/page-view-tracking";
+import { shouldShowEmailPrompt } from "@/lib/email-prompt";
 
 export const metadata: Metadata = {
   title: "Dashboard — MSF Companion",
@@ -57,7 +58,6 @@ export default async function AppLayout({
       select: {
         displayName: true,
         email: true,
-        emailPromptSkippedAt: true,
         hasCompletedOnboarding: true,
         onboardingLastShownAt: true,
         disabled: true,
@@ -82,15 +82,11 @@ export default async function AppLayout({
       }
 
       if (commander.displayName) displayName = commander.displayName;
-      if (!commander.email) {
-        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-        if (
-          !commander.emailPromptSkippedAt ||
-          Date.now() - commander.emailPromptSkippedAt.getTime() > ONE_DAY_MS
-        ) {
-          showEmailModal = true;
-        }
-      }
+      showEmailModal = shouldShowEmailPrompt({
+        email: commander.email,
+        disabled: commander.disabled,
+        promptRequiredForLogin: session.emailPromptRequired,
+      });
       // Show tour if never completed OR if last shown more than 7 days ago
       const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
       if (

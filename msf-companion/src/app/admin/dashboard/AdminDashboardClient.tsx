@@ -35,8 +35,10 @@ function formatRelativeTime(isoString: string | null): string {
 
 export default function AdminDashboardClient({
   commanders: initialCommanders,
+  cancellationSummary,
 }: {
   commanders: Commander[];
+  cancellationSummary: { queued: number; responses: number; unreviewed: number };
 }) {
   const [search, setSearch] = useState("");
   const [commanders, setCommanders] = useState(initialCommanders);
@@ -281,7 +283,7 @@ export default function AdminDashboardClient({
             </button>
           </form>
         </div>
-        <nav className="flex px-4 gap-1">
+        <nav className="flex flex-wrap px-4 gap-1">
           <span
             className="px-3 py-2 text-sm font-medium border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]"
           >
@@ -311,10 +313,31 @@ export default function AdminDashboardClient({
           >
             Email Health
           </a>
+          <a
+            href="/admin/cancellation-feedback"
+            className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors"
+          >
+            Cancellation Feedback
+          </a>
         </nav>
       </header>
 
       <div className="mx-auto max-w-2xl px-4 py-4">
+        <a
+          href="/admin/cancellation-feedback"
+          className="mb-4 block rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-accent)]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Cancellation feedback</h2>
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                {cancellationSummary.queued} queued · {cancellationSummary.responses} responses · {cancellationSummary.unreviewed} need review
+              </p>
+            </div>
+            <span className="text-sm text-[var(--color-accent)]">Open queue →</span>
+          </div>
+        </a>
+
         {/* Send Notification */}
         <button
           type="button"

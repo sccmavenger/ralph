@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { markCancellationFeedbackReactivated } from "@/lib/cancellation-feedback-cases";
 
 export async function POST() {
   const session = await getSession();
@@ -11,7 +12,7 @@ export async function POST() {
 
   const commander = await prisma.commander.findUnique({
     where: { scopelyId: session.scopelyId },
-    select: { stripeSubscriptionId: true },
+    select: { id: true, stripeSubscriptionId: true },
   });
 
   if (!commander?.stripeSubscriptionId) {
@@ -44,6 +45,20 @@ export async function POST() {
   await stripe.subscriptions.update(commander.stripeSubscriptionId, {
     cancel_at_period_end: false,
   });
+
+  try {
+    await markCancellationFeedbackReactivated({
+      commanderId: commander.id,
+      stripeSubscriptionId: commander.stripeSubscriptionId,
+    });
+  } catch (error) {
+    // The Stripe webhook repeats this bookkeeping and can recover the queue.
+    console.warn(
+      `[Cancellation feedback] Could not cancel queued outreach: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 
   return NextResponse.json({ reactivated: true });
 }
