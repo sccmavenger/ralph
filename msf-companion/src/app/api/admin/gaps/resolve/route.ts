@@ -25,15 +25,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Gap already resolved" }, { status: 400 });
   }
 
-  // Mark the gap as manually resolved
-  const updated = await prisma.knowledgeGap.update({
-    where: { id: body.gapId },
-    data: {
-      status: "resolved",
-      autoResolveAction: "Manually resolved by admin",
-      resolvedAt: new Date(),
-    },
-  });
+  // Keep the knowledge record and its operational action in sync.
+  const resolvedAt = new Date();
+  const [updated, completedActions] = await prisma.$transaction([
+    prisma.knowledgeGap.update({
+      where: { id: body.gapId },
+      data: {
+        status: "resolved",
+        autoResolveAction: "Manually resolved by admin",
+        resolvedAt,
+      },
+    }),
+    prisma.aiActionItem.updateMany({
+      where: {
+        sourceType: "knowledge_gap",
+        sourceId: body.gapId,
+        status: { in: ["open", "investigating", "planned"] },
+      },
+      data: { status: "completed", completedAt: resolvedAt },
+    }),
+  ]);
 
-  return NextResponse.json({ success: true, gap: updated });
+  return NextResponse.json({
+    success: true,
+    gap: updated,
+    completedActionCount: completedActions.count,
+  });
 }

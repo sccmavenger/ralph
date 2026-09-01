@@ -121,14 +121,25 @@ async function resolveOpenGaps(): Promise<void> {
       const docId = `auto-${gap.id}`;
       await uploadToSearchIndex(docId, content, gap.category);
 
-      await prisma.knowledgeGap.update({
-        where: { id: gap.id },
-        data: {
-          status: "resolved",
-          autoResolveAction: `Generated knowledge document: ${docId}`,
-          resolvedAt: new Date(),
-        },
-      });
+      const resolvedAt = new Date();
+      await prisma.$transaction([
+        prisma.knowledgeGap.update({
+          where: { id: gap.id },
+          data: {
+            status: "resolved",
+            autoResolveAction: `Generated knowledge document: ${docId}`,
+            resolvedAt,
+          },
+        }),
+        prisma.aiActionItem.updateMany({
+          where: {
+            sourceType: "knowledge_gap",
+            sourceId: gap.id,
+            status: { in: ["open", "investigating", "planned"] },
+          },
+          data: { status: "completed", completedAt: resolvedAt },
+        }),
+      ]);
     } catch {
       // Skip this gap, try next
     }

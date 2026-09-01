@@ -466,3 +466,34 @@ ull.
   - Dismissal is intentionally session-only (React state) — no localStorage — per TC-011.4 "hides for the session". Reloading the planner re-evaluates staleness.
   - ALL 11 stories (US-001..US-011) now pass:true. Feature complete.
 ---
+
+## 2026-08-31 - Actionable AI operations dashboard
+- Rebuilt `/admin/ai-dashboard` as an operating dashboard with ten defined KPIs: completed answers, AI users, classified pass rate, low-confidence rate, grounded rate, satisfaction, rating coverage, estimated tokens per answer, open-gap demand, and aged gaps.
+- Added canonical 7/30/90-day UTC windows, equal prior-period comparisons, targets/statuses, sample sizes, caveats, a daily trend, category scorecard, repeated-question analysis, model mix, knowledge health, and a target-driven attention queue.
+- Added authenticated, no-store summary and paginated drill-down APIs. Drill-downs return the exception/raw records needed to understand each KPI while omitting commander IDs and email/account identifiers.
+- Added durable `AiActionItem` persistence plus authenticated create/update APIs. Dashboard findings can be promoted to actions with priority, owner, status, notes, and a deep link; completed/dismissed actions remain visible as a completion trail. KPI actions are keyed by reporting window so a later recurrence does not overwrite completed work.
+- Manual and automated knowledge-gap resolution now complete any linked active action in the same database transaction.
+- Added the `20260831120000_add_ai_action_workflow` migration and telemetry indexes used by the dashboard. Local schema validation and all 23 migrations pass.
+- Verification: 47 focused unit/API tests pass; 7 signed-admin Playwright scenarios pass (auth, all KPI cards, range changes, drill-down/action promotion, editing, retry, and 375px containment); targeted ESLint and TypeScript pass; production Next.js build passes. Full Vitest regression: 695 passed and the same 9 pre-existing Tower route failures remain in `tower/events`, `tower/history`, and `tower/rooms`.
+- **Learnings for future iterations:**
+  - Keep AI KPI definitions and date-window semantics centralized in `src/lib/admin-ai-stats.ts`; the range end is exclusive.
+  - Feedback metrics cover persisted assistant messages and therefore skew Premium; token usage is a directional output-token estimate, not provider billing or exact dollar cost.
+  - Reuse the `AiActionItem` workflow for AI remediation so recommendations always have an ownerable lifecycle and link back to the underlying KPI or record.
+  - Wide charts/tables inside responsive CSS grids need `min-w-0` on the grid items plus a bounded `overflow-x-auto` child, or their intrinsic width expands the mobile document.
+---
+
+## 2026-08-31 - AI decision-center refinement
+- Reoriented `/admin/ai-dashboard` around decisions instead of descriptive rankings. The page now opens with deterministic opportunity/risk/improvement cards containing “What we see,” “Why it matters,” “Do next,” a success measure, privacy-safe evidence, confidence/sample, caveats, direct evidence links, and measurable action creation.
+- Removed the standalone repeated/top-questions panel and removed `topQuestions` from the summary response. Exact question text remains available only when it supports a relevant authenticated KPI/category drill-down.
+- Added `src/lib/admin-business-insights.ts` for equal-window product/AI/cancellation signals and deterministic rules covering concentrated category quality, missing rating coverage, fragmented singleton gaps, Advisor depth/reach and return, onboarding, product-area reach, cancellation growth/backlog, and incomplete journey telemetry.
+- Added privacy-safe product behavior reporting: distinct active/returning commanders, page views per active user, Advisor reach/depth/repeat/return, new-account onboarding, cancellation request-cohort responses, and canonical product-area reach. Page/product-area results are visibly marked directional because historical client-navigation coverage is incomplete.
+- Repaired authenticated page tracking with a client `PageViewTracker` driven by `usePathname`; `/api/usage-track` now accepts a strictly validated `{ page }` event alongside the existing feature event contract. Admin/API paths, external URLs, traversal, queries/fragments, controls, and malformed mixed events are rejected.
+- Added category-filtered evidence links so a category-quality finding opens only the relevant answer records. Category filters are validated, restricted to question metrics, and do not return commander IDs.
+- Extended `AiActionItem` with `successMeasure`, `baselineValue`, `targetValue`, `resultValue`, `metricUnit`, and `reviewAt` through additive migration `20260831170000_add_ai_action_outcomes`. The action register now highlights unassigned/overdue work and records whether an intervention met its target.
+- Verification: 98 focused business-insight, dashboard API, action, and usage-tracking tests pass; 8/8 signed-admin Playwright dashboard scenarios pass; TypeScript and targeted ESLint pass; Prisma validates with all 24 local migrations current; the production Next.js build passes. Full Vitest regression: 750 passed and the same 9 pre-existing Tower route failures remain in `tower/events`, `tower/history`, and `tower/rooms`.
+- **Learnings for future iterations:**
+  - Keep business findings rule-based and testable. A KPI without an explicit decision, target, and ownerable action belongs in diagnostic evidence, not the decision brief.
+  - Stable business insight source IDs intentionally upsert the same ongoing problem; reporting-window-specific KPI actions may remain window-keyed when separate recurrences need independent completion trails.
+  - Cancellation response rate is a request-cohort signal, not an email-delivery conversion rate. Join `EmailDelivery` when delivery/open/click attribution is required.
+  - Do not label pageviews-per-user as session depth or call the most-viewed area a first-touch entry point without session/order data.
+---

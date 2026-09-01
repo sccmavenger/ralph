@@ -148,14 +148,25 @@ export async function POST(request: NextRequest) {
       );
 
       if (uploadResponse.ok) {
-        await prisma.knowledgeGap.update({
-          where: { id: gap.id },
-          data: {
-            status: "resolved",
-            autoResolveAction: `Resolved with ${docs.length} docs (${videos.length} YouTube + ${aiContent ? 1 : 0} AI-generated)`,
-            resolvedAt: new Date(),
-          },
-        });
+        const resolvedAt = new Date();
+        await prisma.$transaction([
+          prisma.knowledgeGap.update({
+            where: { id: gap.id },
+            data: {
+              status: "resolved",
+              autoResolveAction: `Resolved with ${docs.length} docs (${videos.length} YouTube + ${aiContent ? 1 : 0} AI-generated)`,
+              resolvedAt,
+            },
+          }),
+          prisma.aiActionItem.updateMany({
+            where: {
+              sourceType: "knowledge_gap",
+              sourceId: gap.id,
+              status: { in: ["open", "investigating", "planned"] },
+            },
+            data: { status: "completed", completedAt: resolvedAt },
+          }),
+        ]);
         resolved++;
       } else {
         failed++;

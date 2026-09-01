@@ -4,7 +4,6 @@ import { getSession } from "@/lib/session";
 import { getValidAccessToken } from "@/lib/auth";
 import { getScopelyId } from "@/lib/scopely-id";
 import { prisma } from "@/lib/prisma";
-import { trackPageView } from "@/lib/page-view-tracking";
 import { shouldShowEmailPrompt } from "@/lib/email-prompt";
 
 export const metadata: Metadata = {
@@ -21,6 +20,7 @@ import PostLoginGate from "../components/PostLoginGate";
 import InstallAppModal from "../components/InstallAppModal";
 import PaywallGate from "../components/PaywallGate";
 import PushNotificationPrompt from "../components/PushNotificationPrompt";
+import PageViewTracker from "../components/PageViewTracker";
 
 export default async function AppLayout({
   children,
@@ -42,9 +42,6 @@ export default async function AppLayout({
 
   // Resolve scopelyId — falls back to Hydra userinfo for opaque tokens
   const scopelyId = await getScopelyId(false); // Server Component: can't save session
-
-  // Track page view (fire-and-forget)
-  trackPageView().catch(() => {});
 
   // Fetch commander data in one query
   let displayName = "Commander";
@@ -126,6 +123,7 @@ export default async function AppLayout({
   return (
     <DesktopGate>
       <div className="flex min-h-screen flex-col">
+        <PageViewTracker />
         <AppHeader displayName={displayName} portrait={portrait} />
         <main className="flex-1 overflow-y-auto pb-20">
           <PaywallGate tier={tier}>{children}</PaywallGate>

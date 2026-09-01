@@ -1,82 +1,277 @@
 import { NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/admin-session";
+import {
+  AIActionItemSummary,
+  AIStatsResponse,
+  buildAIStatsRange,
+  buildAIStatsResponse,
+  parseAIStatsRange,
+} from "@/lib/admin-ai-stats";
+import { buildAdminBusinessInsights } from "@/lib/admin-business-insights";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+} as const;
+
+interface ActionItemRow {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  status: string;
+  owner: string | null;
+  notes: string | null;
+  actionUrl: string | null;
+  successMeasure: string | null;
+  baselineValue: number | null;
+  targetValue: number | null;
+  resultValue: number | null;
+  metricUnit: string | null;
+  reviewAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ActionItemDelegate {
+  findMany(args: unknown): Promise<ActionItemRow[]>;
+}
+
+export async function GET(request: Request) {
   const session = await getAdminSession();
   if (!session.isAdmin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  const rangeDays = parseAIStatsRange(new URL(request.url).searchParams.get("range"));
+  if (rangeDays === null) {
+    return NextResponse.json(
+      { error: "range must be one of 7, 30, or 90" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const weekStart = new Date(now);
-  weekStart.setUTCDate(weekStart.getUTCDate() - 7);
+  const range = buildAIStatsRange(rangeDays, now);
+  const combinedStart = new Date(range.previousStart);
+  const combinedEnd = new Date(range.end);
 
-  // Question stats
-  const [questionsToday, questionsThisWeek] = await Promise.all([
-    prisma.advisorQuestionLog.count({
-      where: { createdAt: { gte: todayStart } },
-    }),
-    prisma.advisorQuestionLog.count({
-      where: { createdAt: { gte: weekStart } },
-    }),
-  ]);
+  try {
+    const [
+      questions,
+      messages,
+      tokenUsage,
+      gaps,
+      usageEvents,
+      commanders,
+      cancellationCases,
+      actionItems,
+    ] = await Promise.all([
+      prisma.advisorQuestionLog.findMany({
+        where: { createdAt: { gte: combinedStart, lt: combinedEnd } },
+        select: {
+          id: true,
+          commanderId: true,
+          question: true,
+          category: true,
+          confidenceScore: true,
+          answeredSuccessfully: true,
+          knowledgeSourcesUsed: true,
+          createdAt: true,
+        },
+      }),
+      prisma.advisorMessage.findMany({
+        where: {
+          role: "assistant",
+          createdAt: { gte: combinedStart, lt: combinedEnd },
+        },
+        select: {
+          id: true,
+          content: true,
+          feedback: true,
+          modelUsed: true,
+          createdAt: true,
+        },
+      }),
+      prisma.dailyTokenUsage.findMany({
+        where: { date: { gte: combinedStart, lt: combinedEnd } },
+        select: {
+          id: true,
+          date: true,
+          tokensUsed: true,
+        },
+      }),
+      prisma.knowledgeGap.findMany({
+        select: {
+          id: true,
+          clusteredQuestion: true,
+          category: true,
+          frequency: true,
+          status: true,
+          resolvedAt: true,
+          createdAt: true,
+        },
+      }),
+      prisma.usageEvent.findMany({
+        where: { createdAt: { gte: combinedStart, lt: combinedEnd } },
+        select: {
+          commanderId: true,
+          eventType: true,
+          eventName: true,
+          tier: true,
+          createdAt: true,
+        },
+      }),
+      prisma.commander.findMany({
+        where: {
+          OR: [
+            { createdAt: { gte: combinedStart, lt: combinedEnd } },
+            {
+              usageEvents: {
+                some: { createdAt: { gte: combinedStart, lt: combinedEnd } },
+              },
+            },
+            {
+              advisorQuestionLogs: {
+                some: { createdAt: { gte: combinedStart, lt: combinedEnd } },
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          hasCompletedOnboarding: true,
+        },
+      }),
+      prisma.cancellationFeedbackCase.findMany({
+        where: {
+          OR: [
+            {
+              cancellationRequestedAt: {
+                gte: combinedStart,
+                lt: combinedEnd,
+              },
+            },
+            {
+              firstRespondedAt: { not: null },
+              actionedAt: null,
+              closedAt: null,
+            },
+          ],
+        },
+        select: {
+          cancellationRequestedAt: true,
+          cancellationReversedAt: true,
+          firstRespondedAt: true,
+          reviewStatus: true,
+          actionedAt: true,
+          closedAt: true,
+        },
+      }),
+      getActionItems(),
+    ]);
 
-  // Top 10 most-asked questions
-  const topQuestions = await prisma.advisorQuestionLog.groupBy({
-    by: ["question"],
-    _count: { question: true },
-    orderBy: { _count: { question: "desc" } },
-    take: 10,
+    const coreStats = buildAIStatsResponse({
+      range,
+      asOf: now,
+      questions,
+      messages,
+      tokenUsage,
+      gaps,
+      actionItems,
+    });
+    const businessInsights = buildAdminBusinessInsights({
+      days: rangeDays,
+      asOf: now,
+      usageEvents,
+      questions,
+      messages,
+      gaps,
+      commanders,
+      cancellationCases,
+    });
+    const response: AIStatsResponse = {
+      ...coreStats,
+      ...businessInsights,
+    };
+
+    return NextResponse.json(response, { headers: NO_STORE_HEADERS });
+  } catch (error) {
+    console.error("[AI dashboard] Failed to load stats", error);
+    return NextResponse.json(
+      { error: "Unable to load AI dashboard statistics" },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
+  }
+}
+
+async function getActionItems(): Promise<AIActionItemSummary[]> {
+  // This structural access keeps this read route compatible while a generated
+  // Prisma client is refreshed in the same change that adds AIActionItem.
+  const delegate = (prisma as unknown as { aiActionItem?: ActionItemDelegate }).aiActionItem;
+  if (!delegate) return [];
+
+  const rows = await delegate.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: 100,
   });
 
-  // Knowledge gap counts
-  const [openGaps, resolvedGaps] = await Promise.all([
-    prisma.knowledgeGap.count({ where: { status: "open" } }),
-    prisma.knowledgeGap.count({ where: { status: "resolved" } }),
-  ]);
+  const priorityOrder: Record<AIActionItemSummary["priority"], number> = {
+    critical: 4,
+    high: 3,
+    medium: 2,
+    low: 1,
+  };
+  const activeStatus = (status: string) =>
+    status === "open" || status === "investigating" || status === "planned";
+  rows.sort((a, b) =>
+    Number(activeStatus(b.status)) - Number(activeStatus(a.status))
+    || priorityOrder[asActionPriority(b.priority)] - priorityOrder[asActionPriority(a.priority)]
+    || b.createdAt.getTime() - a.createdAt.getTime(),
+  );
 
-  // Token usage (estimated cost)
-  const tokenUsageToday = await prisma.dailyTokenUsage.aggregate({
-    _sum: { tokensUsed: true },
-    where: { date: { gte: todayStart } },
-  });
-  const tokenUsageWeek = await prisma.dailyTokenUsage.aggregate({
-    _sum: { tokensUsed: true },
-    where: { date: { gte: weekStart } },
-  });
+  return rows.map((row) => ({
+    id: row.id,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
+    title: row.title,
+    description: row.description,
+    priority: asActionPriority(row.priority),
+    status: asActionStatus(row.status),
+    owner: row.owner,
+    notes: row.notes,
+    actionUrl: row.actionUrl,
+    successMeasure: row.successMeasure,
+    baselineValue: row.baselineValue,
+    targetValue: row.targetValue,
+    resultValue: row.resultValue,
+    metricUnit: row.metricUnit,
+    reviewAt: row.reviewAt?.toISOString() ?? null,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+}
 
-  // Estimate monthly cost: $0.005 per 1K tokens (GPT-4o average)
-  const weeklyTokens = tokenUsageWeek._sum.tokensUsed || 0;
-  const estimatedMonthlyCost = (weeklyTokens / 1000) * 0.005 * 4.3;
+function asActionPriority(value: string): AIActionItemSummary["priority"] {
+  return value === "low" || value === "high" || value === "critical" ? value : "medium";
+}
 
-  // Feedback stats
-  const [positiveFeedback, negativeFeedback] = await Promise.all([
-    prisma.advisorMessage.count({ where: { feedback: "positive" } }),
-    prisma.advisorMessage.count({ where: { feedback: "negative" } }),
-  ]);
-
-  // Confidence distribution
-  const avgConfidence = await prisma.advisorQuestionLog.aggregate({
-    _avg: { confidenceScore: true },
-  });
-
-  return NextResponse.json({
-    questionsToday,
-    questionsThisWeek,
-    topQuestions: topQuestions.map((q) => ({
-      question: q.question,
-      count: q._count.question,
-    })),
-    gaps: { open: openGaps, resolved: resolvedGaps },
-    tokenUsage: {
-      today: tokenUsageToday._sum.tokensUsed || 0,
-      thisWeek: weeklyTokens,
-      estimatedMonthlyCost: Math.round(estimatedMonthlyCost * 100) / 100,
-    },
-    feedback: { positive: positiveFeedback, negative: negativeFeedback },
-    avgConfidence: Math.round(avgConfidence._avg.confidenceScore || 0),
-  });
+function asActionStatus(value: string): AIActionItemSummary["status"] {
+  return value === "investigating"
+    || value === "planned"
+    || value === "completed"
+    || value === "dismissed"
+    ? value
+    : "open";
 }
