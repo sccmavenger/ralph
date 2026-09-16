@@ -154,6 +154,7 @@ async function setupPage(page: Page, url: string) {
   await mockApiRoutes(page);
   await page.goto(url);
   await dismissModals(page);
+  if (url === "/dashboard") await page.getByText("Roster & mode insights", { exact: true }).click();
 }
 
 /* ========================================================================== */
@@ -209,6 +210,7 @@ test.describe("Farming Targets Widget", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockOffenseTeams) }),
     );
     await page.goto("/dashboard");
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     const skeleton = page.locator('[data-testid="farming-widget-skeleton"]');
     await expect(skeleton).toBeVisible({ timeout: 5000 });
   });
@@ -352,6 +354,7 @@ test.describe("War Meta Widget", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockFarmingTargets) }),
     );
     await page.goto("/dashboard");
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     const skeleton = page.locator('[data-testid="war-meta-widget-skeleton"]');
     await expect(skeleton).toBeVisible({ timeout: 5000 });
   });

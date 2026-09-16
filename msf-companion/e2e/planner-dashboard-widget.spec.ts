@@ -17,6 +17,7 @@ test.describe("Planner Dashboard Summary Widget", () => {
   }) => {
     await mockPlannerApiRoutes(page);
     await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     await page.waitForSelector('[data-testid="planner-summary"]', {
       timeout: 15000,
     });
@@ -29,6 +30,7 @@ test.describe("Planner Dashboard Summary Widget", () => {
   }) => {
     await mockPlannerApiRoutes(page);
     await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     await page.waitForSelector('[data-testid="planner-summary"]', {
       timeout: 15000,
     });
@@ -63,6 +65,7 @@ test.describe("Planner Dashboard Summary Widget", () => {
   }) => {
     await mockPlannerApiRoutes(page);
     await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     await page.waitForSelector('[data-testid="planner-summary"]', {
       timeout: 15000,
     });
@@ -82,6 +85,7 @@ test.describe("Planner Dashboard Summary Widget", () => {
   }) => {
     await mockPlannerApiRoutes(page);
     await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     await page.waitForSelector('[data-testid="planner-summary"]', {
       timeout: 15000,
     });
@@ -110,6 +114,7 @@ test.describe("Planner Dashboard Summary Widget", () => {
   }) => {
     await mockPlannerApiRoutes(page);
     await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     // The dashboard should render without errors
     // Check that the welcome header is still visible (proves no crash)

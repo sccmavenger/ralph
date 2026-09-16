@@ -25,6 +25,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Dashboard patterns
 
+- All signed-in pages share `AppNavigation` (Today/Roster/Resources/Planner/More)
+  via `BottomTabBar`. Do not branch the navigation design by pathname; use the
+  segment-safe active matching in `app-navigation.ts`. Secondary links, FAQ,
+  and sign-out live in More. Public pages and the desktop QR remain separate.
+
+- The signed-in `/dashboard` uses the approved H + G layout: live reward expiry,
+  compact self-reported wallet, Collect/Plan/Farm/Check tiles, and collapsed
+  roster/mode insights. Preserve the public `/` page and desktop QR screen.
+- `dashboard-briefing.ts` derives counts from active offers and claimable
+  milestone events. Exclude expired/exhausted offers, label partial data, and
+  never use a milestone event end time as an assumed reward-claim deadline.
+- The dashboard owns one briefing fetch shared by its expiry panel, Collect
+  tile, and inline reward list. Roster/mode widgets mount only when expanded.
 - Distinguish unavailable data from a valid empty result. API failures must not
   render as zero progress, a maxed roster, "all caught up," or "no events."
 - Fetch independent dashboard resources with `Promise.allSettled` so one failed
@@ -33,6 +46,20 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Dashboard navigation E2E tests must suppress or dismiss the install-app prompt
   before clicking page content; the modal intentionally blocks background
   pointer events while it is open.
+
+## Inventory patterns
+
+- `/player/v1/inventory` defaults to item IDs. Request `itemFormat=object`,
+  `quantityFormat=int`, and sequential `page`/`perPage` pages for names, icons,
+  and category metadata. Validate `meta.perTotal` and fail incomplete loads.
+- Preserve missing balances as `null`, not zero. Unknown quantities sort last
+  and are excluded from the in-stock filter; never infer low-stock thresholds
+  or upgrade affordability from inventory quantities alone.
+- Inventory counts represent distinct item types, not a sum of mixed resource
+  units. Preserve Orbs and Currency as distinct categories. Gold/Cores wallet
+  balances remain explicitly self-reported in the planner.
+- Inventory refresh failures retain the last successful snapshot with a stale
+  warning; an initial failure is not a valid empty inventory.
 
 ## Dark Dimension Planner patterns
 

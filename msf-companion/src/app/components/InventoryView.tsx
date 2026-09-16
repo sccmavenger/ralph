@@ -1,225 +1,169 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import DashboardIcon, { type DashboardIconName } from "../(app)/dashboard/DashboardIcon";
+import { filterInventory, INVENTORY_CATEGORIES, parseInventory, sortInventory, type InventoryCategory, type InventoryItem, type InventorySort } from "@/lib/inventory-view";
+import styles from "./inventory.module.css";
 
-interface InventoryItem {
-  id: string;
-  name?: string;
-  quantity?: number;
-  category?: string;
-}
+const PAGE_SIZE = 40;
+const categoryStyle: Record<InventoryCategory, { color: string; icon: DashboardIconName; label: string }> = {
+  Gear: { color: "purple", icon: "inventory", label: "Gear" },
+  Shards: { color: "blue", icon: "roster", label: "Shards" },
+  "Ability Materials": { color: "orange", icon: "target", label: "Ability" },
+  "Training Materials": { color: "teal", icon: "planner", label: "Training" },
+  "ISO-8 Items": { color: "teal", icon: "route", label: "ISO-8" },
+  Orbs: { color: "purple", icon: "gift", label: "Orbs" },
+  Currency: { color: "orange", icon: "inventory", label: "Currency" },
+  Consumables: { color: "blue", icon: "gift", label: "Consumables" },
+  Other: { color: "gray", icon: "inventory", label: "Other" },
+};
 
-interface InventoryApiResponse {
-  data?: InventoryItem[];
-  error?: string;
-}
-
-const CATEGORY_ORDER = [
-  "Gear",
-  "Shards",
-  "Ability Materials",
-  "ISO-8 Items",
-  "Consumables",
-  "Other",
-];
-
-function categorizeItem(item: InventoryItem): string {
-  const cat = item.category?.toLowerCase() ?? "";
-  if (cat.includes("gear")) return "Gear";
-  if (cat.includes("shard")) return "Shards";
-  if (cat.includes("ability") || cat.includes("material"))
-    return "Ability Materials";
-  if (cat.includes("iso")) return "ISO-8 Items";
-  if (cat.includes("consumable")) return "Consumables";
-  return "Other";
-}
-
-function formatQuantity(n: number): string {
-  return n.toLocaleString();
-}
-
-function InventorySkeleton() {
-  return (
-    <div className="space-y-4">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="animate-pulse">
-          <div className="mb-2 h-5 w-1/3 rounded bg-[var(--color-surface-light)]" />
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, j) => (
-              <div
-                key={j}
-                className="flex items-center justify-between rounded-lg bg-[var(--color-surface)] p-3"
-              >
-                <div className="h-4 w-1/2 rounded bg-[var(--color-surface-light)]" />
-                <div className="h-4 w-16 rounded bg-[var(--color-surface-light)]" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CollapsibleCategory({
-  name,
-  items,
-}: {
-  name: string;
-  items: InventoryItem[];
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <div className="mb-4">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="mb-2 flex w-full items-center justify-between"
-      >
-        <h3 className="text-sm font-bold text-[var(--color-foreground)]">
-          {name}{" "}
-          <span className="text-xs font-normal text-[var(--color-muted)]">
-            ({items.length})
-          </span>
-        </h3>
-        <span
-          className="text-[var(--color-muted)] transition-transform"
-          style={{ transform: expanded ? "rotate(180deg)" : "none" }}
-        >
-          ▾
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="space-y-1">
-          {items.map((item, idx) => (
-            <div
-              key={`${item.id}-${idx}`}
-              className="flex items-center justify-between rounded-lg bg-[var(--color-surface)] px-4 py-3"
-            >
-              <span className="text-sm text-[var(--color-foreground)]">
-                {item.name ?? item.id}
-              </span>
-              <span className="text-sm font-semibold text-[var(--color-accent)]">
-                {formatQuantity(item.quantity ?? 0)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function ItemArtwork({ item }: { item: InventoryItem }) {
+  const [failed, setFailed] = useState(false);
+  return <span className={[styles.artwork, styles[categoryStyle[item.category].color]].join(" ")} aria-hidden="true">
+    {item.icon && !failed ?
+      // Game CDN images have variable hosts; keep them lazy and size-constrained.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={item.icon} alt="" width={40} height={40} loading="lazy" onError={() => setFailed(true)} /> :
+      <DashboardIcon name={categoryStyle[item.category].icon} />}
+  </span>;
 }
 
 export default function InventoryView() {
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [items, setItems] = useState<InventoryItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<number | null>(null);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const [search, setSearch] = useState("");
-  const fetchedRef = useRef(false);
+  const [category, setCategory] = useState<InventoryCategory | "All">("All");
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [sort, setSort] = useState<InventorySort>("name");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const request = useRef<AbortController | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const moreFocus = useRef<HTMLLIElement>(null);
+  const shouldFocusMore = useRef(false);
 
   const fetchInventory = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
     setError(null);
-
+    setAccessError(null);
     try {
-      const res = await fetch("/api/msf/inventory");
-      if (!res.ok) {
-        const data = (await res.json()) as InventoryApiResponse;
-        throw new Error(data.error || "Failed to load inventory");
+      const response = await fetch("/api/msf/inventory", { cache: "no-store", signal: controller.signal });
+      if (!response.ok) {
+        if (!controller.signal.aborted) setAccessError(response.status);
+        throw new Error(response.status === 401 ? "Your game session has expired. Sign in again to refresh your inventory." : response.status === 403 ? "Inventory access requires an active Premium account." : "We couldn't refresh your inventory. Please try again.");
       }
-
-      const data = (await res.json()) as InventoryApiResponse;
-      setItems(data.data ?? []);
+      const data = parseInventory(await response.json());
+      if (controller.signal.aborted) return;
+      setItems(data);
+      setLoadedAt(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Inventory is temporarily unavailable.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchedRef.current = true;
-      fetchInventory();
-    }
+    const timer = window.setTimeout(() => void fetchInventory(), 0);
+    return () => { clearTimeout(timer); request.current?.abort(); };
   }, [fetchInventory]);
 
-  if (loading) {
-    return (
-      <div className="px-4 py-4">
-        <div className="mb-4 h-10 w-full rounded-lg bg-[var(--color-surface)]" />
-        <InventorySkeleton />
+  useEffect(() => {
+    if (shouldFocusMore.current) {
+      moreFocus.current?.focus({ preventScroll: true });
+      shouldFocusMore.current = false;
+    }
+  }, [visibleCount]);
+
+  const searched = filterInventory(items ?? [], search, inStockOnly);
+  const filtered = sortInventory(searched.filter(item => category === "All" || item.category === category), sort);
+  const displayed = filtered.slice(0, visibleCount);
+  const ownedCount = items?.filter(item => item.quantity !== null && item.quantity > 0).length;
+  const unknownCount = items?.filter(item => item.quantity === null).length ?? 0;
+  const stockCount = ownedCount === undefined || (unknownCount > 0 && ownedCount === 0) ? "—" : ownedCount.toLocaleString() + (unknownCount > 0 ? "+" : "");
+  const categoryCount = items ? new Set(items.map(item => item.category)).size : null;
+  const hasFilters = !!search.trim() || category !== "All" || inStockOnly;
+  const resetFilters = () => { setSearch(""); setCategory("All"); setInStockOnly(false); setVisibleCount(PAGE_SIZE); searchInput.current?.focus(); };
+
+  return <div className={styles.page} data-testid="inventory-page">
+    <header className={styles.heading}>
+      <span className={styles.eyebrow}>YOUR RESOURCES</span>
+      <h1>Inventory</h1>
+      <p>Know what you have. Plan what comes next.</p>
+    </header>
+
+    <section className={styles.overview} aria-label="Inventory snapshot">
+      <div className={styles.snapshotHeading}>
+        <span><DashboardIcon name="inventory" /> ON HAND</span>
+        <button type="button" onClick={fetchInventory} disabled={loading} aria-label="Refresh inventory" className={styles.refresh}><DashboardIcon name="refresh" /></button>
       </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
-        <p className="mb-4 text-sm text-[var(--color-muted)]">{error}</p>
-        <button
-          onClick={() => fetchInventory()}
-          className="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-semibold text-white"
-        >
-          Retry
-        </button>
+      <div className={styles.stats}>
+        <div><strong data-testid="inventory-in-stock">{stockCount}</strong><span>item types in stock</span></div>
+        <div><strong>{categoryCount === null ? "—" : categoryCount}</strong><span>resource categories</span></div>
       </div>
-    );
-  }
+      <div className={styles.freshness}><span className={error ? styles.staleDot : styles.dot} /><span>{loading ? "Checking your inventory…" : loadedAt ? (error ? "Last loaded" : "Loaded") + " at " + loadedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Not loaded yet"}</span><span>Game-reported</span></div>
+      {unknownCount > 0 && <p className={styles.snapshotNote}>{unknownCount} {unknownCount === 1 ? "balance not reported" : "balances not reported"}. Stock count is incomplete.</p>}
+    </section>
 
-  // Filter by search
-  const filtered = search.trim()
-    ? items.filter(
-        (item) =>
-          (item.name ?? item.id)
-            .toLowerCase()
-            .includes(search.trim().toLowerCase())
-      )
-    : items;
+    <nav className={styles.actions} aria-label="Resource planning tools">
+      <Link href="/planner" className={styles.planAction}><DashboardIcon name="target" /><span><strong>Plan upgrades</strong><span>Check your next investment</span></span><span aria-hidden="true">›</span></Link>
+      <Link href="/analyze/farming" className={styles.farmAction}><DashboardIcon name="route" /><span><strong>Find resources</strong><span>Explore farming sources</span></span><span aria-hidden="true">›</span></Link>
+    </nav>
 
-  // Group by category
-  const grouped = new Map<string, InventoryItem[]>();
-  for (const item of filtered) {
-    const cat = categorizeItem(item);
-    const group = grouped.get(cat) ?? [];
-    group.push(item);
-    grouped.set(cat, group);
-  }
+    {error && <section className={styles.error} role="alert" data-testid="inventory-error">
+      <strong>{items ? "Refresh unsuccessful" : "Inventory unavailable"}</strong>
+      <p>{error}</p>
+      {items && <p>Showing your last successful load. Quantities may have changed.</p>}
+      <button type="button" onClick={fetchInventory} disabled={loading}>Try again</button>
+      {accessError === 401 && <a className={styles.recoverAccess} href="/api/auth/login">Sign in again →</a>}
+      {accessError === 403 && <Link className={styles.recoverAccess} href="/subscribe">View plans →</Link>}
+    </section>}
 
-  // Sort categories in defined order
-  const sortedCategories = CATEGORY_ORDER.filter((c) => grouped.has(c));
-
-  return (
-    <div className="px-4 py-4">
-      {/* Sticky search bar */}
-      <div className="sticky top-14 z-10 -mx-4 bg-[var(--color-background)] px-4 pb-3">
-        <input
-          type="text"
-          placeholder="Search items..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-[var(--color-surface-light)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none focus:border-[var(--color-accent)]"
-        />
+    <section aria-label="Browse inventory" className={styles.browser}>
+      <div className={styles.searchBox}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+        <input ref={searchInput} type="search" aria-label="Search inventory" placeholder="Search by item name or ID" value={search} onChange={e => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }} />
+        {search && <button type="button" aria-label="Clear search" onClick={() => { setSearch(""); setVisibleCount(PAGE_SIZE); searchInput.current?.focus(); }}>×</button>}
+      </div>
+      <div className={styles.categories} role="group" aria-label="Filter by resource category">
+        <button type="button" aria-pressed={category === "All"} onClick={() => { setCategory("All"); setVisibleCount(PAGE_SIZE); }}>All <span>{items ? searched.length : "—"}</span></button>
+        {INVENTORY_CATEGORIES.filter(c => items?.some(item => item.category === c) || category === c).map(c => <button key={c} type="button" aria-pressed={category === c} onClick={() => { setCategory(c); setVisibleCount(PAGE_SIZE); }} aria-label={c + " category"}>
+          {categoryStyle[c].label} <span>{searched.filter(item => item.category === c).length}</span>
+        </button>)}
+      </div>
+      <div className={styles.options}>
+        <label className={styles.stockToggle}><input type="checkbox" checked={inStockOnly} onChange={e => { setInStockOnly(e.target.checked); setVisibleCount(PAGE_SIZE); }} /><span>In stock only</span></label>
+        <label className={styles.sort}>Sort <select aria-label="Sort inventory" value={sort} onChange={e => { setSort(e.target.value as InventorySort); setVisibleCount(PAGE_SIZE); }}><option value="name">Name A–Z</option><option value="quantity-desc">Most owned</option><option value="quantity-asc">Least owned</option></select></label>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-sm text-[var(--color-muted)]">
-            {search.trim()
-              ? "No items found matching your search."
-              : "No items in your inventory."}
-          </p>
-        </div>
-      ) : (
-        sortedCategories.map((cat) => (
-          <CollapsibleCategory
-            key={cat}
-            name={cat}
-            items={grouped.get(cat) ?? []}
-          />
-        ))
-      )}
-    </div>
-  );
+      <div className={styles.listHeading}>
+        <h2>{category === "All" ? "Your items" : category}</h2>
+        <span role="status" aria-live="polite">{items ? filtered.length.toLocaleString() + (filtered.length === 1 ? " item type" : " item types") : loading ? "Loading…" : "Unavailable"}</span>
+      </div>
+
+      {items === null && loading ? <div className={styles.skeleton} role="status" aria-label="Loading inventory">{[1, 2, 3, 4].map(i => <div key={i} />)}</div> : items && filtered.length > 0 ? <>
+        <ul className={styles.itemList} aria-label="Inventory items" aria-busy={loading}>
+          {displayed.map((item, index) => <li key={item.id} ref={index === visibleCount - PAGE_SIZE ? moreFocus : undefined} tabIndex={-1} className={styles.item} data-testid="inventory-item">
+            <ItemArtwork item={item} />
+            <div className={styles.itemName}><h3>{item.name ?? item.id}</h3><span className={styles[categoryStyle[item.category].color]}>{item.category}</span>{!item.name && <small>Item name not provided</small>}</div>
+            <div className={styles.quantity}><strong className={item.quantity === 0 ? styles.zero : ""}>{item.quantity === null ? "—" : item.quantity.toLocaleString()}</strong><span>{item.quantity === null ? "Not reported" : item.quantity === 0 ? "None on hand" : "on hand"}</span></div>
+          </li>)}
+        </ul>
+        {filtered.length > visibleCount && <button className={styles.loadMore} type="button" onClick={() => { shouldFocusMore.current = true; setVisibleCount(n => n + PAGE_SIZE); }}>Show {Math.min(PAGE_SIZE, filtered.length - visibleCount)} more <span>({visibleCount} of {filtered.length})</span></button>}
+      </> : items && <div className={styles.empty} data-testid="inventory-empty">
+        <DashboardIcon name="inventory" /><h3>{hasFilters ? "No matching resources" : "No items reported yet"}</h3>
+        <p>{hasFilters ? "Try another search or clear your filters to see everything." : "The game returned an empty inventory. Refresh after your next session to check again."}</p>
+        {hasFilters && <button type="button" onClick={resetFilters}>Clear filters</button>}
+      </div>}
+    </section>
+
+    <aside className={styles.note}><DashboardIcon name="clock" /><p>Inventory is a snapshot, not a spending budget. <Link href="/planner">Use the planner</Link> to check upgrade requirements and your self-reported Gold &amp; Cores.</p></aside>
+  </div>;
 }

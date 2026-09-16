@@ -137,6 +137,7 @@ async function setupDashboard(page: Page) {
   await mockOffersApi(page);
   await page.goto("/dashboard");
   await dismissModals(page);
+  await page.getByText("Roster & mode insights", { exact: true }).click();
 }
 
 async function setupOffersPage(page: Page, data = mockOffers) {
@@ -191,6 +192,7 @@ test.describe("Offers Widget", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockOffers) });
     });
     await page.goto("/dashboard");
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     const skeleton = page.locator('[data-testid="offers-widget-skeleton"]');
     await expect(skeleton).toBeVisible({ timeout: 5000 });
   });
@@ -210,6 +212,7 @@ test.describe("Offers Widget", () => {
     await mockDashboardApis(page);
     await mockOffersApi(page, emptyOffers);
     await page.goto("/dashboard");
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     await dismissModals(page);
     const widget = page.locator('[data-testid="offers-widget"]');
     await expect(widget).toBeVisible({ timeout: 15000 });

@@ -30,23 +30,26 @@ interface WalletState {
  *   zeros) that opens the same sheet.
  * - Saving updates the strip in place (no page reload).
  */
-export default function WalletStrip() {
+export default function WalletStrip({ compact = false }: { compact?: boolean }) {
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   // Session-only dismissal of the staleness nudge (US-011 / TC-011.4). Never
   // persisted and never touches the wallet values.
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const load = useCallback(async () => {
+    setLoaded(false);
+    setLoadError(false);
     try {
       const res = await fetch("/api/msf/wallet");
-      if (res.ok) {
-        const data = (await res.json()) as WalletState;
-        setWallet(data);
-      }
+      if (!res.ok) throw new Error("Wallet unavailable");
+      const data = (await res.json()) as WalletState;
+      if (typeof data.exists !== "boolean" || (data.exists && (![data.gold, data.cores].every((v) => Number.isInteger(v) && v >= 0)))) throw new Error("Invalid wallet");
+      setWallet(data);
     } catch {
-      // Non-blocking: the strip simply won't render if the wallet can't load.
+      setLoadError(true);
     } finally {
       setLoaded(true);
     }
@@ -70,7 +73,12 @@ export default function WalletStrip() {
   };
 
   // Don't flash any UI until the wallet state is known.
-  if (!loaded) return null;
+  if (!loaded) return compact ? <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300" role="status">Loading your wallet…</div> : null;
+
+  if (loadError) return <section className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4" data-testid="wallet-load-error" role="status">
+    <p className="text-sm font-semibold">Wallet temporarily unavailable</p>
+    <button type="button" onClick={load} className="min-h-11 text-sm font-semibold text-blue-300">Try again</button>
+  </section>;
 
   const hasWallet = wallet?.exists === true;
   // Show the subtle "confirm your gold?" nudge only when a wallet exists, its
@@ -78,6 +86,20 @@ export default function WalletStrip() {
   // this session (US-011 / TC-011.1..4).
   const showNudge =
     hasWallet && !nudgeDismissed && isWalletStale(wallet?.confirmedAt);
+
+  if (compact) return <>
+    <section className="rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 px-3 py-3" data-testid="wallet-strip" aria-label="Your wallet">
+      {hasWallet ? <>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+          <div className="min-w-0"><p className="text-xs text-slate-400">Gold</p><p className="mt-1 text-xl font-extrabold tracking-tight text-amber-300" data-testid="wallet-value-gold">{formatWalletCompact(wallet.gold)}</p>{wallet.confirmedAt && <p className="text-[11px] text-slate-400">{formatConfirmedAgo(wallet.confirmedAt)}</p>}</div>
+          <div className="min-w-0 border-l border-slate-600/60 pl-3"><p className="text-xs text-slate-400">Cores</p><p className="mt-1 text-xl font-extrabold tracking-tight text-purple-300" data-testid="wallet-value-cores">{formatWalletCompact(wallet.cores)}</p></div>
+          <div className="border-l border-slate-600/60 pl-3"><p className="text-[11px] text-slate-400" data-testid="wallet-self-reported">Self-reported</p><button type="button" className="min-h-11 text-sm font-semibold text-blue-300" onClick={() => setSheetOpen(true)} data-testid="wallet-update">Update</button></div>
+        </div>
+        {showNudge && <button type="button" onClick={() => setSheetOpen(true)} className="mt-1 min-h-11 text-left text-xs font-medium text-amber-300" data-testid="wallet-stale-nudge">Balances may be out of date. Confirm your wallet →</button>}
+      </> : <button type="button" onClick={() => setSheetOpen(true)} className="min-h-14 w-full text-left" data-testid="wallet-add-prompt"><strong className="block text-sm">Add your wallet →</strong><span className="mt-1 block text-xs text-slate-400">Enter your Gold &amp; Cores. Balances are self-reported.</span></button>}
+    </section>
+    {sheetOpen && <WalletInputSheet initialGold={hasWallet ? wallet?.gold : null} initialCores={hasWallet ? wallet?.cores : null} onSkip={() => setSheetOpen(false)} onSaved={handleSaved} />}
+  </>;
 
   return (
     <>

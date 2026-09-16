@@ -125,7 +125,7 @@ export default async function AppLayout({
       <div className="flex min-h-screen flex-col">
         <PageViewTracker />
         <AppHeader displayName={displayName} portrait={portrait} />
-        <main className="flex-1 overflow-y-auto pb-20">
+        <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom))]">
           <PaywallGate tier={tier}>{children}</PaywallGate>
         </main>
         <BottomTabBar />

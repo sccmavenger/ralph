@@ -135,7 +135,7 @@ export default function WalletInputSheet({
               setGold(formatWalletNumber(e.target.value));
               if (error) setError("");
             }}
-            className="flex-1 bg-transparent text-base font-bold text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base font-bold text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none"
             autoFocus
           />
           <span className="text-xs text-[var(--color-muted)]">gold</span>
@@ -158,7 +158,7 @@ export default function WalletInputSheet({
               setCores(formatWalletNumber(e.target.value));
               if (error) setError("");
             }}
-            className="flex-1 bg-transparent text-base font-bold text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base font-bold text-[var(--color-foreground)] placeholder-[var(--color-muted)] outline-none"
           />
           <span className="text-xs text-[var(--color-muted)]">cores</span>
         </div>

@@ -137,8 +137,9 @@ test.describe("Dashboard resilience", () => {
     await mockDashboard(page);
     await page.goto("/dashboard");
     await dismissOptionalPrompts(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
-    await expect(page.getByRole("heading", { level: 1, name: /Welcome back/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: /Welcome back/ })).toBeVisible();
     await expect(page.getByTestId("dashboard-stat-tcp")).toContainText("3.0K");
     await expect(page.getByTestId("dashboard-stat-roster")).toContainText("2 / 3");
     await expect(page.getByTestId("dashboard-stat-avg-power")).toContainText("1.5K");
@@ -154,6 +155,7 @@ test.describe("Dashboard resilience", () => {
     });
     await page.goto("/dashboard");
     await dismissOptionalPrompts(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     await expect(page.getByTestId("dashboard-data-error")).toContainText(
       "Failed to load roster data",
@@ -177,6 +179,7 @@ test.describe("Dashboard resilience", () => {
     });
     await page.goto("/dashboard");
     await dismissOptionalPrompts(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     await expect(page.getByTestId("dashboard-data-error")).toBeVisible();
     await page.getByTestId("dashboard-data-retry").click();
@@ -195,6 +198,7 @@ test.describe("Dashboard resilience", () => {
     });
     await page.goto("/dashboard");
     await dismissOptionalPrompts(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     await expect(page.getByTestId("farming-widget-error")).toBeVisible();
     await expect(page.getByTestId("daily-briefing-widget-warning")).toBeVisible();

@@ -36,6 +36,7 @@ test.describe("Dashboard Tower Event Card", () => {
     );
     await page.goto("/dashboard");
     await dismissModals(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     const card = page.locator("[data-testid='tower-event-card']");
     await expect(card).toBeVisible({ timeout: 10000 });
@@ -50,6 +51,7 @@ test.describe("Dashboard Tower Event Card", () => {
     );
     await page.goto("/dashboard");
     await dismissModals(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     // Wait for page to load fully
     await page.waitForTimeout(2000);
@@ -71,6 +73,7 @@ test.describe("Dashboard Tower Event Card", () => {
     );
     await page.goto("/dashboard");
     await dismissModals(page);
+    await page.getByText("Roster & mode insights", { exact: true }).click();
 
     const card = page.locator("[data-testid='tower-event-card']");
     await expect(card).toBeVisible({ timeout: 10000 });

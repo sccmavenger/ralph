@@ -31,15 +31,16 @@ test.describe("Dashboard Page", () => {
     page,
   }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Welcome back")).toBeVisible();
-    await expect(page.getByText("Your MSF Companion dashboard")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Here\'s what matters today" })).toBeVisible();
+    await expect(page.getByText("Collect in time. Spend with a plan.")).toBeVisible();
   });
 
   test("navigation cards are visible for Roster, Heroes, Teams, Analyze, Profile", async ({
     page,
   }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Welcome back")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Here\'s what matters today" })).toBeVisible();
+    await page.getByText("Roster & mode insights", { exact: true }).click();
     // Nav cards contain emoji + text. Use first to avoid conflict with bottom tab bar.
     await expect(page.getByTestId("dashboard-nav-my-roster")).toBeVisible();
     await expect(page.getByTestId("dashboard-nav-character-database")).toBeVisible();
@@ -50,8 +51,8 @@ test.describe("Dashboard Page", () => {
 
   test("clicking Roster nav card navigates to /roster", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Welcome back")).toBeVisible();
-    await page.getByRole("link", { name: /My Roster/i }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Here\'s what matters today" })).toBeVisible();
+    await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Roster", exact: true }).click();
     await page.waitForURL("**/roster");
     expect(page.url()).toContain("/roster");
   });
@@ -61,7 +62,7 @@ test.describe("Dashboard Page", () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
-    await expect(page.getByText("Welcome back")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Here\'s what matters today" })).toBeVisible();
     const scrollWidth = await page.evaluate(
       () => document.documentElement.scrollWidth,
     );

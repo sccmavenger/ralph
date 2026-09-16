@@ -4,6 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { msfApiFetch } from "@/lib/msf-api";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import DashboardOverview from "./DashboardOverview";
+import type { Viewport } from "next";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+};
 
 export default async function DashboardPage() {
   const token = await getValidAccessToken();

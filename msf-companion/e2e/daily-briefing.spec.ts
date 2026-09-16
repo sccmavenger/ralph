@@ -172,20 +172,9 @@ test.describe("Daily Briefing Widget", () => {
     await setupPage(page, "/dashboard");
     const widget = page.locator('[data-testid="daily-briefing-widget"]');
     await expect(widget).toBeVisible({ timeout: 15000 });
-    await expect(widget.getByText("Daily Briefing")).toBeVisible();
-
-    // Summary count in accent color
-    await expect(widget.locator(".text-2xl").getByText("4")).toBeVisible();
-
-    // Preview items with icons
-    const imgs = widget.locator("img");
-    const imgCount = await imgs.count();
-    expect(imgCount).toBeGreaterThanOrEqual(1);
-
-    // View All link
-    const link = widget.locator('[data-testid="daily-briefing-widget-link"]');
-    await expect(link).toBeVisible();
-    await expect(link).toHaveText(/View All/);
+    await expect(widget.getByText("Daily Free Energy")).toBeVisible();
+    await expect(page.getByTestId("dashboard-collect").locator("strong")).toHaveText("4");
+    await expect(widget.getByRole("button", { name: "Review offer", exact: true })).toBeVisible();
   });
 
   /* TC-002: Countdown timer */
@@ -204,7 +193,7 @@ test.describe("Daily Briefing Widget", () => {
     await setupPage(page, "/dashboard", mockDailyBriefingEmpty);
     const widget = page.locator('[data-testid="daily-briefing-widget"]');
     await expect(widget).toBeVisible({ timeout: 15000 });
-    await expect(widget.getByText(/all caught up/i)).toBeVisible();
+    await expect(widget.getByText("No opportunities reported")).toBeVisible();
   });
 
   /* TC-004: Skeleton loader */
@@ -227,18 +216,17 @@ test.describe("Daily Briefing Widget", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockDailyBriefingFull) });
     });
     await page.goto("/dashboard");
-    const skeleton = page.locator('[data-testid="daily-briefing-widget-skeleton"]');
+    const skeleton = page.getByText("Looking for opportunities…");
     await expect(skeleton).toBeVisible({ timeout: 5000 });
   });
 
   /* TC-005: View All navigation */
-  test("TC-005: View All → navigates to full page", async ({ page }) => {
+  test("TC-005: Collect opens rewards inline", async ({ page }) => {
     await setupPage(page, "/dashboard");
-    const link = page.locator('[data-testid="daily-briefing-widget-link"]');
-    await expect(link).toBeVisible({ timeout: 15000 });
-    await link.click();
-    await page.waitForURL("**/dashboard/daily-briefing");
-    expect(page.url()).toContain("/dashboard/daily-briefing");
+    await page.getByTestId("dashboard-collect").click();
+    await expect(page.getByRole("heading", { name: "Available rewards" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Daily Objectives" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 });
 

@@ -2,422 +2,158 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import PlannerSummary from "@/app/components/PlannerSummary";
-import DailyTipWidget from "@/app/components/DailyTipWidget";
-import FarmingTargetsWidget from "@/app/components/FarmingTargetsWidget";
-import WarMetaWidget from "@/app/components/WarMetaWidget";
-import CrucibleMetaWidget from "@/app/components/CrucibleMetaWidget";
-import OffersWidget from "@/app/components/OffersWidget";
-import DailyBriefingWidget from "@/app/components/DailyBriefingWidget";
-import TowerEventWidget from "@/app/components/TowerEventWidget";
-import { CharPortrait } from "@/app/components/CharPortrait";
+import WalletStrip from "@/app/components/WalletStrip";
+import { expiryLabel, parseDashboardBriefing, summarizeDashboardBriefing, type DashboardBriefing } from "@/lib/dashboard-briefing";
+import DashboardInsights from "./DashboardInsights";
+import DashboardIcon from "./DashboardIcon";
+import styles from "./dashboard.module.css";
 
-const ORIGINS = ["COSMIC", "BIO", "MYSTIC", "TECH", "MUTANT", "SKILL"] as const;
-
-const ORIGIN_COLORS: Record<string, string> = {
-  COSMIC: "#9333ea",
-  BIO: "#22c55e",
-  MYSTIC: "#6366f1",
-  TECH: "#06b6d4",
-  MUTANT: "#eab308",
-  SKILL: "#ef4444",
-};
-
-interface RosterChar {
-  id: string;
-  power?: number;
-  yellowStars?: number;
-  activeYellow?: number;
-  redStars?: number;
-  activeRed?: number;
-  traits?: string[];
-}
-
-interface GameChar {
-  id: string;
-  name?: string;
-  status?: string;
-}
-
-type LoadStatus = "loading" | "ready" | "error";
-
-interface ApiEnvelope<T> {
-  data?: T;
-  error?: string;
-}
-
-async function fetchDashboardResource<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
-  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
-
-  if (!response.ok) {
-    throw new Error(body?.error || "The MSF service did not return data.");
-  }
-
-  if (!body || !Array.isArray(body.data)) {
-    throw new Error("The MSF service returned an invalid response.");
-  }
-
-  return body.data;
-}
-
-function formatStat(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toString();
-}
-
-function StatBox({
-  value,
-  label,
-  valueColor,
-}: {
-  value: string;
-  label: string;
-  valueColor?: string;
-}) {
-  return (
-    <div
-      className="flex flex-1 flex-col items-center rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] py-3"
-      data-testid={`dashboard-stat-${label.toLowerCase().replace(/\s+/g, "-")}`}
-    >
-      <span
-        className="text-lg font-bold"
-        style={{ color: valueColor ?? "var(--color-foreground)" }}
-      >
-        {value}
-      </span>
-      <span className="text-[10px] text-[var(--color-muted)]">{label}</span>
-    </div>
-  );
-}
-
-function NavCard({
-  icon,
-  title,
-  description,
-  href,
-}: {
-  icon: string;
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-start gap-3 rounded-xl bg-[var(--color-surface)] p-4 transition-colors active:bg-[var(--color-surface-light)]"
-      data-testid={`dashboard-nav-${title.toLowerCase().replace(/\s+/g, "-")}`}
-    >
-      <span className="text-2xl">{icon}</span>
-      <div>
-        <h3 className="text-sm font-bold text-[var(--color-foreground)]">
-          {title}
-        </h3>
-        <p className="text-xs text-[var(--color-muted)]">{description}</p>
-      </div>
-    </Link>
-  );
-}
-
-function StarDistribution({ characters }: { characters: RosterChar[] }) {
-  const starCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 };
-  for (const c of characters) {
-    const stars = c.yellowStars ?? c.activeYellow ?? 0;
-    if (stars >= 1 && stars <= 7) starCounts[stars]++;
-  }
-  const total = characters.length || 1;
-
-  const STAR_COLORS: Record<number, string> = {
-    1: "#ef4444", 2: "#f97316", 3: "#eab308", 4: "#22c55e",
-    5: "#3b82f6", 6: "#8b5cf6", 7: "#ec4899",
-  };
-
-  return (
-    <div className="rounded-xl bg-[var(--color-surface)] p-4">
-      <h3 className="mb-3 text-sm font-bold text-[var(--color-foreground)]">
-        Star Level Distribution
-      </h3>
-      <div className="flex justify-between gap-1">
-        {[1, 2, 3, 4, 5, 6, 7].map((star) => {
-          const count = starCounts[star];
-          const pct = Math.round((count / total) * 100);
-          return (
-            <div key={star} className="flex flex-col items-center gap-1">
-              <span className="text-[10px] text-[var(--color-muted)]">
-                {star}<span style={{ color: STAR_COLORS[star] }}>★</span>
-              </span>
-              <span className="text-sm font-bold text-[var(--color-foreground)]">{count}</span>
-              <span className="text-[10px] text-[var(--color-muted)]">{pct}%</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function OriginBreakdown({ characters }: { characters: RosterChar[] }) {
-  const counts: Record<string, number> = {};
-  for (const o of ORIGINS) counts[o] = 0;
-  for (const c of characters) {
-    for (const t of c.traits ?? []) {
-      const upper = t.toUpperCase();
-      if (upper in counts) counts[upper]++;
-    }
-  }
-
-  return (
-    <div className="rounded-xl bg-[var(--color-surface)] p-4">
-      <h3 className="mb-3 text-sm font-bold text-[var(--color-foreground)]">
-        Origin Breakdown
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        {ORIGINS.map((origin) => (
-          <span
-            key={origin}
-            className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-            style={{ backgroundColor: ORIGIN_COLORS[origin] }}
-          >
-            {origin} <span className="font-bold">{counts[origin]}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default function DashboardOverview({
-  displayName,
-  portrait,
-  offersEnabled = false,
-}: {
+export default function DashboardOverview({ displayName, portrait, offersEnabled = false }: {
   displayName: string;
   portrait?: string | null;
   offersEnabled?: boolean;
 }) {
-  const [rosterChars, setRosterChars] = useState<RosterChar[]>([]);
-  const [playableCount, setPlayableCount] = useState(0);
-  const [rosterStatus, setRosterStatus] = useState<LoadStatus>("loading");
-  const [catalogStatus, setCatalogStatus] = useState<LoadStatus>("loading");
-  const [rosterError, setRosterError] = useState<string | null>(null);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [data, setData] = useState<DashboardBriefing | null>(null);
   const [loading, setLoading] = useState(true);
-  const fetchedRef = useRef(false);
+  const [error, setError] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
+  const [showRewards, setShowRewards] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+  const rewardsHeading = useRef<HTMLHeadingElement>(null);
+  const controller = useRef<AbortController | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const refresh = useCallback(async () => {
+    controller.current?.abort();
+    const request = new AbortController();
+    controller.current = request;
     setLoading(true);
-    setRosterStatus("loading");
-    setCatalogStatus("loading");
-    setRosterError(null);
-    setCatalogError(null);
-
-    const [rosterResult, catalogResult] = await Promise.allSettled([
-      fetchDashboardResource<RosterChar[]>("/api/msf/roster"),
-      fetchDashboardResource<GameChar[]>("/api/msf/characters"),
-    ]);
-
-    if (rosterResult.status === "fulfilled") {
-      setRosterChars(
-        [...rosterResult.value].sort((a, b) => (b.power ?? 0) - (a.power ?? 0)),
-      );
-      setRosterStatus("ready");
-    } else {
-      setRosterChars([]);
-      setRosterStatus("error");
-      setRosterError(rosterResult.reason instanceof Error ? rosterResult.reason.message : "Roster data is unavailable.");
+    try {
+      const response = await fetch("/api/msf/daily-briefing", { cache: "no-store", signal: request.signal });
+      if (!response.ok) throw new Error("Rewards unavailable");
+      const parsed = parseDashboardBriefing(await response.json());
+      if (request.signal.aborted) return;
+      setData(parsed);
+      setError(false);
+      setCheckedAt(Date.now());
+      setNow(Date.now());
+    } catch {
+      if (request.signal.aborted) return;
+      setError(true);
+      setData(null);
+      setCheckedAt(null);
+    } finally {
+      if (!request.signal.aborted) setLoading(false);
     }
-
-    if (catalogResult.status === "fulfilled") {
-      const playable = catalogResult.value.filter(
-        (character) => character.status?.toLowerCase() === "playable",
-      );
-      setPlayableCount(playable.length);
-      setCatalogStatus("ready");
-    } else {
-      setPlayableCount(0);
-      setCatalogStatus("error");
-      setCatalogError(catalogResult.reason instanceof Error ? catalogResult.reason.message : "Character catalog data is unavailable.");
-    }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (fetchedRef.current) return;
-      fetchedRef.current = true;
-      void fetchData();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [fetchData]);
+    const timer = window.setTimeout(() => void refresh(), 0);
+    const clock = window.setInterval(() => setNow(Date.now()), 1_000);
+    const resume = () => { if (document.visibilityState === "visible") setNow(Date.now()); };
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(clock);
+      controller.current?.abort();
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [refresh]);
 
-  const tcp = rosterChars.reduce((sum, c) => sum + (c.power ?? 0), 0);
-  const ownedCount = rosterChars.length;
-  const avgPower = ownedCount > 0 ? Math.round(tcp / ownedCount) : 0;
-  const completion = rosterStatus === "ready" && catalogStatus === "ready" && playableCount > 0
-    ? Math.min(100, Math.round((ownedCount / playableCount) * 100))
-    : null;
+  useEffect(() => {
+    if (showRewards) rewardsHeading.current?.focus();
+  }, [showRewards]);
 
-  if (loading) {
-    return (
-      <div className="space-y-4 px-4 py-4">
-        <div className="h-16 animate-pulse rounded-xl bg-[var(--color-surface)]" />
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--color-surface)]" />
-          ))}
-        </div>
-        <div className="h-24 animate-pulse rounded-xl bg-[var(--color-surface)]" />
-        <div className="h-24 animate-pulse rounded-xl bg-[var(--color-surface)]" />
-      </div>
-    );
-  }
+  const summary = data ? summarizeDashboardBriefing(data, now) : null;
+  const next = summary?.nextExpiry;
+  const partial = summary?.partial ?? false;
+  const checkedMinutes = checkedAt === null ? null : Math.max(0, Math.floor((now - checkedAt) / 60_000));
+  const count = loading ? "…" : !summary || (partial && summary.count === 0) ? "—" : `${summary.count}${partial ? "+" : ""}`;
+  const reward = next?.rewards[0];
 
   return (
-    <div className="space-y-4 px-4 py-4">
-      {/* Welcome header */}
-      <div className="flex items-center gap-3 rounded-xl bg-[var(--color-surface)] p-4">
-        <CharPortrait
-          src={portrait}
-          name={displayName}
-          imgClassName="h-12 w-12 rounded-full object-cover"
-          fallbackClassName="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-red-500 text-lg font-bold text-white"
-        />
-        <div className="flex-1">
-          <h1 className="text-base font-bold text-[var(--color-foreground)]">
-            Welcome back, {displayName}
-          </h1>
-          <p className="text-xs text-[var(--color-muted)]">
-            Your MSF Companion dashboard
-          </p>
+    <div className={styles.dashboard} data-testid="resource-dashboard">
+      <header className={styles.heading}>
+        <h1>Here&apos;s what matters today</h1>
+        <p>Collect in time. Spend with a plan.</p>
+      </header>
+
+      <section className={`${styles.expiry} ${!next ? styles.neutralExpiry : ""}`} aria-label="Reward briefing" aria-busy={loading} data-testid="daily-briefing-widget">
+        <div className={styles.expiryTop}>
+          <span className={styles.badge}><DashboardIcon name="clock" />{loading ? "CHECKING REWARDS" : next ? (summary!.endingSoon > 0 ? "ENDING SOON" : "NEXT EXPIRY") : "DAILY REWARDS"}</span>
+          {!loading && next?.expiration && <span className={styles.countdown} data-testid="reward-countdown">{expiryLabel(next.expiration, now)}</span>}
         </div>
-      </div>
-
-      {/* AI Tip of the Day */}
-      <DailyTipWidget />
-
-      {(rosterStatus === "error" || catalogStatus === "error") && (
-        <div
-          role="alert"
-          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
-          data-testid="dashboard-data-error"
-        >
-          <p className="text-sm font-semibold text-amber-300">
-            Some commander stats could not be refreshed
-          </p>
-          <div className="mt-1 space-y-1 text-xs text-[var(--color-muted)]">
-            {rosterStatus === "error" && <p>Roster: {rosterError}</p>}
-            {catalogStatus === "error" && <p>Character catalog: {catalogError}</p>}
+        <div className={styles.expiryBody}>
+          <span className={styles.rewardIcon}><DashboardIcon name="gift" /></span>
+          <div className={styles.rewardText}>
+            {loading ? <><h2>Looking for opportunities…</h2><p>Your tools are ready below.</p></> : next ? <>
+              <p className={styles.offerName}>{next.name}</p>
+              <h2>{reward ? `${new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(reward.quantity)} ${reward.itemName}` : "Free offer available"}</h2>
+              {next.rewards.length > 1 && <p>+ {next.rewards.length - 1} more reward {next.rewards.length === 2 ? "item" : "items"}</p>}
+            </> : <>
+              <h2>{error || (partial && !summary?.count) ? "Rewards temporarily unavailable" : summary?.count ? "Rewards to review" : "No opportunities reported"}</h2>
+              <p>{error ? "Try refreshing. You can still use your tools." : summary?.count ? "Review available rewards below." : "Check the game for other daily rewards."}</p>
+            </>}
           </div>
-          <button
-            type="button"
-            onClick={fetchData}
-            className="mt-3 rounded-lg border border-amber-400/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/10"
-            data-testid="dashboard-data-retry"
-          >
-            Try again
-          </button>
+          {!loading && !!summary?.count && <button className={styles.reviewButton} onClick={() => setShowRewards(true)}>{next ? "Review offer" : "Review rewards"}</button>}
         </div>
-      )}
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <StatBox
-          value={rosterStatus === "ready" ? formatStat(tcp) : "—"}
-          label="TCP"
-          valueColor="#22c55e"
-        />
-        <StatBox
-          value={`${rosterStatus === "ready" ? ownedCount : "—"} / ${catalogStatus === "ready" && playableCount > 0 ? playableCount : "—"}`}
-          label="Roster"
-          valueColor="#3b82f6"
-        />
-        <StatBox
-          value={rosterStatus === "ready" ? formatStat(avgPower) : "—"}
-          label="Avg Power"
-          valueColor="#f59e0b"
-        />
-        <StatBox
-          value={completion === null ? "—" : `${completion}%`}
-          label="Completion"
-          valueColor="#22c55e"
-        />
-      </div>
-
-      {rosterStatus === "ready" ? (
-        <>
-          {/* Star Distribution */}
-          <StarDistribution characters={rosterChars} />
-
-          {/* Origin Breakdown */}
-          <OriginBreakdown characters={rosterChars} />
-        </>
-      ) : (
-        <div
-          className="rounded-xl border border-[var(--color-surface-light)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-muted)]"
-          data-testid="roster-breakdown-unavailable"
-        >
-          Star and origin breakdowns will return when roster data is available.
+        {!loading && next && <p className={styles.claimNote}>Collect in the game or web store.</p>}
+        {!loading && partial && <p role="status" className={styles.warning} data-testid="daily-briefing-widget-warning">Some reward sources are unavailable. The count is incomplete.</p>}
+        {!loading && error && <p role="status" className={styles.warning} data-testid="daily-briefing-widget-error">Reward data could not be refreshed.</p>}
+        <div className={styles.refreshRow}>
+          <span><DashboardIcon name="clock" />{loading ? "Checking available sources…" : checkedMinutes === null ? "Not checked" : `${partial ? "Partial check" : "Checked"} ${checkedMinutes === 0 ? "just now" : `${checkedMinutes} min ago`}`}</span>
+          <button type="button" onClick={refresh} disabled={loading} aria-label="Refresh rewards" className={styles.refreshButton} data-testid="daily-briefing-widget-retry"><DashboardIcon name="refresh" /></button>
         </div>
-      )}
+      </section>
 
-      {/* Tower Event Widget */}
-      <TowerEventWidget />
+      <WalletStrip compact />
 
-      {/* Daily Briefing Widget */}
-      <DailyBriefingWidget />
+      <nav className={styles.tiles} aria-label="Resource tools">
+        <button className={`${styles.tile} ${styles.collect}`} onClick={() => setShowRewards(!showRewards)} aria-expanded={showRewards} aria-controls="dashboard-rewards" data-testid="dashboard-collect">
+          <span className={styles.tileLabel}><DashboardIcon name="gift" /><span>COLLECT</span><span aria-hidden="true">›</span></span>
+          <strong className={styles.total}>{count}</strong>
+          <span>reward opportunities</span>
+          <span className={styles.tileFoot}>{loading ? "Checking sources" : error || partial ? "Some sources unavailable" : summary?.endingSoon ? `${summary.endingSoon} ending soon` : "Review available rewards"}</span>
+          <span className={styles.viewAll}>{showRewards ? "Hide rewards ↑" : "View all →"}</span>
+        </button>
+        <Link href="/planner" className={`${styles.tile} ${styles.plan}`}>
+          <span className={styles.tileLabel}><DashboardIcon name="target" /><span>PLAN</span><span aria-hidden="true">›</span></span>
+          <strong>Next upgrade</strong><span>Review priorities</span>
+        </Link>
+        <Link href="/analyze/farming" className={`${styles.tile} ${styles.farm}`}>
+          <span className={styles.tileLabel}><DashboardIcon name="route" /><span>FARM</span><span aria-hidden="true">›</span></span>
+          <strong>Find sources</strong><span>Gear &amp; character shards</span>
+        </Link>
+        <Link href="/inventory" className={`${styles.tile} ${styles.check}`}>
+          <span className={styles.tileLabel}><DashboardIcon name="inventory" /><span>CHECK</span><span aria-hidden="true">›</span></span>
+          <strong>Inventory</strong><span>Materials on hand</span>
+        </Link>
+      </nav>
 
-      {/* Farming Targets Widget */}
-      <FarmingTargetsWidget />
+      <section id="dashboard-rewards" hidden={!showRewards} className={styles.rewardList}>
+        <h2 ref={rewardsHeading} tabIndex={-1}>Available rewards</h2>
+        <p>Review in the game or web store to collect. This list covers sources available to the toolkit.</p>
+        {loading ? <p role="status">Checking rewards…</p> : <>
+          {(error || partial) && <p role="status" className={styles.warning}>Some reward sources are unavailable. Refresh to check again.</p>}
+          {summary?.offers.map((offer) => <article key={offer.id} className={styles.rewardItem}>
+            <div><h3>{offer.name}</h3><span>{offer.expiration ? expiryLabel(offer.expiration, now) : "Expiry not provided"}</span></div>
+            {offer.rewards.length > 0 && <ul>{offer.rewards.map((item, i) => <li key={i}>{item.quantity.toLocaleString()} {item.itemName}</li>)}</ul>}
+          </article>)}
+          {summary?.milestones.map((milestone) => <article key={milestone.id} className={styles.rewardItem}><h3>{milestone.name}</h3><p>Milestone rewards available to collect.</p></article>)}
+          {summary?.count === 0 && !partial && <p>No available rewards reported by these sources.</p>}
+        </>}
+        <button className={styles.closeButton} onClick={() => { setShowRewards(false); document.querySelector<HTMLButtonElement>('[data-testid="dashboard-collect"]')?.focus(); }}>Close rewards</button>
+      </section>
 
-      {/* War Meta Widget */}
-      <WarMetaWidget />
+      <Link href="/advisor" className={styles.advisor}>
+        <span className={styles.advisorIcon}><DashboardIcon name="chat" /></span>
+        <span><strong>Need help choosing?</strong><span>Ask the AI Advisor →</span></span><span aria-hidden="true">›</span>
+      </Link>
 
-      {/* Crucible Meta Widget */}
-      <CrucibleMetaWidget />
-
-      {/* Offers Widget — behind feature flag */}
-      {offersEnabled && <OffersWidget />}
-
-      {/* Planner Summary Widget */}
-      <PlannerSummary />
-
-      {/* Navigation cards */}
-      <div className="space-y-3">
-        <NavCard
-          icon="📊"
-          title="My Roster"
-          description="Browse your unlocked characters with power stats, filters, and detailed breakdowns."
-          href="/roster"
-        />
-        <NavCard
-          icon="🦸"
-          title="Character Database"
-          description={catalogStatus === "ready" && playableCount > 0
-            ? `Explore all ${playableCount} playable characters with portraits, traits, and abilities.`
-            : "Explore playable characters with portraits, traits, and abilities."}
-          href="/heroes"
-        />
-        <NavCard
-          icon="⚔️"
-          title="Team Builder"
-          description="Build optimized teams with synergy insights and save your favorites."
-          href="/teams"
-        />
-        <NavCard
-          icon="📈"
-          title="Fight Analyzer"
-          description="Analyze game modes, enemy compositions, and find recommended teams."
-          href="/analyze"
-        />
-        <NavCard
-          icon="⚙️"
-          title="Commander Profile"
-          description="Manage your email, view snapshots, and account settings."
-          href="/profile"
-        />
-      </div>
+      <details className={styles.insights} onToggle={(event) => setShowInsights(event.currentTarget.open)}>
+        <summary><DashboardIcon name="roster" /><span>Roster &amp; mode insights</span><span className={styles.expandIcon} aria-hidden="true">⌄</span></summary>
+        {showInsights && <DashboardInsights displayName={displayName} portrait={portrait} offersEnabled={offersEnabled} />}
+      </details>
     </div>
   );
 }
