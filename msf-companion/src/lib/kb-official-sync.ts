@@ -11,7 +11,15 @@ export interface SyncedCharacter {
   id: string;
   name: string;
   traits: string[];
-  abilities: Array<{ name: string; description: string }>;
+  portrait?: string;
+  fullBodyArt?: { url: string; costumeName?: string };
+  abilities: Array<{
+    name: string;
+    description: string;
+    type?: "basic" | "special" | "ultimate" | "passive";
+    icon?: string;
+    level?: number;
+  }>;
   teams: string[];
 }
 
@@ -81,34 +89,82 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-function bestLevelDescription(ability: unknown): string {
-  const record = asRecord(ability);
-  const direct = typeof record.description === "string" ? record.description : "";
-  const levels = asRecord(record.levels);
-  const descriptions = Object.entries(levels)
-    .sort(([a], [b]) => Number(b) - Number(a))
-    .map(([, value]) => asRecord(value).description)
-    .filter((value): value is string => typeof value === "string" && value.length > 0);
-  return cleanKnowledgeText(descriptions[0] || direct);
+/** Optional upstream artwork must never turn into an arbitrary remote fetch. */
+export function sanitizeOfficialCharacterAssetUrl(value: unknown): string | undefined {
+  if (typeof value !== "string"
+    || !/^https:\/\/assets\.marvelstrikeforce\.com\/[^?#]+$/i.test(value)
+    || /[\\\u0000-\u0020\u007f]/.test(value)) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.hostname !== "assets.marvelstrikeforce.com"
+      || url.username || url.password || url.port || url.search || url.hash) return undefined;
+    return url.href;
+  } catch {
+    return undefined;
+  }
 }
 
-export function extractCharacterAbilities(raw: Record<string, unknown>): Array<{ name: string; description: string }> {
+function bestLevelDescription(ability: unknown): { description: string; level?: number } {
+  const record = asRecord(ability);
+  const levels = asRecord(record.levels);
+  const descriptions = Object.entries(levels)
+    .filter(([key]) => /^[1-9]\d*$/.test(key) && Number.isSafeInteger(Number(key)))
+    .sort(([a], [b]) => Number(b) - Number(a))
+    .map(([key, value]) => {
+      const description = asRecord(value).description;
+      return {
+        level: Number(key),
+        description: typeof description === "string" ? cleanKnowledgeText(description) : "",
+      };
+    })
+    .filter(({ description }) => description.length > 0);
+  return descriptions[0] || {
+    description: typeof record.description === "string" ? cleanKnowledgeText(record.description) : "",
+  };
+}
+
+export function extractCharacterAbilities(raw: Record<string, unknown>): SyncedCharacter["abilities"] {
   const kit = asRecord(raw.abilityKit);
-  const labels: Array<[string, string]> = [
+  const labels = [
     ["basic", "Basic"],
     ["special", "Special"],
     ["ultimate", "Ultimate"],
     ["passive", "Passive"],
-  ];
+  ] as const;
   return labels.flatMap(([key, fallbackName]) => {
     const ability = asRecord(kit[key]);
-    const description = bestLevelDescription(ability);
+    const { description, level } = bestLevelDescription(ability);
     if (!description) return [];
+    const icon = sanitizeOfficialCharacterAssetUrl(ability.icon);
     return [{
       name: typeof ability.name === "string" && ability.name.trim() ? ability.name : fallbackName,
       description,
+      type: key,
+      ...(icon ? { icon } : {}),
+      ...(level !== undefined ? { level } : {}),
     }];
   });
+}
+
+export function mapSyncedCharacter(raw: Record<string, unknown>): SyncedCharacter | null {
+  const id = String(raw.id || "").trim();
+  if (!id) return null;
+  const traits = asStringArray(raw.traits);
+  const portrait = sanitizeOfficialCharacterAssetUrl(raw.portrait);
+  // Alternate skins can look like a different character. Only use the base
+  // costume; absent artwork is normal and the email can fall back to portrait.
+  const costume = asRecord(asRecord(raw.costumes)["0"]);
+  const fullArt = sanitizeOfficialCharacterAssetUrl(costume.fullArt);
+  const costumeName = typeof costume.name === "string" ? costume.name.trim() : "";
+  return {
+    id,
+    name: String(raw.name || id),
+    traits,
+    abilities: extractCharacterAbilities(raw),
+    teams: traits.filter((trait) => /team|squad/i.test(trait)),
+    ...(portrait ? { portrait } : {}),
+    ...(fullArt ? { fullBodyArt: { url: fullArt, ...(costumeName ? { costumeName } : {}) } } : {}),
+  };
 }
 
 function extractIsoRecommendations(raw: Record<string, unknown>): string[] {
@@ -139,6 +195,7 @@ async function fetchCharacters(token: string): Promise<{ characters: SyncedChara
       // pages with status 472. Ten keeps every response below that limit.
       perPage: "10",
       abilityKits: "full",
+      costumes: "full",
       traitFormat: "id",
       charAdoption: "full",
     });
@@ -154,14 +211,11 @@ async function fetchCharacters(token: string): Promise<{ characters: SyncedChara
   const characters: SyncedCharacter[] = [];
   const docs: KnowledgeDocument[] = [];
   for (const row of rows) {
-    const id = String(row.id || "").trim();
-    if (!id) continue;
-    const name = String(row.name || id);
-    const traits = asStringArray(row.traits);
-    const abilities = extractCharacterAbilities(row);
-    const teams = traits.filter((trait) => /team|squad/i.test(trait));
+    const character = mapSyncedCharacter(row);
+    if (!character) continue;
+    const { id, name, traits, abilities, teams } = character;
     const iso = extractIsoRecommendations(row);
-    characters.push({ id, name, traits, abilities, teams });
+    characters.push(character);
 
     const content = [
       `${name} is a current Marvel Strike Force character.`,

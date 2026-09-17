@@ -27,12 +27,20 @@ export type EmailMessageType =
 
 type EmailMetadata = Record<string, string | number | boolean | null>;
 
+export interface InlineEmailImage {
+  filename: string;
+  content: Buffer;
+  contentType: "image/png" | "image/jpeg";
+  contentId: string;
+}
+
 export interface SendTrackedEmailOptions {
   commanderId?: string;
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: InlineEmailImage[];
   messageType: EmailMessageType;
   idempotencyKey: string;
   preference?: EmailPreferenceKey;
@@ -182,7 +190,10 @@ export async function sendTrackedEmail(
         to: options.to,
         subject: options.subject,
         html,
-        text: options.text ?? emailHtmlToText(html),
+        text: options.text === undefined
+          ? emailHtmlToText(html)
+          : `${options.text}${manageUrl ? `\n\nManage your email preferences: ${manageUrl}` : ""}`,
+        ...(options.attachments?.length ? { attachments: options.attachments } : {}),
         ...(manageUrl
           ? {
               headers: {

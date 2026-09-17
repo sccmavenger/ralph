@@ -15,6 +15,25 @@ MSF Companion sends email through the web application and Resend. The stopped le
 | Inactive/free reminder | Daily GitHub Actions schedule and eligibility/cooldown rules | Account and progress reminders |
 | Cancellation feedback | A voluntary Premium cancellation creates a case; the daily job sends the approved feedback-only invitation after 24 hours unless the cancellation is reversed | Announcements |
 
+## New-character spotlight
+
+New-character alerts use the approved mobile-friendly Character Spotlight:
+official character art, trait chips, stacked normal-kit ability cards, and links
+to Heroes and the resource planner. Full-body art is used only when the official
+default costume supplies it; otherwise the verified portrait is used. Alternate
+costumes are never substituted silently. Records tagged `Summon` are labeled as
+summoned units, not advertised as newly unlockable roster characters.
+
+Artwork is fetched once per character and embedded as inline JPEG/PNG images.
+Only the official asset host is accepted, redirects are rejected, and image
+downloads have time/size limits. Missing, slow, or unpublished images fall back
+without dropping the character's kit. Available ability levels come from the
+highest described level in the API, not the recipient's roster.
+
+The presentation change does not alter audience selection, category consent,
+hard suppressions, unsubscribe links, or the existing per-character/per-commander
+delivery key. Deploying it does not replay old alerts or start a campaign.
+
 ## Safety controls
 
 - `EMAIL_AUTOMATION_MODE=disabled` sends no scheduled marketing.

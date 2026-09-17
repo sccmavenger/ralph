@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,12 +14,16 @@ import DashboardIcon from "../(app)/dashboard/DashboardIcon";
 const tabClass = "flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 border-t-2 text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-blue-300";
 const activeClass = "border-blue-400 text-blue-400";
 const inactiveClass = "border-transparent text-slate-400 hover:text-slate-200";
+const subscribeToHydration = () => () => {};
 
 export default function AppNavigation() {
   const pathname = usePathname();
   const menu = useRef<HTMLDialogElement>(null);
   const previousPathname = useRef(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Unlike links, More has no native navigation fallback before its JS loads.
+  // Keep the SSR button disabled until React can handle the first tap.
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const activeHref = activeNavigationHref(pathname);
   const moreActive = activeHref === null;
 
@@ -64,6 +68,7 @@ export default function AppNavigation() {
           })}
           <button
             type="button"
+            disabled={!hydrated}
             onClick={openMenu}
             aria-haspopup="dialog"
             aria-controls="app-more-menu"

@@ -138,6 +138,17 @@ describe("sendTrackedEmail", () => {
     expect(mocks.resendSend).not.toHaveBeenCalled();
   });
 
+  it("preserves inline images and unsubscribe access with custom plaintext", async () => {
+    const attachments = [{ filename: "portrait.png", content: Buffer.from("image"), contentType: "image/png" as const, contentId: "portrait" }];
+    await sendTrackedEmail({ ...base, text: "Character kit", attachments });
+    const [payload] = mocks.resendSend.mock.calls[0];
+    expect(payload.attachments).toEqual(attachments);
+    expect(payload.text).toContain("Character kit");
+    expect(payload.text).toContain("Manage your email preferences: https://");
+    expect(payload.html).toContain("Manage weekly digest");
+    expect(payload.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+  });
+
   it("records a provider failure and throws so the trigger can retry", async () => {
     mocks.resendSend.mockResolvedValue({ data: null, error: { message: "provider unavailable" } });
     await expect(sendTrackedEmail(base)).rejects.toThrow("provider unavailable");

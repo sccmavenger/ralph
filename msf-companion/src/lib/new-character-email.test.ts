@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findCommanders: vi.fn(),
   findDeliveries: vi.fn(),
   sendTrackedEmail: vi.fn(),
+  prepareAssets: vi.fn(),
 }));
 
 vi.mock("@/lib/email-automation", () => ({
@@ -23,6 +24,10 @@ vi.mock("@/lib/prisma", () => ({
     commander: { findMany: (...args: unknown[]) => mocks.findCommanders(...args) },
     emailDelivery: { findMany: (...args: unknown[]) => mocks.findDeliveries(...args) },
   },
+}));
+
+vi.mock("@/lib/new-character-email-assets", () => ({
+  prepareCharacterEmailAssets: (...args: unknown[]) => mocks.prepareAssets(...args),
 }));
 
 import { buildNewCharacterEmailHtml, sendNewCharacterEmails } from "./new-character-email";
@@ -43,6 +48,7 @@ describe("new-character email delivery", () => {
     mocks.findCommanders.mockResolvedValue([]);
     mocks.findDeliveries.mockResolvedValue([]);
     mocks.sendTrackedEmail.mockResolvedValue({ status: "sent", providerMessageId: "email-1" });
+    mocks.prepareAssets.mockImplementation(async (character) => ({ character, attachments: [] }));
   });
 
   afterEach(() => vi.useRealTimers());
@@ -68,6 +74,7 @@ describe("new-character email delivery", () => {
       select: { id: true, email: true },
     });
     expect(mocks.sendTrackedEmail).toHaveBeenCalledTimes(2);
+    expect(mocks.prepareAssets).toHaveBeenCalledOnce();
     expect(mocks.sendTrackedEmail.mock.calls.map(([options]) => options.commanderId)).toEqual([
       "free-commander",
       "premium-commander",
@@ -127,6 +134,30 @@ describe("new-character email delivery", () => {
     await expect(sendNewCharacterEmails([character])).resolves.toBe(0);
     expect(mocks.findCommanders).not.toHaveBeenCalled();
     expect(mocks.sendTrackedEmail).not.toHaveBeenCalled();
+    expect(mocks.prepareAssets).not.toHaveBeenCalled();
+  });
+
+  it("does no image work without an eligible audience", async () => {
+    await expect(sendNewCharacterEmails([character])).resolves.toBe(0);
+    expect(mocks.prepareAssets).not.toHaveBeenCalled();
+  });
+
+  it("uses the production spotlight and embedded assets without changing delivery identity", async () => {
+    mocks.findCommanders.mockResolvedValue([{ id: "commander-1", email: "owner@example.com" }]);
+    const attachments = [{ filename: "hero.png", contentId: "hero", contentType: "image/png", content: Buffer.from("image") }];
+    mocks.prepareAssets.mockResolvedValue({ character: { ...character, portrait: "cid:hero" }, attachments });
+    await expect(sendNewCharacterEmails([character])).resolves.toBe(1);
+    const [options] = mocks.sendTrackedEmail.mock.calls[0];
+    expect(options).toMatchObject({
+      subject: "New Character Detected: Test <Hero>",
+      idempotencyKey: "new-character:char-1:commander-1",
+      preference: "newCharacters", attachments,
+      metadata: { characterId: "char-1", automationMode: "live", templateVersion: "spotlight-v1" },
+    });
+    expect(options.html).toContain('src="cid:hero"');
+    expect(options.html).toContain("CHARACTER SPOTLIGHT");
+    expect(options.html).not.toMatch(/SAMPLE|REQUESTED RESEND/);
+    expect(options.text).toContain("Basic & Better");
   });
 
   it("escapes official character data before rendering HTML", () => {

@@ -5,27 +5,17 @@ import {
   type EmailAutomationMode,
 } from "@/lib/email-automation";
 import type { SyncedCharacter } from "@/lib/kb-official-sync";
+import { prepareCharacterEmailAssets } from "@/lib/new-character-email-assets";
+import { buildNewCharacterEmailHtml, buildNewCharacterEmailText } from "@/lib/new-character-email-template";
 import { prisma } from "@/lib/prisma";
+
+export { buildNewCharacterEmailHtml } from "@/lib/new-character-email-template";
 
 const LIVE_SEND_INTERVAL_MS = 300;
 
 interface NewCharacterRecipient {
   id: string;
   email: string;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-export function buildNewCharacterEmailHtml(character: SyncedCharacter): string {
-  const name = escapeHtml(character.name);
-  const traits = escapeHtml(character.traits.join(", ") || "Unknown");
-  const teams = escapeHtml(character.teams.join(", ") || "Not yet assigned");
-  const abilityRows = character.abilities.map((ability) =>
-    `<tr><td style="color:#4f9cf7;padding:6px 10px 6px 0;font-weight:600;vertical-align:top">${escapeHtml(ability.name)}</td><td style="color:#ccc;padding:6px 0;line-height:1.5">${escapeHtml(ability.description)}</td></tr>`
-  ).join("");
-  return `<!doctype html><html lang="en"><body style="margin:0;background:#0f0f23;font-family:Arial,sans-serif"><div style="max-width:600px;margin:auto;padding:32px 20px"><h1 style="color:#4f9cf7;text-align:center">New MSF Character Detected</h1><div style="background:#1a1a3e;border-radius:16px;padding:28px;color:#fff"><h2 style="margin-top:0">${name}</h2><p>Traits: ${traits}</p><p>Team traits: ${teams}</p>${abilityRows ? `<table style="width:100%;font-size:14px">${abilityRows}</table>` : ""}</div><p style="text-align:center"><a href="https://themsftoolkit.com/heroes" style="display:inline-block;background:#4f9cf7;color:#fff;padding:12px 28px;border-radius:9999px;text-decoration:none">View Heroes Database</a></p></div></body></html>`;
 }
 
 async function getNewCharacterRecipients(
@@ -81,9 +71,14 @@ export async function sendNewCharacterEmails(characters: SyncedCharacter[]): Pro
   if (mode === "disabled" || !characters.length) return 0;
 
   const recipients = await getNewCharacterRecipients(mode);
+  if (!recipients.length) return 0;
   let sent = 0;
   let attempted = 0;
   for (const character of characters) {
+    // Prepare the approved spotlight once per character, not once per mailbox.
+    const prepared = await prepareCharacterEmailAssets(character);
+    const html = buildNewCharacterEmailHtml(prepared.character);
+    const text = buildNewCharacterEmailText(prepared.character);
     for (const recipient of recipients) {
       if (mode === "live" && attempted > 0) {
         await new Promise((resolve) => setTimeout(resolve, LIVE_SEND_INTERVAL_MS));
@@ -94,11 +89,13 @@ export async function sendNewCharacterEmails(characters: SyncedCharacter[]): Pro
           commanderId: recipient.id,
           to: recipient.email,
           subject: `New Character Detected: ${character.name}`,
-          html: buildNewCharacterEmailHtml(character),
+          html,
+          text,
+          attachments: prepared.attachments,
           messageType: "new_character",
           idempotencyKey: `new-character:${character.id}:${recipient.id}`,
           preference: "newCharacters",
-          metadata: { characterId: character.id, automationMode: mode },
+          metadata: { characterId: character.id, automationMode: mode, templateVersion: "spotlight-v1" },
         });
         if (result.status === "sent") sent++;
       } catch (error) {

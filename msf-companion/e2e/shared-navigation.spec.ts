@@ -96,6 +96,18 @@ test("nested routes keep the correct section selected", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Your toolkit" }).getByRole("link", { name: "Analyze", exact: true })).toHaveAttribute("aria-current", "page");
 });
 
+test("More waits for hydration before accepting the first tap", async ({ page }) => {
+  await page.route("**/_next/static/**/*.js*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await route.continue();
+  });
+  await prepare(page, "/analyze/farming");
+  const more = page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "More", exact: true });
+  await more.click();
+  await expect(page.getByRole("dialog", { name: "Your toolkit" })).toBeVisible();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+});
+
 test("the same five touch targets fit small and large phone widths", async ({ page }) => {
   await prepare(page);
   for (const width of [320, 390, 402, 440]) {

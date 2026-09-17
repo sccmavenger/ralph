@@ -29,6 +29,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
   via `BottomTabBar`. Do not branch the navigation design by pathname; use the
   segment-safe active matching in `app-navigation.ts`. Secondary links, FAQ,
   and sign-out live in More. Public pages and the desktop QR remain separate.
+- Keep the JavaScript-only More button disabled in server HTML until hydration;
+  otherwise a fast first tap on a hard navigation can be lost before handlers load.
 
 - The signed-in `/dashboard` uses the approved H + G layout: live reward expiry,
   compact self-reported wallet, Collect/Plan/Farm/Check tiles, and collapsed
@@ -167,6 +169,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Email digest patterns
 
+- Newly detected character API records can be summoned units (`Summon` trait),
+  not newly unlockable roster characters. Preserve that distinction in alerts.
+- Official `costumes.*.fullArt` is optional, and newly published ability-icon
+  URLs can return 404. Use a verified portrait fallback and omit unavailable
+  icons; never invent asset URLs or silently substitute another costume.
+- New-character spotlight assets are embedded once per character through
+  `prepareCharacterEmailAssets`; keep time/size bounds, the official-host
+  allowlist, and existing delivery idempotency keys. Do not trigger sync or
+  replay historical alerts merely to verify a presentation-only deployment.
 - A delivery or verification notification is test infrastructure, never weekly
   digest content. Filter test and verification records before deciding whether
   a commander has anything worth emailing.
