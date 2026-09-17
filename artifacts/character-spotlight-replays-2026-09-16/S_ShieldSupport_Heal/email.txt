@@ -1,0 +1,47 @@
+THE MSF TOOLKIT
+REQUESTED RESEND · OPTION 1
+CHARACTER SPOTLIGHT: Elite S.H.I.E.L.D. Medic
+
+Meet the summoned unit. Understand its abilities.
+
+At your request, this is Elite S.H.I.E.L.D. Medic from your alert sent 2026-09-16 11:08:42 UTC, presented in the Option 1 design. Ability wording is preserved from that alert; artwork was retrieved again from the official game data.
+Original subject: New Character Detected: Elite S.H.I.E.L.D. Medic
+
+Full-body artwork is not available in the official game data; showing the official portrait.
+Traits: HERO, GLOBAL, SKILL, SUPPORT, S.H.I.E.L.D., MINION, Summon, WEST COAST AVENGER
+
+Summoned unit: its appearance in game data does not mean it is a newly unlockable character.
+
+THE KIT FROM YOUR ORIGINAL ALERT
+The ability descriptions below preserve the wording from your original alert. Artwork and available ability icons have been refreshed; these descriptions are not a claim about current maximum levels or your roster's ability levels.
+
+BASIC — I.C.E.R. Pistol
+From your original alert
+Attack primary target for 400% damage + apply Offense Down.
+
+On Crit, reduce Speed Bar by 25%.
+
+SPECIAL — Emergency Treatment
+From your original alert
+Heal all AVENGER and S.H.I.E.L.D. allies for 20% of this character's Max Health + clear 2 negative effects.
+
+PASSIVE — Fighting Fit
+From your original alert
+On Spawn, gain Stealth, Defense Up, and Deathproof.
+On Death, clear 2 negative effects on all AVENGER and S.H.I.E.L.D. allies.
+
+On Turn:
+> Heal most injured ally for 20% of this character's Max Health.
+> Apply Minor Defense Up for 2 turns to all AVENGER and S.H.I.E.L.D. allies.
+
+UNDERSTAND THE SUMMON
+Use the kit above to understand the summoned unit's contribution. Make resource decisions for characters you can actually upgrade, considering your roster goals and the materials you already need. This spotlight does not suggest that the summoned unit can be unlocked or upgraded independently.
+
+Heroes Database: https://themsftoolkit.com/heroes
+Resource Planner: https://themsftoolkit.com/planner
+
+Official game data retrieved 2026-09-17 01:15:38 UTC. This retrieval refreshed artwork and available icons; ability wording remains from your original alert. Abilities can change.
+
+Resent only to you at your request. No notification preferences or live email campaigns were changed. Reply with what you like or would change.
+
+The MSF Toolkit is an independent companion tool, not an official Marvel or Scopely product. Character artwork belongs to its respective owners.

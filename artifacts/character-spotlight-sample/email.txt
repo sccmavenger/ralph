@@ -1,0 +1,60 @@
+THE MSF TOOLKIT
+SAMPLE · OPTION 1
+CHARACTER SPOTLIGHT: Spider-Man
+
+Meet the character. Understand the kit. Plan your next investment.
+
+This is your requested design sample using Spider-Man, an existing character. It is not a newly detected character or a new-release announcement.
+
+Official costume artwork: No Way Home. Costume art is shown for this design preview.
+Traits: HERO, CITY, BIO, BRAWLER, SPIDER-VERSE, WEB-WARRIOR, AMAZING AVENGER
+
+THE NORMAL ABILITY KIT
+Complete descriptions at the highest available levels in the retrieved game data, not your roster's current ability levels.
+
+BASIC — Agile Attack
+Highest available level 7
+Attack primary target for 270% damage + Chain to 2 adjacent enemies for 270% damage.
+
+Gain Evade.
+If this character already had Evade, gain Speed Up.
+
+SPECIAL — Web Slinger
+Highest available level 7
+Attack primary target for 360% damage + clear 3 positive effects + apply Defense Down for 2 turns and Slow for 2 turns.
+
+Chain to 4 adjacent enemies for 360% damage + clear 3 positive effects + apply Defense Down 2 turns and Slow for 2 turns.
+
+This attack is Unavoidable, cannot be counterattacked, and this attack can Chain to Stealth targets.
+
+ULTIMATE — Tangled Web
+Highest available level 7
+Attack primary target for 500% damage.
+
+With 3 HERO allies, reduce Safeguard by 1 on primary target.
+With 3 AMAZING AVENGERS, reduce Safeguard by 2 instead.
+
+Clear all positive effects on the primary target + apply Stun and Slow.
+
+PASSIVE — Spidey-Sense
+Highest available level 5
+On Spawn, with 3 AMAZING AVENGER allies, apply 2 Evade to self and all AMAZING AVENGER allies.
+
+On Dodge:
+> Fill Speed Bar by 15%.
+> Generate 1 Ability Energy for self.
+
+Gain +25% Dodge Chance.
+Gain +25% Dodge Chance if there's a VILLAIN SPIDER-VERSE enemy.
+
+BEFORE YOU INVEST
+Check your next roster goal, the mode you want to improve, and the gold, training materials, gear, and ability materials you already need. Compare those priorities before committing scarce resources. This is general planning guidance, not a recommendation to upgrade Spider-Man.
+
+Heroes Database: https://themsftoolkit.com/heroes
+Resource Planner: https://themsftoolkit.com/planner
+
+Official game data retrieved 2026-09-17 00:38:12 UTC. Abilities can change. Artwork and kit information are sourced from the official Marvel Strike Force game data.
+
+Sent only as the sample you requested. No notification preferences were changed. Reply with what you like or would change.
+
+The MSF Toolkit is an independent companion tool, not an official Marvel or Scopely product. Character artwork belongs to its respective owners.

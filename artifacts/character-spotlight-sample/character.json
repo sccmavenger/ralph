@@ -1,0 +1,70 @@
+{
+  "id": "SpiderMan",
+  "name": "Spider-Man",
+  "portrait": "https://assets.marvelstrikeforce.com/imgs/Portrait_SpiderMan_4fdcec3d.png",
+  "traits": [
+    {
+      "id": "Hero",
+      "name": "HERO"
+    },
+    {
+      "id": "City",
+      "name": "CITY"
+    },
+    {
+      "id": "Bio",
+      "name": "BIO"
+    },
+    {
+      "id": "Brawler",
+      "name": "BRAWLER"
+    },
+    {
+      "id": "SpiderVerse",
+      "name": "SPIDER-VERSE"
+    },
+    {
+      "id": "WebWarrior",
+      "name": "WEB-WARRIOR"
+    },
+    {
+      "id": "AmazingAvenger",
+      "name": "AMAZING AVENGER"
+    }
+  ],
+  "costume": {
+    "name": "No Way Home",
+    "fullArt": "https://assets.marvelstrikeforce.com/key_art/Skins_Spiderman_NoWayHome_1080x1920_6282beb12d75634b8d2ae8d3da122e1318ec.jpg"
+  },
+  "abilities": [
+    {
+      "type": "basic",
+      "name": "Agile Attack",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_BASIC_74d32f44.png",
+      "level": 7,
+      "description": "Attack primary target for <color=#86e619>270%</color> damage + Chain to <color=#86e619>2</color> adjacent enemies for <color=#86e619>270%</color> damage.\n\nGain <color=#fff568>Evade</color>.\nIf this character already had <color=#fff568>Evade</color>, gain <color=#fff568>Speed Up</color>."
+    },
+    {
+      "type": "special",
+      "name": "Web Slinger",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_SPECIAL_f37deaa2.png",
+      "level": 7,
+      "description": "Attack primary target for <color=#86e619>360%</color> damage + clear <color=#86e619>3</color> positive effects + apply <color=#fff568>Defense Down</color> for <color=#86e619>2</color> turns and <color=#fff568>Slow</color> for <color=#86e619>2</color> turns.\n\nChain to <color=#86e619>4</color> adjacent enemies for <color=#86e619>360%</color> damage + clear <color=#86e619>3</color> positive effects + apply <color=#fff568>Defense Down</color> <color=#86e619>2</color> turns and <color=#fff568>Slow</color> for <color=#86e619>2</color> turns.\n\nThis attack is Unavoidable, cannot be counterattacked, and this attack can Chain to <color=#fff568>Stealth</color> targets."
+    },
+    {
+      "type": "ultimate",
+      "name": "Tangled Web",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_ULTIMATE_571ce3e9.png",
+      "level": 7,
+      "description": "Attack primary target for <color=#86e619>500%</color> damage.\n\nWith <color=#86e619>3</color> <color=#fff568>HERO</color> allies, reduce <color=#fff568>Safeguard</color> by <color=#86e619>1</color> on primary target.\nWith <color=#86e619>3</color> <color=#fff568>AMAZING AVENGERS</color>, reduce <color=#fff568>Safeguard</color> by <color=#86e619>2</color> instead.\n\nClear all positive effects on the primary target + apply <color=#fff568>Stun</color> and <color=#fff568>Slow</color>."
+    },
+    {
+      "type": "passive",
+      "name": "Spidey-Sense",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_PASSIVE_2a632106.png",
+      "level": 5,
+      "description": "On Spawn, with <color=#86e619>3</color> <color=#fff568>AMAZING AVENGER</color> allies, apply <color=#86e619>2</color> <color=#fff568>Evade</color> to self and all <color=#fff568>AMAZING AVENGER</color> allies.\n\nOn Dodge:\n > Fill Speed Bar by <color=#86e619>15%</color>.\n > Generate <color=#86e619>1</color> Ability Energy for self.\n\nGain +<color=#86e619>25%</color> Dodge Chance.\nGain +<color=#86e619>25%</color> Dodge Chance if there's a <color=#fff568>VILLAIN</color> <color=#fff568>SPIDER-VERSE</color> enemy."
+    }
+  ],
+  "fetchedAt": "2026-09-17T00:38:12.663Z"
+}

@@ -1,0 +1,103 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "entries": [
+    {
+      "id": "WaspJanet",
+      "name": "Wasp (Janet)",
+      "originalId": "a0e13e73-3b91-4524-a816-79801e4e470e",
+      "originalSentAt": "2026-09-16T11:09:19.281Z",
+      "subject": "[PREVIEW] New Character Detected: Wasp (Janet)",
+      "idempotencyKey": "bc5eebd2868da2b0ffa203628f05748d103de098cdc5b530e1f7d0007d1c2802",
+      "htmlHash": "29f01023772cc3db174244efb041f43c1f7cb86ddaa5bafaba4701bd35fc52d6",
+      "textHash": "053cb5927166762aba23cd618a63abab76f3cb6da2338ff4329879e75bfeda89",
+      "assets": [
+        {
+          "key": "portrait",
+          "url": "https://assets.marvelstrikeforce.com/imgs/Portrait_WaspJanet_d18dca5a.png",
+          "filename": "portrait.png",
+          "contentType": "image/png",
+          "contentId": "replay-WaspJanet-portrait",
+          "sha256": "beffa01a86d5a9421e855447cc0e14e96b003467e4a8a2c1acaa81b3752c2537"
+        },
+        {
+          "key": "basic",
+          "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_BASIC_42a11d90.png",
+          "filename": "basic.png",
+          "contentType": "image/png",
+          "contentId": "replay-WaspJanet-basic",
+          "sha256": "8510b9995996b99e5918a529ea495ed708ebf939010598fe61ec7f2ba5540fc4"
+        },
+        {
+          "key": "special",
+          "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_SPECIAL_fa400c52.png",
+          "filename": "special.png",
+          "contentType": "image/png",
+          "contentId": "replay-WaspJanet-special",
+          "sha256": "51ddb3707d8991214399543bffa2e20c16f5562ceec4efdc549dc541084b5b05"
+        },
+        {
+          "key": "ultimate",
+          "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_ULTIMATE_699600bc.png",
+          "filename": "ultimate.png",
+          "contentType": "image/png",
+          "contentId": "replay-WaspJanet-ultimate",
+          "sha256": "9624e664ceb91e9bd5a4bfa63694cb4849ffea5d80efdea2706e38e29310d546"
+        },
+        {
+          "key": "passive",
+          "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_PASSIVE_7075d29d.png",
+          "filename": "passive.png",
+          "contentType": "image/png",
+          "contentId": "replay-WaspJanet-passive",
+          "sha256": "832a526f2abfc508610e9461d96bd241581a902e83cea0476bc81902e6153906"
+        }
+      ],
+      "fullBodyAvailable": false,
+      "abilityCount": 4
+    },
+    {
+      "id": "S_ShieldDmg_AoE",
+      "name": "Elite S.H.I.E.L.D. Assault",
+      "originalId": "082774d3-7e53-470b-991e-fe16c7c78fdc",
+      "originalSentAt": "2026-09-16T11:08:07.126Z",
+      "subject": "[PREVIEW] New Character Detected: Elite S.H.I.E.L.D. Assault",
+      "idempotencyKey": "f6f41e2424bd5a0657a0fb51d2d23fd22caa72b10c05173e4e8c3ac971f6d48a",
+      "htmlHash": "7c6ef7f2bed13708c8d0ba4bbfec0f628ae5700ba1454e1bb3a024dd11143fa3",
+      "textHash": "37f6680e37be76a4987fc4573a8b3bdf2b8e37ccd00e52b34157b29d3b20b551",
+      "assets": [
+        {
+          "key": "portrait",
+          "url": "https://assets.marvelstrikeforce.com/imgs/Portrait_ShieldDmg_AoE_c564cecb.png",
+          "filename": "portrait.png",
+          "contentType": "image/png",
+          "contentId": "replay-S_ShieldDmg_AoE-portrait",
+          "sha256": "3a18890e33b2c718f971137bbcf3fa3f6acdd04ae26994906942d63aef6f2f4c"
+        }
+      ],
+      "fullBodyAvailable": false,
+      "abilityCount": 3
+    },
+    {
+      "id": "S_ShieldSupport_Heal",
+      "name": "Elite S.H.I.E.L.D. Medic",
+      "originalId": "4d1a02b5-15a1-4502-baf5-35c5a1d20184",
+      "originalSentAt": "2026-09-16T11:08:42.025Z",
+      "subject": "[PREVIEW] New Character Detected: Elite S.H.I.E.L.D. Medic",
+      "idempotencyKey": "3f2d6a7f4d0581618c7edbdd2cd3d8a2cdf2e650ae6e64936ffcbe2675d657bc",
+      "htmlHash": "30bfafb64ec365f3540a6f52888806e9cfefcb51408b89815e1b2de4238a4e20",
+      "textHash": "27c82554435bc8dbd10c2f5f8a7733eaacb980a67ef063c9203a69fc9f2cead6",
+      "assets": [
+        {
+          "key": "portrait",
+          "url": "https://assets.marvelstrikeforce.com/imgs/Portrait_ShieldSupport_Heal_724e260e.png",
+          "filename": "portrait.png",
+          "contentType": "image/png",
+          "contentId": "replay-S_ShieldSupport_Heal-portrait",
+          "sha256": "67892cac5ef732fa15ec65d8474bc878e74552bed3a0b12716bdb380ff3806c4"
+        }
+      ],
+      "fullBodyAvailable": false,
+      "abilityCount": 3
+    }
+  ]
+}

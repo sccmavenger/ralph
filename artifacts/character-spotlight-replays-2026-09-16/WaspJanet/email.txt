@@ -1,0 +1,76 @@
+THE MSF TOOLKIT
+REQUESTED RESEND · OPTION 1
+CHARACTER SPOTLIGHT: Wasp (Janet)
+
+Meet the character. Understand the kit. Plan your next investment.
+
+At your request, this is Wasp (Janet) from your alert sent 2026-09-16 11:09:19 UTC, presented in the Option 1 design. Ability wording is preserved from that alert; artwork was retrieved again from the official game data.
+Original subject: New Character Detected: Wasp (Janet)
+
+Full-body artwork is not available in the official game data; showing the official portrait.
+Traits: HERO, GLOBAL, TECH, CONTROLLER, PYM TECH, WEST COAST AVENGER
+
+THE KIT FROM YOUR ORIGINAL ALERT
+The ability descriptions below preserve the wording from your original alert. Artwork and available ability icons have been refreshed; these descriptions are not a claim about current maximum levels or your roster's ability levels.
+
+BASIC — Micro Stings
+From your original alert
+Attack primary target for 160% damage + 30% Crit Chance + copy 1 random positive effect, except Taunt.
+
+Repeat this attack 2 times.
+
+On Crit, fill Speed Bar by 10%.
+
+Prolong the duration of 1 random positive effect on self, except Taunt or Regeneration, by 1, up to a maximum of 3. If this character has no positive effects, gain Speed Up.
+
+On WAR OFFENSE, when forced to attack a WEST COAST AVENGER ally, this attack does less damage, does not reduce the Max Health of that ally, and flips all negative effects to positive effects on self and all WEST COAST AVENGER allies.
+
+SPECIAL — West Coast, Assemble!
+From your original alert
+Copy all positive effects, except Taunt, from primary target to self.
+If target is Charged, apply Stun and flip Charged to Bleed. On WAR OFFENSE, this action gains +500% Extra Focus.
+
+Attack primary target for 300% damage.
+Gain an assist from a random Hawkeye ally and a random War Machine ally. Assisting allies cannot Crit.
+
+On WAR OFFENSE:
+> Apply +1 Safeguard to self and all WEST COAST AVENGER allies.
+> If this character has Offense Up and does not have Exposed, call a random Tigra ally and a random Mockingbird ally to attack the primary target. Called allies cannot Crit.
+
+ULTIMATE — Quantum Barrage
+From your original alert
+Attack primary and adjacent targets for 250% damage and apply +1 Heal Block, up to a maximum of 3.
+
+Repeat this attack 1 time.
+
+On WAR OFFENSE:
+> Before this attack, reduce the duration of Immunity on primary target by 1 + apply Stun. If this character has Offense Up, instead, apply Stun for 2 turns.
+> Apply +1 Trauma, up to a maximum of 3, to primary and adjacent targets.
+> This attack cannot be blocked.
+
+PASSIVE — The Winsome Wasp
+From your original alert
+On Spawn, apply Offense Up to self and all WEST COAST AVENGER allies.
+
+On self or WEST COAST AVENGER ally turn, apply +1 Offense Up and +1 Counter to that character.
+
+On WAR OFFENSE, while this character or a WEST COAST AVENGER ally has Offense Up, that character cannot gain Disrupted or Trauma.
+
+On WAR OFFENSE, with 3 WEST COAST AVENGER allies:
+> Enemies cannot fill or reduce Speed Bar for themselves, allies, or enemies and can only gain bonus Speed through positive effects.
+> If this character has Offense Up, enemies cannot Spawn with Immunity or Deathproof.
+> If this character has Offense Up, before any character takes a turn, apply Ability Block to the 2 CONTROLLER enemies with the highest Speed.
+
+Gain +25% Dodge Chance.
+
+BEFORE YOU INVEST
+Check your next roster goal, the mode you want to improve, and the gold, training materials, gear, and ability materials you already need. Compare those priorities before committing scarce resources. This is general planning guidance, not a recommendation to upgrade Wasp (Janet).
+
+Heroes Database: https://themsftoolkit.com/heroes
+Resource Planner: https://themsftoolkit.com/planner
+
+Official game data retrieved 2026-09-17 01:15:37 UTC. This retrieval refreshed artwork and available icons; ability wording remains from your original alert. Abilities can change.
+
+Resent only to you at your request. No notification preferences or live email campaigns were changed. Reply with what you like or would change.
+
+The MSF Toolkit is an independent companion tool, not an official Marvel or Scopely product. Character artwork belongs to its respective owners.

@@ -1,0 +1,68 @@
+{
+  "id": "WaspJanet",
+  "name": "Wasp (Janet)",
+  "portrait": "https://assets.marvelstrikeforce.com/imgs/Portrait_WaspJanet_d18dca5a.png",
+  "costume": null,
+  "traits": [
+    {
+      "id": "Hero",
+      "name": "HERO"
+    },
+    {
+      "id": "Global",
+      "name": "GLOBAL"
+    },
+    {
+      "id": "Tech",
+      "name": "TECH"
+    },
+    {
+      "id": "Controller",
+      "name": "CONTROLLER"
+    },
+    {
+      "id": "PymTech",
+      "name": "PYM TECH"
+    },
+    {
+      "id": "WestCoastAvenger",
+      "name": "WEST COAST AVENGER"
+    }
+  ],
+  "originalAlert": {
+    "id": "a0e13e73-3b91-4524-a816-79801e4e470e",
+    "subject": "New Character Detected: Wasp (Janet)",
+    "sentAt": "2026-09-16T11:09:19.281Z"
+  },
+  "fetchedAt": "2026-09-17T01:15:37.329Z",
+  "abilities": [
+    {
+      "name": "Micro Stings",
+      "description": "Attack primary target for 160% damage + 30% Crit Chance + copy 1 random positive effect, except Taunt.\n\nRepeat this attack 2 times.\n\nOn Crit, fill Speed Bar by 10%.\n\nProlong the duration of 1 random positive effect on self, except Taunt or Regeneration, by 1, up to a maximum of 3. If this character has no positive effects, gain Speed Up.\n\nOn WAR OFFENSE, when forced to attack a WEST COAST AVENGER ally, this attack does less damage, does not reduce the Max Health of that ally, and flips all negative effects to positive effects on self and all WEST COAST AVENGER allies.",
+      "type": "basic",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_BASIC_42a11d90.png",
+      "level": null
+    },
+    {
+      "name": "West Coast, Assemble!",
+      "description": "Copy all positive effects, except Taunt, from primary target to self.\nIf target is Charged, apply Stun and flip Charged to Bleed. On WAR OFFENSE, this action gains +500% Extra Focus.\n\nAttack primary target for 300% damage.\nGain an assist from a random Hawkeye ally and a random War Machine ally. Assisting allies cannot Crit.\n\nOn WAR OFFENSE:\n > Apply +1 Safeguard to self and all WEST COAST AVENGER allies.\n > If this character has Offense Up and does not have Exposed, call a random Tigra ally and a random Mockingbird ally to attack the primary target. Called allies cannot Crit.",
+      "type": "special",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_SPECIAL_fa400c52.png",
+      "level": null
+    },
+    {
+      "name": "Quantum Barrage",
+      "description": "Attack primary and adjacent targets for 250% damage and apply +1 Heal Block, up to a maximum of 3.\n\nRepeat this attack 1 time.\n\nOn WAR OFFENSE:\n> Before this attack, reduce the duration of Immunity on primary target by 1 + apply Stun. If this character has Offense Up, instead, apply Stun for 2 turns.\n> Apply +1 Trauma, up to a maximum of 3, to primary and adjacent targets.\n > This attack cannot be blocked.",
+      "type": "ultimate",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_ULTIMATE_699600bc.png",
+      "level": null
+    },
+    {
+      "name": "The Winsome Wasp",
+      "description": "On Spawn, apply Offense Up to self and all WEST COAST AVENGER allies.\n\nOn self or WEST COAST AVENGER ally turn, apply +1 Offense Up and +1 Counter to that character.\n\nOn WAR OFFENSE, while this character or a WEST COAST AVENGER ally has Offense Up, that character cannot gain Disrupted or Trauma.\n\nOn WAR OFFENSE, with 3 WEST COAST AVENGER allies:\n > Enemies cannot fill or reduce Speed Bar for themselves, allies, or enemies and can only gain bonus Speed through positive effects.\n > If this character has Offense Up, enemies cannot Spawn with Immunity or Deathproof.\n > If this character has Offense Up, before any character takes a turn, apply Ability Block to the 2 CONTROLLER enemies with the highest Speed.\n\nGain +25% Dodge Chance.",
+      "type": "passive",
+      "icon": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_WASPJANET_PASSIVE_7075d29d.png",
+      "level": null
+    }
+  ]
+}

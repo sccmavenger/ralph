@@ -1,0 +1,11 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "subject": "[PREVIEW] New Character Detected: Elite S.H.I.E.L.D. Assault",
+  "originalId": "082774d3-7e53-470b-991e-fe16c7c78fdc",
+  "idempotencyKey": "f6f41e2424bd5a0657a0fb51d2d23fd22caa72b10c05173e4e8c3ac971f6d48a",
+  "requestedAt": "2026-09-17T01:16:55.361Z",
+  "status": "accepted",
+  "providerMessageId": "01a0acf0-2c10-7521-a9f8-5a5e0991917f",
+  "lastEvent": "delivered",
+  "checkedAt": "2026-09-17T01:17:04.313Z"
+}

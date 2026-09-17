@@ -1,0 +1,10 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "subject": "[SAMPLE] Character Spotlight - Spider-Man | Option 1",
+  "idempotencyKey": "4a7543c4dc6a41ef28718a0c7e8417af6ea12fd8c933e609f402e32d808d8bbc",
+  "requestedAt": "2026-09-17T00:38:34.323Z",
+  "status": "accepted",
+  "providerMessageId": "01a0accd-10ec-715f-8f83-971a9598e7fb",
+  "lastEvent": "sent",
+  "checkedAt": "2026-09-17T00:38:41.597Z"
+}

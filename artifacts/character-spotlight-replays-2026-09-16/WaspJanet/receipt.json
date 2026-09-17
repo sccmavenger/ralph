@@ -1,0 +1,11 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "subject": "[PREVIEW] New Character Detected: Wasp (Janet)",
+  "originalId": "a0e13e73-3b91-4524-a816-79801e4e470e",
+  "idempotencyKey": "bc5eebd2868da2b0ffa203628f05748d103de098cdc5b530e1f7d0007d1c2802",
+  "requestedAt": "2026-09-17T01:16:54.169Z",
+  "status": "accepted",
+  "providerMessageId": "01a0acf0-2832-701f-b249-68a649f0b467",
+  "lastEvent": "delivered",
+  "checkedAt": "2026-09-17T01:17:03.376Z"
+}

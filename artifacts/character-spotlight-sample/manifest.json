@@ -1,0 +1,64 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "subject": "[SAMPLE] Character Spotlight - Spider-Man | Option 1",
+  "idempotencyKey": "4a7543c4dc6a41ef28718a0c7e8417af6ea12fd8c933e609f402e32d808d8bbc",
+  "htmlHash": "1bf9b483b536db7c59980824e425d963e92e208183ed1a01b99bfcc053dd868e",
+  "textHash": "f55055e4f52cfce903120db3c4b2e1058ed00a75ba2272c74f24aa778f56720b",
+  "assets": [
+    {
+      "key": "hero",
+      "url": "https://assets.marvelstrikeforce.com/key_art/Skins_Spiderman_NoWayHome_1080x1920_6282beb12d75634b8d2ae8d3da122e1318ec.jpg",
+      "filename": "hero.jpg",
+      "contentType": "image/jpeg",
+      "contentId": "spotlight-hero",
+      "sha256": "764fbb2b329adfe34122ceb8cdb48eb449f1fdf6b969818d665737834e3c10c7",
+      "bytes": 244255
+    },
+    {
+      "key": "portrait",
+      "url": "https://assets.marvelstrikeforce.com/imgs/Portrait_SpiderMan_4fdcec3d.png",
+      "filename": "portrait.png",
+      "contentType": "image/png",
+      "contentId": "spotlight-portrait",
+      "sha256": "9bc9203fa433a3bda9de0de142dbdb182e0843b0c68e5d1c17a830b11cf4ef16",
+      "bytes": 42742
+    },
+    {
+      "key": "basic",
+      "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_BASIC_74d32f44.png",
+      "filename": "basic.png",
+      "contentType": "image/png",
+      "contentId": "spotlight-basic",
+      "sha256": "425a2115002a5d770695b2feb8491d4552e262c37f600f068b388f55cd43911f",
+      "bytes": 32255
+    },
+    {
+      "key": "special",
+      "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_SPECIAL_f37deaa2.png",
+      "filename": "special.png",
+      "contentType": "image/png",
+      "contentId": "spotlight-special",
+      "sha256": "26966b78a075ab523d91c40cabcb9705348b4bc531be99548ef5e7df0f10fd40",
+      "bytes": 27063
+    },
+    {
+      "key": "ultimate",
+      "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_ULTIMATE_571ce3e9.png",
+      "filename": "ultimate.png",
+      "contentType": "image/png",
+      "contentId": "spotlight-ultimate",
+      "sha256": "69a4c86095f739c5e35d8e1218527691d47d97f071770bf450059ed8535fa760",
+      "bytes": 30585
+    },
+    {
+      "key": "passive",
+      "url": "https://assets.marvelstrikeforce.com/imgs/ICON_ABILITY_SPIDERMAN_PASSIVE_2a632106.png",
+      "filename": "passive.png",
+      "contentType": "image/png",
+      "contentId": "spotlight-passive",
+      "sha256": "e196edae26004fc0225cd4407f0d8c74d9be0239f82872e1579c89d8508b1654",
+      "bytes": 16659
+    }
+  ],
+  "fetchedAt": "2026-09-17T00:38:12.663Z"
+}

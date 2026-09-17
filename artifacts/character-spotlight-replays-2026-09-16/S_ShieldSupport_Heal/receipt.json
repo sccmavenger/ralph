@@ -1,0 +1,11 @@
+{
+  "recipient": "dguilloryjr@msn.com",
+  "subject": "[PREVIEW] New Character Detected: Elite S.H.I.E.L.D. Medic",
+  "originalId": "4d1a02b5-15a1-4502-baf5-35c5a1d20184",
+  "idempotencyKey": "3f2d6a7f4d0581618c7edbdd2cd3d8a2cdf2e650ae6e64936ffcbe2675d657bc",
+  "requestedAt": "2026-09-17T01:16:56.280Z",
+  "status": "accepted",
+  "providerMessageId": "01a0acf0-2fae-733c-8f00-00aeb180b70d",
+  "lastEvent": "delivered",
+  "checkedAt": "2026-09-17T01:17:05.187Z"
+}
