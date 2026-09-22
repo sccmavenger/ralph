@@ -22,6 +22,91 @@ Ralph is the repository's internal autonomous development workflow for VS Code a
 3. **`@ralph`** — Implement the next user story (custom agent — start a new chat each time)
 4. Repeat step 3 in a new chat until `@ralph` reports all stories complete
 
+## Executive Office Development Workflow
+
+These permanent repository operating rules apply to **all Executive Office / AI
+CEO work**, regardless of milestone, story, bounded task, or future Codex session.
+They supplement the existing Executive Office constitutional, governance,
+learning, security, and milestone rules, which remain authoritative. They do not
+alter the technical architecture or implementation plan and do not grant extra
+autonomy or permission to merge, deploy, spend money, modify production, or cross
+an Owner approval boundary.
+
+### Branches and durable checkpoints
+
+- Never perform Executive Office development directly on `main`. Before making
+  changes, verify the current branch and create a task branch if necessary.
+- Every independently reviewable story or bounded task must have its own branch.
+  Use clear names such as `executive/m1.1-node24-validation`,
+  `executive/m1.2-foundation-schema`, `executive/m2.1-governance-policy`, or a clear
+  equivalent. Do not combine unrelated stories just because a branch is open.
+- Commit and push to GitHub at meaningful checkpoints. Do not leave completed
+  work only in a local Codex session. Never commit secrets or live credentials.
+- Every story/task must have a GitHub Pull Request against `main`. Open the PR as
+  a **Draft** while work is incomplete and keep its description current.
+- The PR is the shared coordination and review surface for the Owner, ChatGPT
+  architecture reviewer, and Codex. GitHub is the durable shared record:
+  important implementation decisions, questions, test results, and completion
+  summaries must live in the repository/PR, not only in transient AI chat history.
+- At each reviewable checkpoint, the PR must contain enough context and evidence
+  for independent review without access to the private Codex conversation.
+
+### Required PR description
+
+Use `.github/PULL_REQUEST_TEMPLATE/executive-office.md` for Executive Office PRs.
+Select that named template when creating a PR, or populate a completed copy and
+pass it to the GitHub CLI with `--body-file`. Fill every section; explicitly state
+`None` or `Not applicable` with a reason when appropriate. Always include:
+
+- Milestone/story/task, objective, and authorized scope.
+- Files changed.
+- Database/migration and configuration changes, including explicit absence.
+- Tests executed and their results, with commands, environment, and evidence.
+- Known pre-existing failures, separately from any new regressions.
+- Security considerations.
+- Cost/infrastructure implications.
+- Unresolved questions and Owner decisions required.
+- Risks and limitations.
+- Next proposed action and merge-readiness assessment.
+
+### Owner decisions and approval gates
+
+- When a decision requires Owner input, do not leave it only in Codex chat. Add a
+  clearly labeled PR comment headed **OWNER DECISION REQUIRED** with:
+  - The decision needed.
+  - Why it matters.
+  - Available options.
+  - Codex's recommended option.
+  - Risks/tradeoffs.
+  - Whether work is blocked pending the decision.
+- Link the decision comment from the PR description and record the Owner's
+  resolution there when received. If approval arrives in chat, preserve its
+  relevant scope in the PR; do not infer broader authority.
+- Stop at Owner approval gates defined by the Executive Office plan. Do not
+  silently begin the next story or milestone when the approved task is complete.
+- Do not merge a PR merely because implementation and tests pass. A positive
+  merge-readiness assessment is not merge authorization; wait for explicit Owner
+  authorization and any applicable review requirements.
+- Do not deploy production changes unless explicitly authorized. Permission to
+  push a branch, open a PR, or perform validation is not deployment permission.
+
+### Review changes and completion
+
+- Address reviewer-requested changes on the same branch and push new commits to
+  the same PR. Reply with what changed and the verification performed. Do not
+  open a replacement PR unless there is a specific reason; document that reason
+  and cross-link the PRs if replacement is necessary.
+- Before declaring a story/task complete:
+  1. Verify the delivered changes match the requested and authorized scope.
+  2. Run the required tests and record commands, results, and evidence. Clearly
+     disclose skipped/blocked checks; never describe unrun checks as passing.
+  3. Update the PR summary with the current implementation decisions, known
+     failures, new regressions, unresolved questions, and completion status.
+  4. State explicitly whether the story/task is safe to merge and why, including
+     limitations and pending Owner decisions. Keep merge and deployment approval
+     separate from technical readiness.
+  5. Stop for review wherever the milestone process requires Owner approval.
+
 ## Key Files
 
 | File | Purpose |
