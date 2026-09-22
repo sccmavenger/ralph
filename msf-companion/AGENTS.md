@@ -5,6 +5,33 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Runtime and regression-check boundaries
+
+- The web package targets Node 24. The exact tested patch is in `.node-version`;
+  keep the Docker base and knowledge-refresh workflow aligned with that file.
+  Runtime compatibility evidence and open verification gates are recorded in
+  `docs/executive-office/m1-1-runtime-compatibility.md`.
+- Executive Office work is authorized story-by-story. Do not automatically
+  advance from M1.1 to M1.2. Existing route-group/layout moves must be an isolated
+  mechanical change, with route and behavior checks before and after; never
+  combine those moves with redesign or unrelated refactoring.
+- Run baseline compatibility checks in an isolated source copy without `.env`
+  files or captured player credentials. `src/lib/wallet.test.ts` writes to its
+  configured database; exclude it unless a disposable test database is provided.
+  Root Vitest also discovers legacy Functions tests: use explicit
+  `--exclude 'functions/**' --exclude 'src/lib/wallet.test.ts' --maxWorkers=4`
+  for web-only, database-independent regression checks.
+- Do not use `npm run cleanup` for isolated checks: it can kill unrelated Node
+  processes. The default Playwright setup uses captured live credentials and its
+  teardown kills the port-3000 listener; use a test-owned server and dummy secrets
+  for public smoke checks. Block external browser requests to avoid analytics.
+- A successful Windows standalone build/smoke run is not Linux/Alpine container
+  verification. Report container build/startup checks separately.
+- `.github/workflows/m1-1-container-validation.yml` runs only on the M1.1 branch
+  and builds a runner-local image without deployment or registry publication.
+  Its test container uses `--network none`, dummy credentials, and loopback
+  requests through `docker exec`; preserve that separation from live services.
+
 ## MSF API patterns
 
 - Always paginate collection endpoints. In particular, omitting `perPage` from
