@@ -6,13 +6,15 @@ Baseline commit: `99c5e3def6669f86565bc1731700060a70731a34`
 
 ## Decision and status
 
-The M1.1 runtime changes are implemented locally. Node 24.21.0 passed clean installation, Prisma client generation/schema validation, TypeScript checks, a production build, and standalone-server smoke checks on Windows. No new failures were found in the tests or lint comparison.
+The M1.1 runtime changes are implemented and pushed on the dedicated `m1.1-runtime-validation` branch. Node 24.21.0 passed clean installation, Prisma client generation/schema validation, TypeScript checks, a production build, and standalone-server smoke checks on Windows. The actual Node 24 Dockerfile also passed Linux/Alpine build, startup, readiness, native Sharp, and HTTP smoke verification on a GitHub-hosted `ubuntu-latest` runner. No new failures were found in the Windows tests/lint comparison or the completed candidate container checks.
 
-**M1.1 is not fully verified: an actual Linux/Alpine container build and startup test could not be run because no container engine is available.** The existing unit-test and lint baselines are also not green; their unchanged failures are documented below rather than waived or fixed under this story.
+**The requested M1.1 container verification gate is now closed.** The existing unit-test and lint baselines are not green; their unchanged failures remain documented below rather than waived or fixed under this story. The container dependency installation also reported 26 vulnerabilities, including 1 critical; these require separate security triage and are not a runtime-compatibility pass/fail comparison.
 
-**Recommendation: hold M1.2 approval until the container gate is closed.** Node 24 is a supported candidate based on the checks completed, but this report is not production-release approval. M1.2 has not started and will require explicit Owner authorization.
+**Recommendation: the Node 24 runtime prerequisite is sufficiently verified for the Owner to review M1.2 authorization.** This is not a fully green test/security baseline or production-release approval. Review the dependency findings before any production release. M1.2 has not started and still requires explicit Owner authorization.
 
-No Executive Office database or application features were implemented. No migrations were created or applied. No deployment, GitHub push, live email, knowledge refresh, or cloud-resource operation was performed.
+No Executive Office database or application features were implemented. No migrations were created or applied. Only the M1.1 branch was pushed; no merge, deployment, image publication, live email, knowledge refresh, or production cloud-resource operation was performed. No permanent local container engine was installed.
+
+Container verification: [successful GitHub Actions run 35737188704](https://github.com/sccmavenger/ralph/actions/runs/35737188704), testing commit [`43dbd932e6edaf888adc7a543157861cc809c35e`](https://github.com/sccmavenger/ralph/commit/43dbd932e6edaf888adc7a543157861cc809c35e).
 
 ## 1. Every repository file changed
 
@@ -25,6 +27,7 @@ Paths are relative to the repository root.
 | `msf-companion/package.json` | Adds `engines.node: "24.x"`; changes `@types/node` range from `^20` to `^24`. |
 | `msf-companion/package-lock.json` | Updates root engine/type metadata, `@types/node`, and its `undici-types` dependency only. No other package versions change and no package entries are added or removed. |
 | `.github/workflows/refresh-kb.yml` | Creator-sync job reads `msf-companion/.node-version` instead of specifying Node 20. Workflow triggers, jobs, commands, and targets remain unchanged; the workflow was not dispatched. |
+| `.github/workflows/m1-1-container-validation.yml` | New narrowly scoped, branch-push-only GitHub-hosted Docker build/start/readiness/smoke workflow. Uses a runner-local image, network-isolated container, dummy credentials, always-captured diagnostics, and 14-day evidence artifacts; no deployment or registry publication. |
 | `msf-companion/AGENTS.md` | Records runtime alignment, safe baseline checks, container verification boundaries, and the Owner's isolated-mechanical-layout/story-by-story requirements. |
 | `msf-companion/docs/executive-office/m1-1-runtime-compatibility.md` | This report. |
 
@@ -109,8 +112,9 @@ No lint autofix, dependency-wide upgrade, cleanup command, or default authentica
 | Existing test assertions | 676 passed / 9 failed | 676 passed / 9 failed | All 685 test-name/status pairs match. No new failures. |
 | Full configured lint | 123 errors / 36 warnings | 123 errors / 36 warnings | Same diagnostics after normalizing temporary root paths. Lint is not green. |
 | Windows standalone HTTP/browser smoke | 18 passed / 0 failed | 18 passed / 0 failed | Same safe public behavior checked before/after. |
-| Native Sharp image operation | Not separately exercised | Passed | Node 24 loaded Sharp 0.34.5 and generated a 91-byte PNG; Windows-only evidence. |
-| Actual Linux/Alpine container build/startup | Not run | Not run | Missing container engine; open verification gate. |
+| Native Sharp image operation | Not separately exercised | Passed on Windows and Linux/Alpine | Node 24 loaded Sharp 0.34.5 and generated a 91-byte PNG on each tested platform. |
+| Actual Linux/Alpine container build/startup | Not run | Passed on GitHub-hosted runner | Candidate-only verification, as authorized in the follow-up request. |
+| Container readiness / HTTP smoke | Not run | Passed / 14 of 14 passed | No live services or database; see section 6 for exact coverage. |
 
 Next.js 16 does not run ESLint as part of `next build`; the successful build must not be mistaken for a passing lint result. Lint was run separately and its failures are disclosed.
 
@@ -181,40 +185,77 @@ QR image download/decoding was not tested because external requests were intenti
 
 The harness and full JSON results remain in the local evidence directory identified below. Both dedicated test listeners were confirmed stopped.
 
-## 6. Container verification and outstanding gate
+## 6. Completed GitHub-hosted Linux/Alpine verification
 
-Read-only checks found no Docker command/standard Docker Desktop executable on Windows and no Docker, Podman, or nerdctl command in the installed Ubuntu WSL distribution. No container engine was installed, no daemon started, and no cloud build/deployment substituted for local testing.
+Local Windows/WSL checks originally found no available container engine. The Owner subsequently authorized a dedicated branch and GitHub-hosted `ubuntu-latest` validation instead of installing a permanent engine. The following run closes that remaining gate.
 
-The official Docker registry confirms that `node:24.21.0-alpine` exists:
+| Evidence | Result |
+|---|---|
+| Repository | `sccmavenger/ralph` |
+| Branch | [`m1.1-runtime-validation`](https://github.com/sccmavenger/ralph/tree/m1.1-runtime-validation) |
+| Tested commit | `43dbd932e6edaf888adc7a543157861cc809c35e` |
+| Workflow | `.github/workflows/m1-1-container-validation.yml` |
+| Run / job | [35737188704](https://github.com/sccmavenger/ralph/actions/runs/35737188704) / `106777361019` |
+| Execution | September 22, 2026, 13:59:36–14:01:10 UTC; job completed successfully in 1 minute 34 seconds |
+| Runner / Docker | GitHub-hosted `ubuntu-latest`, Linux amd64; Docker Engine 28.0.4 |
+| Build | Passed, approximately 71 seconds for the Docker build step |
+| Final image ID | `sha256:1931589ecb072b723a6a42fc93283bf447b0eaba1b05a39250ab0455e33e7bd8` |
+| Runtime verified inside image | Node `v24.21.0`, npm `11.19.0`, Linux x64, UID `1001` / configured user `nextjs` |
+| Startup / readiness | Passed; `/api/auth/session` returned HTTP 200 and exactly `{ "authenticated": false }` |
+| Smoke | All 14 HTTP checks, the runtime/non-root assertion, and native Sharp check passed |
+| Final container state | Running, not restarting, not OOM-killed, no state error; captured before deliberate cleanup |
+| Diagnostics / cleanup | Logs and state uploaded successfully; only the ephemeral test container removed afterward |
 
-- OCI image-index digest: `sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1`
-- Advertised Linux platforms: `amd64`, `arm64/v8`, `s390x`.
+The current Dockerfile was built directly, without modifying it for CI:
+
+```text
+docker build --pull --progress=plain --tag msf-m11-check:43dbd932e6edaf888adc7a543157861cc809c35e --file msf-companion/Dockerfile msf-companion
+```
+
+`npm ci`, Prisma Client 7.6.0 generation, Next.js 16.2.1 compilation, build-time TypeScript checks, all 70 static pages, and final standalone image assembly succeeded. The build used the Alpine base identified by:
+
+- OCI image-index digest: `sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1`.
 - Linux amd64 manifest digest: `sha256:83f1c388c31fb2e51f7cbd4dea949b96260798c98f206e8e4696bc93bd964e3a`.
 
-**This was a remote manifest check only. No image pull, container build, or container startup was performed.** The Dockerfile pins a version tag, not these digests; the digest values record this inspection, not an immutable image pin.
+These digests identify the images observed in this run; the Dockerfile still pins the `24.21.0-alpine` version tag, not an immutable digest. No image was pushed to Docker Hub, ACR, GHCR, or any other registry.
 
-The remaining M1.1 gate, on an available Docker-capable Linux-container host, is:
+### Runtime isolation and requests
 
-1. Build the unchanged baseline Dockerfile and the candidate Dockerfile from credential-free contexts using their respective lockfiles.
-2. Confirm the candidate's actual Node/npm versions and successful `npm ci`, Prisma generation, and production build.
-3. Exercise Linux/Alpine native dependencies, including Sharp, SWC, Tailwind oxide, and the generated Prisma client.
-4. Start the final image as its existing non-root `nextjs` user with dummy session secrets and an inert database URL.
-5. Repeat the public HTTP/redirect/browser smoke checks against the mapped test port, without external service credentials.
-6. Record exact image identities, commands, exit results and any baseline/candidate differences before requesting M1.2 approval.
+The final image was started using its normal `node server.js` command and non-root user, with `--network none`, no published ports, no repository secrets, dummy session secrets, and a database URL pointing to its own unused loopback port 1. Requests used Node's `fetch` through `docker exec`, targeting `http://127.0.0.1:3000` inside the same container. This blocks runtime access to production and external services.
 
-The existing `libc6-compat` package and Docker stage design were left intact. Official Node Docker documentation describes Alpine/musl considerations; Windows success cannot resolve those concerns. [Official Node Alpine image guidance](https://github.com/nodejs/docker-node/blob/main/README.md#nodealpine).
+Readiness was bounded to 30 attempts with per-request timeouts. One initial `fetch failed` occurred while the server was starting; the next successful readiness result arrived within the two-second workflow readiness step. This was a retried startup probe, not a failed job or observed application regression. Container logs showed the normal Next.js startup/ready messages and no application errors.
+
+| HTTP smoke group | Checks |
+|---|---|
+| Public HTML (5) | `/`, `/faq`, `/privacy`, `/terms`, `/admin`: HTTP 200 plus HTML content validation. |
+| Empty session (1) | `/api/auth/session`: HTTP 200 and exact unauthenticated JSON. |
+| Unauthorized APIs (2) | `/api/msf/inventory`, `/api/admin/usage-stats`: HTTP 401. |
+| Redirects (6) | `/subscribe` -> `/`; `/admin/dashboard` -> `/admin`; `/dashboard`, `/inventory`, `/roster`, `/planner` -> `/api/auth/refresh?redirect=/dashboard`: HTTP 307, exact Location header, no redirect following. |
+
+The native Sharp 0.34.5 check generated a 91-byte PNG inside the final Alpine image. The build exercised the existing Next/Tailwind compilation pipeline and Prisma client generation; it did not query a database. The existing `libc6-compat` instruction successfully resolved to Alpine's `gcompat` package and required no Dockerfile adjustment.
+
+### Coverage boundary and retained artifacts
+
+This follows the latest Owner-authorized **current-candidate container build/start/smoke scope**, replacing the earlier proposed broader Linux baseline/candidate/browser checklist. No Node 20 Linux container comparison, Linux browser suite, real database/provider workflow, or physical-device test is claimed. The before/after test, lint and browser comparisons remain the Windows evidence in preceding sections.
+
+Build output, final image identity, Node/npm evidence, readiness JSON, smoke JSON, timestamped container logs, final container state, and runner/Docker metadata are retained in [artifact `m1-1-container-evidence-43dbd932e6edaf888adc7a543157861cc809c35e`](https://github.com/sccmavenger/ralph/actions/runs/35737188704/artifacts/10697578394), expiring October 6, 2026 at 14:01:06 UTC under the configured 14-day retention policy. Diagnostics steps use `always()` so startup/smoke failure logs would also be retained. This successful run did not require a failure recovery or runtime fix.
+
+The workflow has read-only repository permissions and no deployment, registry-publish, production-service, or migration steps. It triggers only on relevant pushes to the M1.1 branch; documentation-only report updates do not rerun it. No main-branch merge or PR was created.
 
 ## 7. Warnings and compatibility limitations
 
 - **Baseline engine warning:** Node 20's install warns that `@prisma/streams-local@0.1.2` requires Node >=22. Node 24's install does not emit this engine warning. No package-wide update was performed to resolve it.
 - **Baseline install cleanup warning:** npm 10 reported an optional-dependency directory `EPERM` cleanup warning on Windows; installation still exited successfully.
-- **Candidate npm warning:** npm 11.19.0 reported install scripts not yet covered by `allowScripts` for `@prisma/engines`, `prisma`, `sharp`, and `unrs-resolver`. The clean install, explicit Prisma generation/validation, native Sharp operation, lint execution and production build all ran, but the warning remains recorded for container review. No install-script trust policy was silently changed.
+- **Candidate npm warning:** npm 11.19.0 reported install scripts not yet covered by `allowScripts` for `@prisma/engines`, `prisma`, `sharp`, and `unrs-resolver` on Windows and in the Linux build. Installation, Prisma generation, native Sharp, and builds passed; no install-script trust policy was silently changed.
 - **Existing Vitest warning:** `test.poolOptions` was removed in Vitest 4. The checks bounded workers with `--maxWorkers=4` and left existing configuration unchanged.
 - **Existing Next.js warning:** `middleware` is deprecated in favor of `proxy`. The rename is not part of M1.1 and was not performed.
 - **Temporary environment warning:** Next.js inferred the parent user directory as workspace/tracing root because of another lockfile. Both before/after builds share this warning; no user lockfile was removed or edited.
-- **Security-audit boundary:** This is a compatibility/regression report, not a dependency vulnerability audit. Installs used `--no-audit`, and no `npm audit fix` was run.
+- **Dependency vulnerability warning:** The unmodified Dockerfile's `npm ci` reported **26 vulnerabilities: 1 low, 10 moderate, 14 high, and 1 critical**. Prior Windows installs used `--no-audit`, so this report cannot attribute these advisories to the runtime change or claim a before/after security comparison. This aggregate includes the build dependency tree and does not by itself establish production exploitability. Separate advisory-level triage is required before a production release. No `npm audit fix` or dependency-wide update was performed.
+- **GitHub Actions warnings:** `actions/checkout@v4` and `actions/upload-artifact@v4` declare deprecated Node 20 action runtimes; GitHub reported forcing them to Node 24. Artifact-upload tooling also emitted `DEP0040` (`punycode`) and `DEP0169` (`url.parse()`) deprecation warnings. Both actions succeeded. These tooling warnings are distinct from the application container's directly verified Node 24.21.0 runtime and are not application startup failures.
+- **Runner notice:** GitHub announced an upcoming `ubuntu-latest` transition to Ubuntu 26 beginning October 19, 2026. The runner/Docker metadata for this completed run is retained with its artifacts.
+- **Startup probe:** One initial readiness fetch failed before the server was ready; bounded retry succeeded and all subsequent smoke requests passed.
 
-No new runtime regression was observed within the completed checks. This is bounded evidence, not a guarantee for untested database/provider/authenticated workflows or Linux containers.
+No new runtime regression was observed within the completed Windows and Linux/Alpine candidate checks. This is bounded evidence, not a guarantee for untested database/provider/authenticated workflows, other architectures, or a production release's security posture.
 
 ## 8. Owner's mechanical-layout requirement
 
@@ -234,4 +275,12 @@ C:\Users\dguil\AppData\Local\Temp\msf-m11-5764f1dffda54a989c578145e6484e31\evide
 
 Files include baseline/candidate installation, Prisma, typecheck, lint, production-build, test-result and standalone-smoke logs/JSON. The sibling `smoke.cjs` is the isolated verification harness, not an application file. Portable Node installations and generated build/dependency artifacts remain in the same temporary workspace for follow-up verification; they may be removed by normal temporary-file cleanup. This report includes the substantive results needed for review without those local artifacts.
 
-**Conclusion:** retain the narrowly scoped Node 24 candidate changes for review, complete the missing Linux/Alpine container gate, then ask the Owner whether to authorize M1.2. Track the unchanged test/lint failures separately. Do not treat this as a fully green baseline or authorization to implement the Executive Office database, authentication, layouts, or application.
+Downloaded GitHub container evidence, including the full job log, is also available locally at:
+
+```text
+C:\Users\dguil\AppData\Local\Temp\msf-m11-ci-24e22c7e6d814c40a077aeb000455178
+```
+
+The tested code/workflow commit is `43dbd932e6edaf888adc7a543157861cc809c35e`. A subsequent documentation-only commit on the same branch records these completed results; it does not change the tested runtime, Dockerfile, dependencies, or workflow.
+
+**Conclusion:** the requested M1.1 runtime and container checks are complete and ready for Owner review. Keep the unchanged test/lint failures and newly surfaced dependency-audit warning visible. Nothing has been merged or deployed, and no permanent local container engine was installed. Stop here: M1.2 and all Executive Office database, authentication, layout, and application implementation remain unauthorized until the Owner reviews these results and explicitly approves the next story.
