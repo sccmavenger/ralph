@@ -1,0 +1,172 @@
+name: M1.1 Container Runtime Validation
+
+# Deliberately branch-only: no default-branch merge or deployment is required.
+on:
+  push:
+    branches: [m1.1-runtime-validation]
+    paths:
+      - .github/workflows/m1-1-container-validation.yml
+      - msf-companion/**
+      - '!msf-companion/docs/**'
+      - '!msf-companion/AGENTS.md'
+      - '!msf-companion/progress.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m1-1-container-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  container-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the M1.1 candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Record verification environment
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/commit.txt
+          uname -a | tee evidence/runner.txt
+          docker version | tee evidence/docker-version.txt
+          cp msf-companion/.node-version evidence/expected-node-version.txt
+
+      - name: Build the current Dockerfile
+        id: build
+        run: |
+          set -o pipefail
+          docker build --pull --progress=plain \
+            --tag msf-m11-check:${GITHUB_SHA} \
+            --file msf-companion/Dockerfile msf-companion \
+            2>&1 | tee evidence/build.log
+          docker image inspect msf-m11-check:${GITHUB_SHA} \
+            --format '{{json .Id}} {{json .Config.User}} {{json .Os}} {{json .Architecture}}' \
+            | tee evidence/image.txt
+
+      - name: Start the isolated container
+        id: start
+        run: |
+          # No network, published port, repository secrets, or production services.
+          # Smoke requests execute inside this container against its own loopback.
+          docker run --detach --name msf-m11-check --network none \
+            --env SESSION_SECRET=m11-ci-player-session-dummy-not-a-real-secret \
+            --env ADMIN_SESSION_SECRET=m11-ci-admin-session-dummy-not-a-real-secret \
+            --env DATABASE_URL='postgresql://m11:m11@127.0.0.1:1/m11?connect_timeout=1' \
+            msf-m11-check:${GITHUB_SHA} | tee evidence/container-id.txt
+
+      - name: Wait for application readiness
+        id: readiness
+        timeout-minutes: 3
+        run: |
+          for attempt in $(seq 1 30); do
+            if [ "$(docker inspect --format '{{.State.Running}}' msf-m11-check)" != true ]; then
+              echo "Container exited before readiness" >&2
+              exit 1
+            fi
+            if docker exec msf-m11-check node -e '
+              fetch("http://127.0.0.1:3000/api/auth/session", {signal: AbortSignal.timeout(3000)})
+                .then(async response => {
+                  const body = await response.json();
+                  if (response.status !== 200 || body.authenticated !== false) throw new Error("Unexpected readiness response");
+                  console.log(JSON.stringify({status: response.status, body}));
+                }).catch(error => { console.error(error.message); process.exitCode = 1; });
+            ' > evidence/readiness.json 2>> evidence/readiness-errors.log; then
+              cat evidence/readiness.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Application did not become ready within the bounded retry window" >&2
+          exit 1
+
+      - name: Verify runtime and public smoke responses
+        id: smoke
+        run: |
+          set -o pipefail
+          expected_node=$(tr -d '\r\n' < msf-companion/.node-version)
+          docker exec -i --env EXPECTED_NODE_VERSION="$expected_node" msf-m11-check node <<'NODE' | tee evidence/smoke.json
+          const assert = require('node:assert/strict');
+          const results = [];
+          async function main() {
+            assert.equal(process.version, 'v' + process.env.EXPECTED_NODE_VERSION);
+            assert.equal(process.platform, 'linux');
+            assert.equal(process.getuid(), 1001);
+            results.push({check: 'runtime', node: process.version, platform: process.platform, arch: process.arch, uid: process.getuid()});
+
+            const sharp = require('sharp');
+            const png = await sharp({create: {width: 1, height: 1, channels: 4, background: 'red'}}).png().toBuffer();
+            assert.ok(png.length > 0);
+            results.push({check: 'native-sharp', version: sharp.versions.sharp, pngBytes: png.length});
+
+            const checks = [
+              ['/', 200], ['/faq', 200], ['/privacy', 200], ['/terms', 200], ['/admin', 200],
+              ['/api/auth/session', 200], ['/api/msf/inventory', 401], ['/api/admin/usage-stats', 401],
+              ['/subscribe', 307, '/'], ['/admin/dashboard', 307, '/admin'],
+              ['/dashboard', 307, '/api/auth/refresh?redirect=/dashboard'],
+              ['/inventory', 307, '/api/auth/refresh?redirect=/dashboard'],
+              ['/roster', 307, '/api/auth/refresh?redirect=/dashboard'],
+              ['/planner', 307, '/api/auth/refresh?redirect=/dashboard'],
+            ];
+            for (const [path, status, location] of checks) {
+              const response = await fetch('http://127.0.0.1:3000' + path, {redirect: 'manual', signal: AbortSignal.timeout(10000)});
+              assert.equal(response.status, status, path);
+              if (location) assert.equal(response.headers.get('location'), location, path);
+              if (path === '/api/auth/session') {
+                assert.deepEqual(await response.json(), {authenticated: false});
+              } else if (status === 200) {
+                assert.match(response.headers.get('content-type') || '', /text\/html/, path);
+                assert.match(await response.text(), /<html/, path);
+              } else {
+                await response.arrayBuffer();
+              }
+              results.push({check: path, status, ...(location ? {location} : {})});
+            }
+          }
+          main().then(() => console.log(JSON.stringify({passed: true, results}, null, 2)))
+            .catch(error => { console.error(error); console.log(JSON.stringify({passed: false, results}, null, 2)); process.exitCode = 1; });
+          NODE
+          test "$(docker inspect --format '{{.State.Running}}' msf-m11-check)" = true
+
+      - name: Capture container diagnostics
+        if: always()
+        run: |
+          mkdir -p evidence
+          if docker container inspect msf-m11-check >/dev/null 2>&1; then
+            docker logs --timestamps msf-m11-check > evidence/container.log 2>&1
+            docker inspect --format '{{json .State}}' msf-m11-check > evidence/container-state.json
+            docker exec msf-m11-check npm --version > evidence/container-npm-version.txt 2>&1 || true
+          fi
+
+      - name: Publish verification summary
+        if: always()
+        env:
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          START_RESULT: ${{ steps.start.outcome }}
+          READINESS_RESULT: ${{ steps.readiness.outcome }}
+          SMOKE_RESULT: ${{ steps.smoke.outcome }}
+        run: |
+          printf '## M1.1 container validation\n\nCommit: `%s`\n\nBuild: %s\n\nStart: %s\n\nReadiness: %s\n\nSmoke: %s\n\nNo deployment, image publication, database migration, or live-service credentials.\n' \
+            "$GITHUB_SHA" "$BUILD_RESULT" "$START_RESULT" "$READINESS_RESULT" "$SMOKE_RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build and container evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m1-1-container-evidence-${{ github.sha }}
+          path: evidence/
+          retention-days: 14
+
+      - name: Remove the test container
+        if: always()
+        run: |
+          if docker container inspect msf-m11-check >/dev/null 2>&1; then
+            docker rm --force msf-m11-check
+          fi
