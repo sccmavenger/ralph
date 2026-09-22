@@ -578,4 +578,3 @@ Production secret/configuration changes would require a later, explicit release 
 Each story will remain independently reviewable. The completion report will list files, migrations, tests, configuration, remaining risks, and the next milestone.
 
 **The main choices for your review are passkey-based Owner authentication, the analytics-isolating layout split, and the Node 24 LTS prerequisite. I will not start M1 implementation until you explicitly approve this detailed plan.**
-

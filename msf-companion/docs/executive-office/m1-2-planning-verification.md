@@ -42,14 +42,14 @@ was invoked for this issue.
 |---|---|---|
 | `gh issue view 3 --repo sccmavenger/ralph --json ...` | Passed: planning-only scope and stop gate read | [Issue #3](https://github.com/sccmavenger/ralph/issues/3) |
 | `gh pr view 1` / `gh pr view 2`; `git fetch origin`; `git log origin/main` | Both prior PRs MERGED; new branch based on updated main | Base commit above |
-| `git diff --check` and final base-to-branch whitespace check | Passed | Documentation changes only |
+| `git diff --check` and final base-to-branch whitespace check | Final checks passed; an extra source-snapshot EOF blank line was detected and removed | Documentation changes only |
 | `git diff origin/main --name-only` plus untracked-file inspection | Exactly the four documented files | This PR Files Changed |
 | `git diff origin/main -- msf-companion/prisma msf-companion/src msf-companion/package.json msf-companion/package-lock.json .github/workflows` | Empty | No implementation/config/workflow mutation |
 | PowerShell Markdown structure assertions | 15 numbered sections, 11 model sections, 20 FK rows, 15 DB-test case groups | Detailed plan |
 | PowerShell original-source/snapshot body comparison | Exact equality after CRLF/LF normalization and terminal whitespace normalization | Approved M1 source snapshot |
 | `Get-FileHash` on approved M1 source | SHA-256 matches recorded provenance | `01452306db7da7c77407c0b579717993e7d310deae157cd8c976b1dd8f916af5` |
 | `rg -n TowerResult msf-companion/prisma` and source counts | Schema references only; 23 models, 24 migration files, 22 CREATE TABLE statements | Baseline finding, not executed migration replay |
-| Local Markdown relative-link existence check | Passed for the three planning documents | Local Markdown references resolve |
+| Local Markdown relative-link existence check | Passed: 6 local Markdown links across the three planning documents | Local Markdown references resolve |
 | Two independent read-only design reviews | Initial reviews completed; final migration review completed; schema follow-up findings incorporated and checked by author | Schema/integrity and migration/test-safety reviews |
 
 The schema file's local SHA-256 during planning was
@@ -151,6 +151,7 @@ as requested. No merge has been performed, and no implementation permission is
 inferred from technical readiness or a future docs merge.
 
 Owner decision D1: accept the exact plan/refinements or request revisions; then
-separately authorize M1.2 implementation if desired. The required decision comment
-and its resolution status are recorded in the [PR coordination record](https://github.com/sccmavenger/ralph/pull/4).
+separately authorize M1.2 implementation if desired. The required [Owner decision
+comment](https://github.com/sccmavenger/ralph/pull/4#issuecomment-5786354919) records
+the options, recommendation, tradeoffs and pending resolution status.
 Stop here. Do not implement M1.2, begin M1.3, merge or deploy automatically.
