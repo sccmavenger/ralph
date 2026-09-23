@@ -384,3 +384,236 @@ model CommanderWallet {
   updatedAt   DateTime  @updatedAt
   commander   Commander @relation(fields: [commanderId], references: [id], onDelete: Cascade)
 }
+
+// Executive Office foundation: additive, inert, and separate from customer auth.
+// Custom CHECKs, history/identity guards and deferred pointer agreement are
+// maintained in the two 20260922 executive migrations, not expressible here.
+model ExecutiveOffice {
+  id                        String                      @id @default(cuid())
+  createdAt                 DateTime                    @default(now()) @db.Timestamptz(3)
+  key                       String                      @unique(map: "ExecOffice_key_uq")
+  name                      String
+  phase                     String                      @default("FOUNDATION")
+  executionMode             String                      @default("DISABLED")
+  bootstrapVersion          Int
+  bootstrapHash             String
+  activeCharterAcceptanceId String?
+  updatedAt                 DateTime                    @updatedAt @db.Timestamptz(3)
+  owner                     ExecutiveOwner?             @relation("ExecOwnerOffice")
+  agents                    ExecutiveAgent[]            @relation("ExecAgentOffice")
+  charters                  ExecutiveCharter[]          @relation("ExecCharterOffice")
+  charterAcceptances        ExecutiveCharterAcceptance[] @relation("ExecAcceptanceOffice")
+  activeCharterAcceptance   ExecutiveCharterAcceptance?  @relation("ExecOfficeActiveAcceptance", fields: [id, activeCharterAcceptanceId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecOfficeActiveAcceptance_fk")
+  activityEvents            ExecutiveActivityEvent[]    @relation("ExecEventOffice")
+}
+
+model ExecutiveOwner {
+  id                 String                       @id @default(cuid())
+  createdAt          DateTime                     @default(now()) @db.Timestamptz(3)
+  officeId           String                       @unique(map: "ExecOwner_office_uq")
+  displayName        String
+  contactEmail       String?
+  status             String                       @default("PENDING_ENROLLMENT")
+  webauthnUserId     String                       @unique(map: "ExecOwner_handle_uq")
+  authVersion        Int                          @default(1)
+  updatedAt          DateTime                     @updatedAt @db.Timestamptz(3)
+  office             ExecutiveOffice              @relation("ExecOwnerOffice", fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecOwnerOffice_fk")
+  credentials        ExecutiveOwnerCredential[]   @relation("ExecCredentialOwner")
+  enrollments        ExecutiveOwnerEnrollment[]   @relation("ExecEnrollmentOwner")
+  challenges         ExecutiveOwnerChallenge[]    @relation("ExecChallengeOwner")
+  sessions           ExecutiveOwnerSession[]      @relation("ExecSessionOwner")
+  agents             ExecutiveAgent[]             @relation("ExecAgentOwner")
+  importedCharters   ExecutiveCharter[]           @relation("ExecCharterImporter")
+  charterAcceptances ExecutiveCharterAcceptance[] @relation("ExecAcceptanceOwner")
+  activityEvents     ExecutiveActivityEvent[]     @relation("ExecEventOwner")
+
+  @@unique([officeId, id], map: "ExecOwner_scope_id_uq")
+}
+
+model ExecutiveOwnerCredential {
+  id                 String                       @id @default(cuid())
+  createdAt          DateTime                     @default(now()) @db.Timestamptz(3)
+  ownerId            String
+  credentialId       String                       @unique(map: "ExecCredential_external_uq")
+  publicKey          Bytes
+  counter            BigInt
+  rpId               String
+  label              String
+  transports         Json
+  deviceType         String
+  backedUp           Boolean
+  lastUsedAt         DateTime?                    @db.Timestamptz(3)
+  revokedAt          DateTime?                    @db.Timestamptz(3)
+  owner              ExecutiveOwner               @relation("ExecCredentialOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecCredentialOwner_fk")
+  sessions           ExecutiveOwnerSession[]      @relation("ExecSessionCredential")
+  charterAcceptances ExecutiveCharterAcceptance[] @relation("ExecAcceptanceCredential")
+
+  @@unique([ownerId, id], map: "ExecCredential_owner_id_uq")
+  @@index([ownerId, revokedAt], map: "ExecCredential_owner_revoked_idx")
+}
+
+model ExecutiveOwnerEnrollment {
+  id             String                    @id @default(cuid())
+  createdAt      DateTime                  @default(now()) @db.Timestamptz(3)
+  ownerId        String
+  purpose        String
+  tokenHash      String                    @unique(map: "ExecEnrollment_token_uq")
+  expiresAt      DateTime                  @db.Timestamptz(3)
+  consumedAt     DateTime?                 @db.Timestamptz(3)
+  revokedAt      DateTime?                 @db.Timestamptz(3)
+  operatorReason String
+  owner          ExecutiveOwner            @relation("ExecEnrollmentOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecEnrollmentOwner_fk")
+  challenges     ExecutiveOwnerChallenge[] @relation("ExecChallengeEnrollment")
+
+  @@unique([ownerId, id], map: "ExecEnrollment_owner_id_uq")
+  @@index([ownerId, purpose, createdAt], map: "ExecEnrollment_owner_purpose_idx")
+  @@index([expiresAt], map: "ExecEnrollment_expiry_idx")
+}
+
+model ExecutiveOwnerChallenge {
+  id                 String                    @id @default(cuid())
+  createdAt          DateTime                  @default(now()) @db.Timestamptz(3)
+  ownerId            String
+  purpose            String
+  challenge          String                    @unique(map: "ExecChallenge_value_uq")
+  browserBindingHash String
+  enrollmentId       String?
+  sessionId          String?
+  authVersion        Int
+  expiresAt          DateTime                  @db.Timestamptz(3)
+  consumedAt         DateTime?                 @db.Timestamptz(3)
+  owner              ExecutiveOwner            @relation("ExecChallengeOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecChallengeOwner_fk")
+  enrollment         ExecutiveOwnerEnrollment? @relation("ExecChallengeEnrollment", fields: [ownerId, enrollmentId], references: [ownerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecChallengeEnrollment_fk")
+  session            ExecutiveOwnerSession?    @relation("ExecChallengeSession", fields: [ownerId, sessionId], references: [ownerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecChallengeSession_fk")
+
+  @@index([ownerId, expiresAt], map: "ExecChallenge_owner_expiry_idx")
+  @@index([ownerId, enrollmentId], map: "ExecChallenge_enrollment_idx")
+  @@index([ownerId, sessionId], map: "ExecChallenge_session_idx")
+  @@index([expiresAt], map: "ExecChallenge_expiry_idx")
+}
+
+model ExecutiveOwnerSession {
+  id                String                    @id @default(cuid())
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  ownerId           String
+  credentialId      String
+  tokenHash         String                    @unique(map: "ExecSession_token_uq")
+  authVersion       Int
+  verifiedAt        DateTime                  @db.Timestamptz(3)
+  lastSeenAt        DateTime                  @db.Timestamptz(3)
+  idleExpiresAt     DateTime                  @db.Timestamptz(3)
+  absoluteExpiresAt DateTime                  @db.Timestamptz(3)
+  revokedAt         DateTime?                 @db.Timestamptz(3)
+  owner             ExecutiveOwner            @relation("ExecSessionOwner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecSessionOwner_fk")
+  credential        ExecutiveOwnerCredential  @relation("ExecSessionCredential", fields: [ownerId, credentialId], references: [ownerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecSessionCredential_fk")
+  challenges        ExecutiveOwnerChallenge[] @relation("ExecChallengeSession")
+
+  @@unique([ownerId, id], map: "ExecSession_owner_id_uq")
+  @@index([ownerId, credentialId], map: "ExecSession_credential_idx")
+  @@index([ownerId, revokedAt], map: "ExecSession_owner_revoked_idx")
+  @@index([absoluteExpiresAt], map: "ExecSession_absolute_idx")
+  @@index([idleExpiresAt], map: "ExecSession_idle_idx")
+}
+
+model ExecutiveAuthRateLimit {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  bucketKeyHash   String    @unique(map: "ExecRateLimit_bucket_uq")
+  attemptCount    Int       @default(0)
+  windowStartedAt DateTime  @db.Timestamptz(3)
+  blockedUntil    DateTime? @db.Timestamptz(3)
+  expiresAt       DateTime  @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([expiresAt], map: "ExecRateLimit_expiry_idx")
+}
+
+model ExecutiveAgent {
+  id                           String                      @id @default(cuid())
+  createdAt                    DateTime                    @default(now()) @db.Timestamptz(3)
+  officeId                     String
+  roleKey                      String
+  displayName                  String
+  reportsToOwnerId             String
+  status                       String                      @default("ONBOARDING")
+  roleDefinitionVersion        Int
+  roleDefinition               Json
+  governingCharterAcceptanceId String?
+  updatedAt                    DateTime                    @updatedAt @db.Timestamptz(3)
+  office                       ExecutiveOffice             @relation("ExecAgentOffice", fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAgentOffice_fk")
+  reportsToOwner               ExecutiveOwner              @relation("ExecAgentOwner", fields: [officeId, reportsToOwnerId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAgentOwner_fk")
+  governingCharterAcceptance   ExecutiveCharterAcceptance? @relation("ExecAgentAcceptance", fields: [officeId, governingCharterAcceptanceId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAgentAcceptance_fk")
+
+  @@unique([officeId, roleKey], map: "ExecAgent_office_role_uq")
+  @@index([officeId, reportsToOwnerId], map: "ExecAgent_owner_idx")
+  @@index([officeId, governingCharterAcceptanceId], map: "ExecAgent_acceptance_idx")
+}
+
+model ExecutiveCharter {
+  id                String                       @id @default(cuid())
+  createdAt         DateTime                     @default(now()) @db.Timestamptz(3)
+  officeId          String
+  version           Int
+  title             String
+  contentMarkdown   String
+  contentHash       String
+  sourceFileName    String
+  sourceFileHash    String
+  importedByOwnerId String?
+  office            ExecutiveOffice              @relation("ExecCharterOffice", fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecCharterOffice_fk")
+  importedByOwner   ExecutiveOwner?              @relation("ExecCharterImporter", fields: [officeId, importedByOwnerId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecCharterImporter_fk")
+  acceptances       ExecutiveCharterAcceptance[] @relation("ExecAcceptanceCharter")
+
+  @@unique([officeId, version], map: "ExecCharter_version_uq")
+  @@unique([officeId, id, contentHash], map: "ExecCharter_scope_hash_uq")
+  @@index([officeId, importedByOwnerId], map: "ExecCharter_importer_idx")
+}
+
+model ExecutiveCharterAcceptance {
+  id                String                   @id @default(cuid())
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+  officeId          String
+  charterId         String
+  ownerId           String
+  ownerCredentialId String
+  ownerSessionRef   String
+  contentHash       String
+  verifiedAt        DateTime                 @db.Timestamptz(3)
+  acceptedAt        DateTime                 @db.Timestamptz(3)
+  requestKey        String                   @unique(map: "ExecAcceptance_request_uq")
+  office            ExecutiveOffice          @relation("ExecAcceptanceOffice", fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAcceptanceOffice_fk")
+  owner             ExecutiveOwner           @relation("ExecAcceptanceOwner", fields: [officeId, ownerId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAcceptanceOwner_fk")
+  ownerCredential   ExecutiveOwnerCredential @relation("ExecAcceptanceCredential", fields: [ownerId, ownerCredentialId], references: [ownerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecAcceptanceCredential_fk")
+  charter           ExecutiveCharter         @relation("ExecAcceptanceCharter", fields: [officeId, charterId, contentHash], references: [officeId, id, contentHash], onDelete: Restrict, onUpdate: Restrict, map: "ExecAcceptanceCharter_fk")
+  activeForOffices   ExecutiveOffice[]        @relation("ExecOfficeActiveAcceptance")
+  governingAgents   ExecutiveAgent[]         @relation("ExecAgentAcceptance")
+
+  @@unique([officeId, id], map: "ExecAcceptance_scope_id_uq")
+  @@index([officeId, acceptedAt, id], map: "ExecAcceptance_time_idx")
+  @@index([officeId, charterId, contentHash], map: "ExecAcceptance_charter_idx")
+  @@index([officeId, ownerId], map: "ExecAcceptance_owner_idx")
+  @@index([ownerId, ownerCredentialId], map: "ExecAcceptance_credential_idx")
+}
+
+model ExecutiveActivityEvent {
+  id           String          @id @default(cuid())
+  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
+  officeId     String
+  sequence     BigInt          @unique(map: "ExecEvent_sequence_uq") @default(autoincrement())
+  eventType    String
+  actorType    String
+  actorOwnerId String?
+  subjectType  String
+  subjectId    String?
+  requestId    String
+  outcome      String
+  metadata     Json
+  occurredAt   DateTime        @default(now()) @db.Timestamptz(3)
+  office       ExecutiveOffice @relation("ExecEventOffice", fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "ExecEventOffice_fk")
+  actorOwner   ExecutiveOwner? @relation("ExecEventOwner", fields: [officeId, actorOwnerId], references: [officeId, id], onDelete: Restrict, onUpdate: Restrict, map: "ExecEventOwner_fk")
+
+  @@index([officeId, sequence], map: "ExecEvent_feed_idx")
+  @@index([officeId, eventType, sequence], map: "ExecEvent_type_idx")
+  @@index([officeId, actorOwnerId, sequence], map: "ExecEvent_actor_idx")
+  @@index([officeId, requestId], map: "ExecEvent_request_idx")
+}
