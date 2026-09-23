@@ -180,7 +180,7 @@ jobs:
           const tests=r=>r.testResults.flatMap(f=>f.assertionResults.map(a=>[a.fullName,a.status])).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
           const baseline=read('baseline-web-tests'),candidate=read('candidate-web-tests');
           assert.deepEqual(tests(candidate),tests(baseline),'web test names/status changed');
-          const lint=(report,root)=>report.flatMap(f=>f.messages.map(m=>({file:f.filePath.replace(root,'').replaceAll('\\','/'),rule:m.ruleId,severity:m.severity,line:m.line,column:m.column,message:m.message}))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          const lint=(report,root)=>report.flatMap(f=>f.messages.map(m=>({file:f.filePath.replace(root,'').replaceAll('\\','/'),rule:m.ruleId,severity:m.severity,line:m.line,column:m.column,message:m.message.replaceAll(root,'')}))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
           const beforeLint=read('baseline-lint'),afterLint=read('candidate-lint');
           assert.deepEqual(lint(afterLint,`${process.env.GITHUB_WORKSPACE}/msf-companion`),lint(beforeLint,`${process.env.RUNNER_TEMP}/m12-baseline/msf-companion`),'lint baseline changed');
           assert.deepEqual(read('candidate-exit-codes'),read('baseline-exit-codes'));
