@@ -19,11 +19,23 @@ remediation, TowerResult reconciliation, merge or deployment is authorized.
 
 ## Current checkpoint
 
-The implementation branch starts from current main after PR #4. Schema and test
-harness work are in progress. No implementation checks are claimed as passing yet.
-The final report will record exact changed files, runtime versions, actual commands,
-results, migration/catalog/invariant evidence, regression comparison, container
-smoke, review findings and Owner gate.
+The eleven models, both migrations, guarded harness, invariant/concurrency tests,
+and hosted workflow are written. Migration replay/failure/catalog/old-client tests
+are still being completed. This checkpoint is not completion evidence.
+
+Local secret-free source-copy checks using portable Node 24.21.0 / Prisma 7.6.0:
+
+- `prisma validate --config prisma.executive-test.config.ts`: passed.
+- `prisma generate --config prisma.executive-test.config.ts`: passed (ignored temp output).
+- Dedicated `test-database.unit.test.ts`: 52/52 passed.
+- `tsc --noEmit --incremental false`: passed.
+- Targeted ESLint on new tests/configuration: passed.
+
+The first typecheck exposed the pre-existing excluded web config's `poolOptions`
+type error through a new static test import. Changed only the new test to load
+that config at runtime; rerun passed. No legacy config cleanup or dependency change.
+No local database connection was attempted. PostgreSQL and container evidence is
+pending the hosted validation; the PR remains Draft.
 
 ## Known baseline concerns
 

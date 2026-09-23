@@ -1,0 +1,257 @@
+name: M1.2 Foundation Schema Validation
+
+on:
+  push:
+    branches: [executive/m1.2-foundation-schema]
+    paths:
+      - .github/workflows/m1-2-foundation-validation.yml
+      - msf-companion/prisma/**
+      - msf-companion/tests/executive/**
+      - msf-companion/prisma.executive-test.config.ts
+      - msf-companion/vitest*.config.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m1-2-foundation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      DATABASE_URL: postgresql://inert:inert@127.0.0.1:1/inert
+      SESSION_SECRET: m12-ci-session-dummy-not-a-production-secret
+      ADMIN_SESSION_SECRET: m12-ci-admin-dummy-not-a-production-secret
+      BASELINE_COMMIT: 583b64ffd17d927ea5fa1b925c9d7b91dae9ce62
+      POSTGRES_IMAGE: postgres:16-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: msf-companion/.node-version
+
+      - name: Record environment and verify additive scope
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/commit.txt
+          node --version > evidence/node.txt
+          npm --version > evidence/npm.txt
+          uname -a > evidence/runner.txt
+          docker version > evidence/docker.txt
+          git diff "$BASELINE_COMMIT" --name-only > evidence/changed-files.txt
+          git diff "$BASELINE_COMMIT" --exit-code -- msf-companion/src msf-companion/package.json msf-companion/package-lock.json msf-companion/Dockerfile msf-companion/infra
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync, readdirSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const path='msf-companion/prisma/schema.prisma';
+          const old=execFileSync('git',['show',`${process.env.BASELINE_COMMIT}:${path}`],{encoding:'utf8'});
+          const current=readFileSync(path,'utf8');
+          const normalize=s=>s.replace(/\r\n/g,'\n');
+          assert.ok(normalize(current).startsWith(normalize(old).trimEnd()),'existing schema must remain intact');
+          const oldFiles=execFileSync('git',['ls-tree','-r','--name-only',process.env.BASELINE_COMMIT,'msf-companion/prisma/migrations'],{encoding:'utf8'}).trim().split('\n');
+          for(const file of oldFiles) assert.equal(normalize(readFileSync(file,'utf8')),normalize(execFileSync('git',['show',`${process.env.BASELINE_COMMIT}:${file}`],{encoding:'utf8'})),file);
+          assert.equal(readdirSync('msf-companion/prisma/migrations').filter(x=>/^\d/.test(x)).length,26);
+          NODE
+
+      - name: Clean candidate installation
+        working-directory: msf-companion
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee ../evidence/install-candidate.log
+
+      - name: Create only the task-owned disposable PostgreSQL instance
+        id: database
+        run: |
+          db_name="msf_exec_m12_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          admin_password=$(openssl rand -hex 24)
+          migrator_password=$(openssl rand -hex 24)
+          app_password=$(openssl rand -hex 24)
+          echo "::add-mask::$admin_password"
+          echo "::add-mask::$migrator_password"
+          echo "::add-mask::$app_password"
+          docker pull "$POSTGRES_IMAGE"
+          docker run --detach --name msf-m12-postgres --label "msf.m12.run=$GITHUB_RUN_ID" \
+            --publish 127.0.0.1:55432:5432 --env POSTGRES_PASSWORD="$admin_password" \
+            "$POSTGRES_IMAGE"
+          ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec msf-m12-postgres pg_isready -U postgres; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec -i msf-m12-postgres psql -U postgres -v ON_ERROR_STOP=1 <<SQL
+          CREATE ROLE exec_test_migrator LOGIN NOSUPERUSER CREATEDB PASSWORD '$migrator_password';
+          CREATE ROLE exec_test_app LOGIN NOSUPERUSER NOCREATEDB PASSWORD '$app_password';
+          CREATE DATABASE "$db_name" OWNER exec_test_migrator;
+          SQL
+          echo "EXECUTIVE_TEST_DATABASE_URL=postgresql://exec_test_app:$app_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_MIGRATION_DATABASE_URL=postgresql://exec_test_migrator:$migrator_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_DATABASE_CONFIRM=$db_name" >> "$GITHUB_ENV"
+          docker exec msf-m12-postgres psql -U postgres -Atc 'SELECT version()' > evidence/postgres-version.txt
+          docker image inspect "$POSTGRES_IMAGE" --format '{{.Id}} {{json .RepoDigests}}' > evidence/postgres-image.txt
+
+      - name: Validate, generate, and deploy into disposable target only
+        id: prisma
+        working-directory: msf-companion
+        env:
+          NODE_ENV: test
+        run: |
+          set -o pipefail
+          node node_modules/prisma/build/index.js validate --config prisma.executive-test.config.ts 2>&1 | tee ../evidence/prisma-validate.log
+          node node_modules/prisma/build/index.js generate --config prisma.executive-test.config.ts 2>&1 | tee ../evidence/prisma-generate.log
+          node node_modules/prisma/build/index.js migrate deploy --config prisma.executive-test.config.ts 2>&1 | tee ../evidence/prisma-deploy.log
+          node node_modules/prisma/build/index.js migrate status --config prisma.executive-test.config.ts 2>&1 | tee ../evidence/prisma-status.log
+          # Broad DML is a disposable-test-only grant: test trigger enforcement,
+          # not merely a lack of privileges. DB-13 also tests an ordinary lane.
+          node --input-type=module <<'NODE'
+          import {connectTestDatabase,grantTestApplicationAccess} from './tests/executive/test-database.ts';
+          const db=await connectTestDatabase('migrator');
+          try { await grantTestApplicationAccess(db,{allowTruncate:true}); } finally { await db.end(); }
+          NODE
+
+      - name: Executive database invariants and migration rehearsals
+        id: invariants
+        working-directory: msf-companion
+        env:
+          NODE_ENV: test
+        run: |
+          set -o pipefail
+          node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts \
+            --reporter=default --reporter=json --outputFile=../evidence/executive-tests.json 2>&1 | tee ../evidence/executive-tests.log
+
+      - name: Targeted lint and typecheck
+        id: targeted
+        working-directory: msf-companion
+        run: |
+          set -o pipefail
+          node node_modules/eslint/bin/eslint.js tests/executive prisma.executive-test.config.ts vitest.executive.config.ts 2>&1 | tee ../evidence/targeted-lint.log
+          node node_modules/typescript/bin/tsc --noEmit --incremental false 2>&1 | tee ../evidence/candidate-typecheck.log
+
+      - name: Baseline and candidate regression comparison
+        id: regression
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/m12-baseline"
+          git archive "$BASELINE_COMMIT" msf-companion | tar -x -C "$RUNNER_TEMP/m12-baseline"
+          baseline="$RUNNER_TEMP/m12-baseline/msf-companion"
+          candidate="$GITHUB_WORKSPACE/msf-companion"
+          evidence="$GITHUB_WORKSPACE/evidence"
+          (cd "$baseline" && npm ci --no-audit --no-fund && node node_modules/prisma/build/index.js generate) 2>&1 | tee "$evidence/install-baseline.log"
+          (cd "$baseline" && node node_modules/typescript/bin/tsc --noEmit --incremental false && npm run build) 2>&1 | tee "$evidence/baseline-build.log"
+          for mode in baseline candidate; do
+            if [ "$mode" = baseline ]; then source_dir="$baseline"; else source_dir="$candidate"; fi
+            (
+              cd "$source_dir"
+              set +e
+              node node_modules/vitest/vitest.mjs run --exclude 'functions/**' --exclude 'src/lib/wallet.test.ts' --maxWorkers=4 --reporter=json --outputFile="$evidence/$mode-web-tests.json" > "$evidence/$mode-web-tests.log" 2>&1
+              tests_exit=$?
+              node node_modules/eslint/bin/eslint.js --format json --output-file "$evidence/$mode-lint.json" > "$evidence/$mode-lint.log" 2>&1
+              lint_exit=$?
+              printf '{"tests":%s,"lint":%s}\n' "$tests_exit" "$lint_exit" > "$evidence/$mode-exit-codes.json"
+              test "$tests_exit" -le 1 && test "$lint_exit" -le 1
+            )
+          done
+          node --input-type=module <<'NODE' | tee evidence/regression-comparison.json
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const read=n=>JSON.parse(fs.readFileSync(`evidence/${n}.json`,'utf8'));
+          const tests=r=>r.testResults.flatMap(f=>f.assertionResults.map(a=>[a.fullName,a.status])).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          const baseline=read('baseline-web-tests'),candidate=read('candidate-web-tests');
+          assert.deepEqual(tests(candidate),tests(baseline),'web test names/status changed');
+          const lint=(report,root)=>report.flatMap(f=>f.messages.map(m=>({file:f.filePath.replace(root,'').replaceAll('\\','/'),rule:m.ruleId,severity:m.severity,line:m.line,column:m.column,message:m.message}))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          const beforeLint=read('baseline-lint'),afterLint=read('candidate-lint');
+          assert.deepEqual(lint(afterLint,`${process.env.GITHUB_WORKSPACE}/msf-companion`),lint(beforeLint,`${process.env.RUNNER_TEMP}/m12-baseline/msf-companion`),'lint baseline changed');
+          assert.deepEqual(read('candidate-exit-codes'),read('baseline-exit-codes'));
+          const summary=r=>({passed:r.numPassedTests,failed:r.numFailedTests,total:r.numTotalTests});
+          console.log(JSON.stringify({passed:true,baseline:summary(baseline),candidate:summary(candidate),lintErrors:afterLint.reduce((n,f)=>n+f.errorCount,0),lintWarnings:afterLint.reduce((n,f)=>n+f.warningCount,0)},null,2));
+          NODE
+
+      - name: Build current application container
+        id: build
+        run: |
+          set -o pipefail
+          docker build --pull --progress=plain --tag "msf-m12-check:$GITHUB_SHA" --file msf-companion/Dockerfile msf-companion 2>&1 | tee evidence/container-build.log
+          docker image inspect "msf-m12-check:$GITHUB_SHA" --format '{{.Id}}' > evidence/application-image.txt
+
+      - name: Start network-isolated application and check readiness/smoke
+        id: smoke
+        run: |
+          set -o pipefail
+          docker run --detach --name msf-m12-app --label "msf.m12.run=$GITHUB_RUN_ID" --network none \
+            --env SESSION_SECRET=m12-ci-session-dummy-not-a-production-secret \
+            --env ADMIN_SESSION_SECRET=m12-ci-admin-dummy-not-a-production-secret \
+            --env DATABASE_URL=postgresql://inert:inert@127.0.0.1:1/inert \
+            "msf-m12-check:$GITHUB_SHA"
+          expected_node=$(tr -d '\r\n' < msf-companion/.node-version)
+          docker exec -i --env EXPECTED_NODE_VERSION="$expected_node" msf-m12-app node <<'NODE' | tee evidence/container-smoke.json
+          const assert=require('node:assert/strict');
+          async function run(){
+            assert.equal(process.version,'v'+process.env.EXPECTED_NODE_VERSION);
+            assert.equal(process.getuid(),1001);
+            const results=[];
+            let ready=false;
+            for(let i=0;i<30;i++){
+              try{const r=await fetch('http://127.0.0.1:3000/api/auth/session',{signal:AbortSignal.timeout(2000)});if(r.status===200&&(await r.json()).authenticated===false){ready=true;break;}}catch{}
+              await new Promise(r=>setTimeout(r,1000));
+            }
+            assert.ok(ready,'readiness timed out');
+            const checks=[['/',200],['/faq',200],['/privacy',200],['/terms',200],['/admin',200],['/api/auth/session',200],['/api/msf/inventory',401],['/api/admin/usage-stats',401],['/subscribe',307,'/'],['/admin/dashboard',307,'/admin'],...['dashboard','inventory','roster','planner'].map(p=>['/'+p,307,'/api/auth/refresh?redirect=/dashboard'])];
+            for(const [path,status,location] of checks){
+              const r=await fetch('http://127.0.0.1:3000'+path,{redirect:'manual',signal:AbortSignal.timeout(10000)});
+              assert.equal(r.status,status,path);
+              if(location)assert.equal(r.headers.get('location'),location,path);
+              if(path==='/api/auth/session')assert.deepEqual(await r.json(),{authenticated:false});
+              else if(status===200)assert.match(await r.text(),/<html/);
+              else await r.arrayBuffer();
+              results.push({path,status});
+            }
+            const sharp=require('sharp');const png=await sharp({create:{width:1,height:1,channels:4,background:'red'}}).png().toBuffer();assert.ok(png.length);
+            console.log(JSON.stringify({passed:true,node:process.version,uid:process.getuid(),readiness:true,checks:results,sharpBytes:png.length},null,2));
+          }
+          run().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+          test "$(docker inspect --format '{{.State.Running}}' msf-m12-app)" = true
+
+      - name: Capture diagnostics and summary
+        if: always()
+        env:
+          PRISMA_RESULT: ${{ steps.prisma.outcome }}
+          DB_RESULT: ${{ steps.invariants.outcome }}
+          TARGETED_RESULT: ${{ steps.targeted.outcome }}
+          REGRESSION_RESULT: ${{ steps.regression.outcome }}
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          SMOKE_RESULT: ${{ steps.smoke.outcome }}
+        run: |
+          mkdir -p evidence
+          for name in msf-m12-postgres msf-m12-app; do
+            if docker container inspect "$name" >/dev/null 2>&1; then
+              docker logs --timestamps "$name" > "evidence/$name.log" 2>&1
+              docker inspect "$name" --format '{{json .State}}' > "evidence/$name-state.json"
+            fi
+          done
+          printf '## M1.2 verification\n\nCommit: `%s`\n\nPrisma: %s\n\nDB tests: %s\n\nTargeted checks: %s\n\nBaseline comparison: %s\n\nContainer build: %s\n\nSmoke: %s\n\nDisposable databases only; no deployment or real bootstrap records.\n' "$GITHUB_SHA" "$PRISMA_RESULT" "$DB_RESULT" "$TARGETED_RESULT" "$REGRESSION_RESULT" "$BUILD_RESULT" "$SMOKE_RESULT" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: m1-2-evidence-${{ github.sha }}
+          path: evidence/
+          retention-days: 14
+      - name: Remove only this job's disposable containers
+        if: always()
+        run: |
+          for name in msf-m12-app msf-m12-postgres; do
+            if [ "$(docker inspect --format '{{index .Config.Labels "msf.m12.run"}}' "$name" 2>/dev/null || true)" = "$GITHUB_RUN_ID" ]; then
+              docker rm --force "$name"
+            fi
+          done
