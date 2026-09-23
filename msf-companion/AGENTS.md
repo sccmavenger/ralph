@@ -18,12 +18,32 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Future Executive DB tests must use an explicitly guarded disposable target,
   never the application Prisma singleton or implicit dotenv/DATABASE_URL. Exclude
   the dedicated DB suite from ordinary web test discovery before adding it.
+- Executive schema checks run through `prisma.executive-test.config.ts` and
+  `vitest.executive.config.ts`, requiring both named test roles, literal loopback
+  port 55432, `NODE_ENV=test`, and the exact run-specific database confirmation.
+  A name prefix is not isolation: the hosted job must own the container lifecycle.
+- Executive append-only fixtures use transaction rollback. Drain deferred
+  constraints before testing TRUNCATE so PostgreSQL's pending-trigger precheck
+  cannot mask the guard. RESTART IDENTITY also requires sequence ownership;
+  keep its owner-role test separate from non-owner broad-DML guard tests.
+- Prisma 7.6.0 single-row `executiveOffice.create` without an explicit ID omits
+  its cuid because ID also participates in the optional compound acceptance FK.
+  M1.2 client smoke verifies `createManyAndReturn` generates the ID while retaining
+  the exact schema. Later bootstrap must use the verified path or separately
+  validate an explicit-ID alternative; do not weaken the same-Office FK.
+- Both Executive migrations are required before later bootstrap is eligible.
+  If the second migration fails, empty tables alone do not establish readiness.
+  Verify successful migration records AND enabled SQL guards. M1.2's disposable
+  failure rehearsals are not permission to resolve or migrate any shared DB.
+- Migration rehearsal copies and baseline-generated clients live only in the
+  task's ignored artifact tree and move to CI evidence before application checks.
+  They must not become application typecheck/lint/build inputs or committed code.
 - The web package targets Node 24. The exact tested patch is in `.node-version`;
   keep the Docker base and knowledge-refresh workflow aligned with that file.
   Runtime compatibility evidence and open verification gates are recorded in
   `docs/executive-office/m1-1-runtime-compatibility.md`.
 - Executive Office work is authorized story-by-story. Do not automatically
-  advance from M1.1 to M1.2. Existing route-group/layout moves must be an isolated
+  advance to the next story. Existing route-group/layout moves must be an isolated
   mechanical change, with route and behavior checks before and after; never
   combine those moves with redesign or unrelated refactoring.
 - Run baseline compatibility checks in an isolated source copy without `.env`
