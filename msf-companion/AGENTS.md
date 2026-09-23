@@ -7,6 +7,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Runtime and regression-check boundaries
 
+- Issue #3 authorizes M1.2 planning only; the proposed schema contract is in
+  `docs/executive-office/m1-2-foundation-schema-plan.md`. Require a subsequent
+  explicit Owner authorization before creating schema/migrations or DB tests.
+- `TowerResult` exists in the Prisma schema without a committed creation migration
+  at the M1.2 planning baseline. Do not silently fold this historical discrepancy
+  into Executive migrations, reset a configured database, or assume replay matches
+  the full app schema. Compare existing drift separately from new changes.
+- Future Executive DB tests must use an explicitly guarded disposable target,
+  never the application Prisma singleton or implicit dotenv/DATABASE_URL. Exclude
+  the dedicated DB suite from ordinary web test discovery before adding it.
 - The web package targets Node 24. The exact tested patch is in `.node-version`;
   keep the Docker base and knowledge-refresh workflow aligned with that file.
   Runtime compatibility evidence and open verification gates are recorded in
