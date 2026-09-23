@@ -130,6 +130,17 @@ jobs:
           node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts \
             --reporter=default --reporter=json --outputFile=../evidence/executive-tests.json 2>&1 | tee ../evidence/executive-tests.log
 
+      - name: Preserve migration rehearsal artifacts outside application discovery
+        if: always()
+        run: |
+          # Only task-generated copies/clients live here; never move app sources.
+          source="$GITHUB_WORKSPACE/msf-companion/test-results/executive-migrations"
+          target="$GITHUB_WORKSPACE/evidence/migration-rehearsals"
+          if [ -d "$source" ]; then
+            test ! -e "$target"
+            mv -- "$source" "$target"
+          fi
+
       - name: Targeted lint and typecheck
         id: targeted
         working-directory: msf-companion

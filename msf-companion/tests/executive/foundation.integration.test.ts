@@ -54,7 +54,10 @@ describe("DB-01/02/06 inert foundation, typed client, uniqueness and row checks"
       expect(counts).toEqual(Array(11).fill(0));
       const rollback = new Error("synthetic Prisma rollback");
       await expect(prisma.$transaction(async (tx) => {
-        const office = await tx.executiveOffice.create({ data: {
+        // Prisma 7.6's single-row create omits the cuid when this ID also owns
+        // the optional composite acceptance FK. Bulk-return creation preserves
+        // generated IDs without changing the approved schema or DB constraints.
+        const [office] = await tx.executiveOffice.createManyAndReturn({ data: {
           key: "msf-toolkit", name: "Synthetic Prisma Office", bootstrapVersion: 1,
           bootstrapHash: sha256("prisma fixture"),
         } });
