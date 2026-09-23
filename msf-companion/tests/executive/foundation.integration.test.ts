@@ -70,6 +70,7 @@ describe("DB-01/02/06 inert foundation, typed client, uniqueness and row checks"
           deviceType: "singleDevice", backedUp: false,
         } });
         expect(office.phase).toBe("FOUNDATION");
+        for (const row of [office, owner, credential]) expect(row.id).toMatch(/^c[a-z0-9]{24}$/);
         expect(office.executionMode).toBe("DISABLED");
         expect(office.activeCharterAcceptanceId).toBeNull();
         expect(owner.status).toBe("PENDING_ENROLLMENT");

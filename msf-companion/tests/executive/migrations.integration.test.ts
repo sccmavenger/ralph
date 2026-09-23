@@ -228,7 +228,7 @@ async function assertExecutiveCatalog(client: Client, root: string) {
   const indexes = (await client.query(`SELECT t.relname AS table_name, i.relname AS name,
     x.indisunique AS unique, x.indisprimary AS primary, x.indisvalid AS valid,
     am.amname AS method, x.indpred IS NULL AS unfiltered, x.indexprs IS NULL AS unexpressed,
-    ARRAY(SELECT a.attname FROM unnest(x.indkey) WITH ORDINALITY k(num,pos)
+    ARRAY(SELECT a.attname::text FROM unnest(x.indkey) WITH ORDINALITY k(num,pos)
       JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=k.num ORDER BY k.pos) AS columns
     FROM pg_index x JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_am am ON am.oid=i.relam
