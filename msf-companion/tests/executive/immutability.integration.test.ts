@@ -7,7 +7,7 @@ import {
 const history = ["ExecutiveCharter", "ExecutiveCharterAcceptance", "ExecutiveActivityEvent"] as const;
 const identities = ["ExecutiveOffice", "ExecutiveOwner", "ExecutiveAgent", "ExecutiveOwnerCredential"] as const;
 
-describe("DB-07 append-only SQL guards (non-owner application role)", () => {
+describe("DB-07 append-only SQL guards", () => {
   for (const table of history) {
     for (const predicate of ["TRUE", "FALSE"]) {
       it(`${table} rejects UPDATE and DELETE, including zero rows (${predicate})`, async () => {
@@ -18,13 +18,24 @@ describe("DB-07 append-only SQL guards (non-owner application role)", () => {
         });
       });
     }
-    it(`${table} rejects TRUNCATE and cascading identity reset`, async () => {
+    it(`${table} rejects non-owner TRUNCATE CASCADE independently of pending triggers`, async () => {
       await withTestTransaction(async (db) => {
         await insertFoundation(db);
+        // Drain queued deferred pair checks so PostgreSQL's pending-trigger
+        // safety check does not mask the custom TRUNCATE guard.
+        await db.query("SET CONSTRAINTS ALL IMMEDIATE");
         // CASCADE includes FK dependents so a FK refusal cannot mask the trigger.
         await expectSqlFailure(db, `TRUNCATE "${table}" CASCADE`);
-        await expectSqlFailure(db, `TRUNCATE "${table}" RESTART IDENTITY CASCADE`);
       });
+    });
+    it(`${table} rejects RESTART IDENTITY even for the table/sequence owner`, async () => {
+      await withTestTransaction(async (db) => {
+        await insertFoundation(db);
+        await db.query("SET CONSTRAINTS ALL IMMEDIATE");
+        // PostgreSQL requires sequence ownership for RESTART IDENTITY before
+        // firing triggers; app-role DML/TRUNCATE tests above remain independent.
+        await expectSqlFailure(db, `TRUNCATE "${table}" RESTART IDENTITY CASCADE`);
+      }, "migrator");
     });
   }
 });
@@ -36,6 +47,7 @@ describe("DB-08 permanent identities and exhaustive immutable fields", () => {
         await insertFoundation(db);
         await expectSqlFailure(db, `DELETE FROM "${table}"`);
         await expectSqlFailure(db, `DELETE FROM "${table}" WHERE FALSE`);
+        await db.query("SET CONSTRAINTS ALL IMMEDIATE");
         await expectSqlFailure(db, `TRUNCATE "${table}" CASCADE`);
       });
     });

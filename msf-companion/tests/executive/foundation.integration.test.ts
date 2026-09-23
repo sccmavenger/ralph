@@ -187,7 +187,7 @@ describe("DB-01/02/06 inert foundation, typed client, uniqueness and row checks"
     invalid.push([table, field, "A".repeat(64)], [table, field, "a".repeat(63)], [table, field, "g".repeat(64)]);
   }
 
-  it.each(invalid)("DB-06 rejects invalid %s.%s = %j", async (table, field, value, code = "23514") => {
+  it.each(invalid)("DB-06 rejects invalid %s.%s = %s", async (table, field, value, code = "23514") => {
     await withTestTransaction(async (client) => {
       const fixture = await parentsFor(client, table);
       await expectInsertFailure(client, table, { ...fixture.rows[table], [field]: value }, code);
