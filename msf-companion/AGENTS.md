@@ -7,9 +7,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Runtime and regression-check boundaries
 
-- Issue #3 authorizes M1.2 planning only; the proposed schema contract is in
-  `docs/executive-office/m1-2-foundation-schema-plan.md`. Require a subsequent
-  explicit Owner authorization before creating schema/migrations or DB tests.
+- Issue #5 authorizes M1.2 implementation only, following the approved contract
+  in `docs/executive-office/m1-2-foundation-schema-plan.md` (PR #4). Use only
+  guarded disposable databases. No shared/live/production database access,
+  real bootstrap records, M1.3, merge or deployment is authorized.
 - `TowerResult` exists in the Prisma schema without a committed creation migration
   at the M1.2 planning baseline. Do not silently fold this historical discrepancy
   into Executive migrations, reset a configured database, or assume replay matches
