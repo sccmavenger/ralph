@@ -7,10 +7,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Runtime and regression-check boundaries
 
-- Issue #5 authorizes M1.2 implementation only, following the approved contract
-  in `docs/executive-office/m1-2-foundation-schema-plan.md` (PR #4). Use only
-  guarded disposable databases. No shared/live/production database access,
-  real bootstrap records, M1.3, merge or deployment is authorized.
+- M1.2 was accepted and merged in PR #6 (`516fb3c`). Issue #7 authorizes
+  M1.3 planning only, on `executive/m1.3-bootstrap-plan`. Keep its completed
+  planning PR Draft for Owner review. No implementation, database connection,
+  migration, merge, deployment or later story is authorized by that issue.
+- M1.3 readiness must inspect successful migration records AND actual enabled
+  guards. The M1.2 catalog test helper creates scratch tables; do not reuse it
+  unchanged for a SELECT-only operator preflight. Pin committed migration bytes,
+  not Windows checkout line endings, and never auto-accept checksum drift.
+- Bootstrap replay must preserve existing identities and legitimate later mutable
+  state. Serialize all bootstrap inputs with one fixed transaction-scoped lock;
+  never derive that lock from an input hash. The existing Agent guard locks Office
+  FOR UPDATE, so a future minimal bootstrap role also needs Office UPDATE access.
 - `TowerResult` exists in the Prisma schema without a committed creation migration
   at the M1.2 planning baseline. Do not silently fold this historical discrepancy
   into Executive migrations, reset a configured database, or assume replay matches
