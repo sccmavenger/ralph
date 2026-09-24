@@ -7,17 +7,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Runtime and regression-check boundaries
 
-- Issue #10 authorizes only M1.3 implementation from the approved plan merged in
-  PR #8 (`15795cf`), on `executive/m1.3-bootstrap`. Keep its implementation PR
-  Draft while incomplete and stop at Owner gates: G1 exact private DOCX transport,
-  G2 exact Charter/hash/provenance/CEO role before genuine-source apply, and G3
-  real Owner identity before any separately authorized real bootstrap. Only owned
-  disposable, GitHub-hosted validation is approved; no shared/live DB, merge,
-  deployment, auth/UI, execution activation or M1.4 is authorized.
-- A candidate Charter manifest is not an approved release artifact. Until G2 is
-  resolved, keep its four review strings empty and reject it for import; never
-  substitute our decision-request URL for an actual Owner approval. Preserve the
-  original DOCX privately and distinguish OOXML checks from rendered-source review.
+- Owner approval on PR #11, comment `5807081719`, resolves G1/G2 and authorizes
+  autonomous work through M1.8 within the approved architecture. Preserve each
+  story's branch/PR and durable evidence; no merge authorization is implied.
+  Production/shared DB access, deployment, spending, work beyond M1, fabricated
+  real Owner values and unperformed physical passkey claims remain hard stops.
+  CEO execution stays DISABLED. Defer real-device walkthrough to final M1 review.
+- The Charter approval receipt must cite the actual Owner comment and bind the
+  exact approved source/content hashes. G1 permits only the recorded protected,
+  branch-scoped, one-run secret transport and verified deletion; do not publish
+  the private DOCX. Preserve the distinction between machine OOXML verification
+  and the Owner's approval of source fidelity/presentation.
 - M1.3 readiness must inspect successful migration records AND actual enabled
   guards. The M1.2 catalog test helper creates scratch tables; do not reuse it
   unchanged for a SELECT-only operator preflight. Pin committed migration bytes,
@@ -57,8 +57,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
   keep the Docker base and knowledge-refresh workflow aligned with that file.
   Runtime compatibility evidence and open verification gates are recorded in
   `docs/executive-office/m1-1-runtime-compatibility.md`.
-- Executive Office work is authorized story-by-story. Do not automatically
-  advance to the next story. Existing route-group/layout moves must be an isolated
+- Standing authorization through M1.8 supersedes earlier story-by-story pauses,
+  not hard-stop or merge/deployment boundaries. Route-group/layout moves remain an isolated
   mechanical change, with route and behavior checks before and after; never
   combine those moves with redesign or unrelated refactoring.
 - Run baseline compatibility checks in an isolated source copy without `.env`

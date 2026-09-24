@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 1,
+  "postgresMajor": 16,
+  "acceptedCommit": "516fb3c157b703f729fc742a4b13f9ea5deef36a",
+  "searchPath": "pg_catalog",
+  "migrations": [
+    {
+      "name": "20260922090000_executive_foundation",
+      "checksum": "a163291fc98de4c74a4da8acf15ceb4985a5bfbdf4c7ef88bc819ff38d4a3a9c"
+    },
+    {
+      "name": "20260922090100_executive_immutability_guards",
+      "checksum": "393fae52624a37b68fde874f82d96c11ec6c5033229474d4511ee3a4f4caf182"
+    }
+  ],
+  "catalog": null
+}

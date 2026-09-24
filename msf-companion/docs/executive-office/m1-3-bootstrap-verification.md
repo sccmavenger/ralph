@@ -1,4 +1,30 @@
-# M1.3 implementation — G1/G2 artifact review checkpoint
+# M1.3 implementation — verification record
+
+## Current checkpoint — September 24, 2026
+
+**Implementation in progress; not yet ready for M1.3 acceptance or merge.**
+The [Owner approval](https://github.com/sccmavenger/ralph/pull/11#issuecomment-5807081719)
+resolves G1/G2 and provides standing authorization through M1.8. The approval
+receipt is now populated; final canonical manifest SHA-256:
+`f452fb4bfa0850bbb2f0d3789db46f1011c8c0de38f6229e00914e49a8985fe6`.
+Source/content/role bytes are unchanged from the approved artifact checkpoint.
+
+Implementation adds strict operator input/canonicalization/provenance validation,
+transactional bootstrap/audit, and SELECT-only readiness verification. The exact
+locked local runner is tsx 4.23.15. No new models or migrations are introduced.
+The first narrowly scoped hosted job captures PostgreSQL 16's catalog from the
+unchanged accepted migrations for independent review. Its output does not become
+trusted automatically; readiness fails closed while the manifest is incomplete.
+Full tests, runtime/operator rehearsal, regression/container evidence and the
+private-source protected job remain pending. No private source has been uploaded.
+
+Material process choice: keep separate story branches/PRs without merging. Later
+stories may be stacked on completed predecessor branches, with exact story-only
+commit comparisons recorded alongside the PRs against main. This preserves the
+repository's no-merge-without-approval rule and standing implementation authority.
+The real-device Owner walkthrough is deferred to final M1 review as authorized.
+
+## Historical G1/G2 review checkpoint (superseded status)
 
 Status: **Partial implementation; stop for Owner decisions. Not ready for final
 M1.3 acceptance or merge.**

@@ -1,0 +1,142 @@
+name: M1.3 Bootstrap Validation
+
+on:
+  push:
+    branches: [executive/m1.3-bootstrap]
+    paths:
+      - .github/workflows/m1-3-bootstrap-validation.yml
+      - msf-companion/src/lib/executive/**
+      - msf-companion/scripts/executive/**
+      - msf-companion/tests/executive/**
+      - msf-companion/package*.json
+      - msf-companion/docs/executive-office/charter/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m1-3-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  catalog-preparation:
+    # This lane does NOT bootstrap or transport the private Charter. Its catalog
+    # artifact is reviewed and committed separately; runtime never learns trust
+    # from a target database or auto-imports this artifact.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      POSTGRES_IMAGE: postgres:16-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
+      ACCEPTED_COMMIT: 516fb3c157b703f729fc742a4b13f9ea5deef36a
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: msf-companion/.node-version
+      - name: Confirm unchanged accepted migrations and install locked runner
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/commit.txt
+          node --version > evidence/node.txt
+          npm --version > evidence/npm.txt
+          git diff --exit-code "$ACCEPTED_COMMIT" -- msf-companion/prisma
+          cd msf-companion
+          npm ci --no-audit --no-fund
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const manifest=JSON.parse(readFileSync('src/lib/executive/m1-2-readiness-manifest.json','utf8'));
+          for(const item of manifest.migrations) {
+            const bytes=readFileSync(`prisma/migrations/${item.name}/migration.sql`);
+            assert.equal(createHash('sha256').update(bytes).digest('hex'),item.checksum);
+          }
+          NODE
+      - name: Create task-owned disposable PostgreSQL 16
+        id: database
+        run: |
+          db_name="msf_exec_m12_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          admin_password=$(openssl rand -hex 24)
+          migrator_password=$(openssl rand -hex 24)
+          app_password=$(openssl rand -hex 24)
+          echo "::add-mask::$admin_password"
+          echo "::add-mask::$migrator_password"
+          echo "::add-mask::$app_password"
+          docker pull "$POSTGRES_IMAGE"
+          docker run --detach --name msf-m13-catalog --label "msf.m13.run=$GITHUB_RUN_ID" \
+            --publish 127.0.0.1:55432:5432 --env POSTGRES_PASSWORD="$admin_password" "$POSTGRES_IMAGE"
+          ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec msf-m13-catalog pg_isready -U postgres; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec -i msf-m13-catalog psql -U postgres -v ON_ERROR_STOP=1 <<SQL
+          CREATE ROLE exec_test_migrator LOGIN NOSUPERUSER CREATEDB PASSWORD '$migrator_password';
+          CREATE ROLE exec_test_app LOGIN NOSUPERUSER NOCREATEDB PASSWORD '$app_password';
+          CREATE DATABASE "$db_name" OWNER exec_test_migrator;
+          SQL
+          echo "EXECUTIVE_TEST_DATABASE_URL=postgresql://exec_test_app:$app_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_MIGRATION_DATABASE_URL=postgresql://exec_test_migrator:$migrator_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_DATABASE_CONFIRM=$db_name" >> "$GITHUB_ENV"
+          docker exec msf-m13-catalog psql -U postgres -Atc 'SELECT version()' > evidence/postgres-version.txt
+          docker image inspect "$POSTGRES_IMAGE" --format '{{.Id}} {{json .RepoDigests}}' > evidence/postgres-image.txt
+      - name: Replay accepted migrations using guarded test configuration
+        working-directory: msf-companion
+        run: |
+          node node_modules/prisma/build/index.js migrate deploy --config prisma.executive-test.config.ts
+          node node_modules/prisma/build/index.js migrate status --config prisma.executive-test.config.ts
+      - name: Collect deterministic SELECT-only catalog for independent review
+        working-directory: msf-companion
+        run: |
+          node --import tsx --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import assert from 'node:assert/strict';
+          import { connectTestDatabase } from './tests/executive/test-database.ts';
+          import { collectExecutiveCatalog } from './src/lib/executive/readiness.ts';
+          const client=await connectTestDatabase('migrator');
+          try {
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            await client.query('SET LOCAL search_path=pg_catalog');
+            const catalog=await collectExecutiveCatalog(async(sql,values)=>(await client.query(sql,values)).rows);
+            assert.equal(catalog.tables.length,11);
+            assert.equal(catalog.columns.length,116);
+            assert.equal(catalog.constraints.filter(x=>x.type==='c').length,43);
+            assert.equal(catalog.constraints.filter(x=>x.type==='f').length,20);
+            assert.equal(catalog.constraints.filter(x=>x.type==='p').length,11);
+            assert.equal(catalog.indexes.length,52);
+            assert.equal(catalog.functions.length,8);
+            assert.equal(catalog.triggers.filter(x=>!x.internal).length,26);
+            assert.equal(catalog.triggers.filter(x=>x.internal).length,80);
+            assert.equal(catalog.sequences.length,1);
+            const header=JSON.parse(readFileSync('src/lib/executive/m1-2-readiness-manifest.json','utf8'));
+            const bytes=JSON.stringify({...header,catalog},null,2)+'\n';
+            writeFileSync('../evidence/m1-2-readiness-manifest.json',bytes);
+            writeFileSync('../evidence/catalog.sha256',createHash('sha256').update(bytes).digest('hex')+'\n');
+            console.log(JSON.stringify({status:'CATALOG_CAPTURED',tables:11,columns:116,checks:43,foreignKeys:20,indexes:52,functions:8,customTriggers:26,internalTriggers:80,sequences:1}));
+          } finally {
+            try { await client.query('ROLLBACK'); } finally { await client.end(); }
+          }
+          NODE
+      - name: Remove owned disposable container
+        if: always()
+        run: |
+          if docker inspect msf-m13-catalog >/dev/null 2>&1; then
+            test "$(docker inspect msf-m13-catalog --format '{{index .Config.Labels "msf.m13.run"}}')" = "$GITHUB_RUN_ID"
+            docker rm --force --volumes msf-m13-catalog
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: m13-reviewed-catalog-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          retention-days: 7
+          if-no-files-found: error

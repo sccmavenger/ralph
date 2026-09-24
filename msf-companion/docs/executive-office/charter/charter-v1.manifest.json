@@ -21,9 +21,9 @@
     "Preserve Unicode characters, punctuation, arrows, internal spaces, capitalization, paragraph order and wording without Unicode normalization, summary, technical-package additions or governance annotations."
   ],
   "review": {
-    "reference": "",
-    "reviewer": "",
-    "reviewedSourceFileHash": "",
-    "reviewedContentHash": ""
+    "reference": "https://github.com/sccmavenger/ralph/pull/11#issuecomment-5807081719",
+    "reviewer": "sccmavenger",
+    "reviewedSourceFileHash": "654a4baa4e86743af373f620a8dc156519dada487f3288811b39ae42e5413660",
+    "reviewedContentHash": "673560486fa44a687dcddc6395bd4439848225c40f0f42831dc3a21daee3b3e5"
   }
 }
