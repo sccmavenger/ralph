@@ -6,6 +6,9 @@ M1.3 acceptance or merge.**
 Authorization: [Issue #10](https://github.com/sccmavenger/ralph/issues/10).
 Base: `15795cfd9cad5b54bf37a9d945d184841053574d` (approved planning PR #8).
 Branch: `executive/m1.3-bootstrap`.
+Review: [Draft PR #11](https://github.com/sccmavenger/ralph/pull/11).
+Immutable artifact checkpoint: `fd8c0be75d4bdc934a9c303c179820128ef24c08`;
+subsequent changes are review/evidence documentation only.
 Owner's recorded [D1/D2/D3 approval](https://github.com/sccmavenger/ralph/pull/8#issuecomment-5806414132)
 approved the process and bounded implementation, not the exact source transport or
 yet-unseen Charter/hash/role artifacts. This first checkpoint follows section 12's
@@ -104,10 +107,22 @@ OOXML/text equality is evidence, not a substitute for this human review.
 
 ## Actual checks and remaining evidence
 
-Initial checks: source raw SHA-256/size matched the approved plan; candidate
-Markdown validated as UTF-8/no BOM/LF/exactly one final LF; role JSON parsed and
-deep-equaled the approved section-6 object. Final paragraph/structure/scope/hash
-checks and independent review are recorded below before handoff.
+| Actual local check | Result |
+|---|---|
+| Read-only GitHub issue/PR approval and fetched-main inspection | Correct Issue #10 authority; fresh branch from accepted `15795cf` |
+| Raw DOCX SHA-256/size; direct OOXML/style/numbering/relationship inspection | Passed; exact source identity, structural evidence above |
+| Temporary PowerShell/.NET ordinal paragraph checker | 88/88 nonempty paragraphs, 12/12 headings and 50/50 bullets matched; strict UTF-8/no BOM/LF/one final LF passed |
+| Read-only Node JSON and canonical-hash assertions | Role deep-equaled approved section 6; candidate manifest closed keys and four empty review strings confirmed; hashes above match |
+| Local artifact bytes versus committed `git show` blob hashes | All three artifact files match their recorded raw SHA-256; no accidental CRLF-based approval hash |
+| Git diff allowlist against `15795cf`; protected-path diff | Exactly six approved inventory files; schema/migrations/packages/Dockerfile/infra/workflows unchanged |
+| `git diff --cached --check` and base-to-head whitespace check | Passed |
+| Markdown/PR structure assertions | All 10 local links resolve; all 16 Executive PR template sections present |
+| `gh run list --branch executive/m1.3-bootstrap` | No task-branch CI runs |
+
+The temporary PowerShell checker initially used a culture-sensitive BOM-prefix
+comparison and falsely rejected valid bytes. Changing the checker to ordinal
+comparison resolved it; all byte/paragraph checks then passed without altering
+the Charter. This was a local checker defect, not a runtime/application test.
 
 Independent read-only review confirmed all 88 nonempty paragraphs by ordinal
 code-point equality, all 12 headings and 50 bullets, UTF-8/LF rules, and exact
@@ -131,12 +146,14 @@ and prior 26 dependency findings are not fixed, waived or rerun here.
 
 ## Owner gates and stop
 
-G1: approve or amend the exact protected-environment/two-secret/one-run transport
+G1: [Owner decision request](https://github.com/sccmavenger/ralph/pull/11#issuecomment-5806709604).
+Approve or amend the exact protected-environment/two-secret/one-run transport
 in [operations](operations.md). No environment, secrets, source upload or CI run
 exists for this task yet. The proposal includes explicit monitored cleanup, not
 an assertion of automatic secret expiry.
 
-G2: review the precise artifacts/hashes above, presentation changes and exact
+G2: [Owner decision request](https://github.com/sccmavenger/ralph/pull/11#issuecomment-5806709886).
+Review the precise artifacts/hashes above, presentation changes and exact
 inert role, then record approval or requested corrections. Until then all review
 strings remain empty and any genuine-source apply is forbidden. Final manifest
 hash changes when the real approval reference/identity/hashes are inserted.
@@ -144,6 +161,6 @@ hash changes when the real approval reference/identity/hashes are inserted.
 G3: not reached; no real Owner identity is needed. Do not request or infer private
 identity values for this synthetic/disposable checkpoint.
 
-Stop after the Draft PR is updated and the required decision comments are posted.
+Stopped at the required decision comments; the PR remains Draft and unmerged.
 The implementation remains incomplete, not technically complete pending acceptance.
 No merge, shared/live DB access, deployment, M1.4 or later work is authorized.
