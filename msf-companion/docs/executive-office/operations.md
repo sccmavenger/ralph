@@ -1,6 +1,15 @@
 # Executive Office operations — M1.3 gate checkpoint
 
-Status: **Operator not yet implemented. G1/G2 Owner decisions pending.**
+Status: **Operator implementation/verification in progress; not yet operationally
+accepted. G1/G2 approved by the Owner.**
+Current authority: [PR #11 approval](https://github.com/sccmavenger/ralph/pull/11#issuecomment-5807081719).
+The receipt now identifies that actual decision, its public reviewer and approved
+hashes. Final canonical manifest digest:
+`f452fb4bfa0850bbb2f0d3789db46f1011c8c0de38f6229e00914e49a8985fe6`.
+Standing M1.3–M1.8 implementation authority does not permit merge, production/shared
+DB access, deployment, spending, real-identity inference or CEO execution. The
+following review procedure is retained for provenance; its pending-G2 descriptions
+describe the historical candidate, not a current request to reapprove it.
 Authorization: [Issue #10](https://github.com/sccmavenger/ralph/issues/10), following
 the [approved M1.3 plan](m1-3-bootstrap-plan.md). This checkpoint follows the plan's
 first step: exact Charter/role artifacts and Owner hash review. Do not treat these
@@ -44,13 +53,13 @@ before use. A CRLF-converted Charter must be rejected, not silently rehashed as 
 new approved document. Hosted Linux checkout avoids that Windows transformation.
 No global Git setting or additional attributes file was changed at this checkpoint.
 
-## G1 proposed exact private source transport — not yet approved or configured
+## G1 exact private source transport — approved; not yet configured or exercised
 
 The repository is public. Do not attach, commit, cache or upload the original DOCX
 as a public artifact. Canonical text/role assets are authorized repository files;
 that does not authorize publishing the private original binary or its metadata.
 
-Proposed one-run mechanism, requiring explicit Owner approval before setup/upload:
+Approved one-run mechanism; all protections below remain required:
 
 1. Create the GitHub environment `m1-3-charter-rehearsal` in `sccmavenger/ralph`,
    with the Owner as required reviewer, only branch `executive/m1.3-bootstrap`

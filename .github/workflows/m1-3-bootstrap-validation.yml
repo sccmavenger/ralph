@@ -19,16 +19,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  catalog-preparation:
-    # This lane does NOT bootstrap or transport the private Charter. Its catalog
-    # artifact is reviewed and committed separately; runtime never learns trust
-    # from a target database or auto-imports this artifact.
+  synthetic-validation:
+    # This lane uses synthetic bootstrap fixtures, never the private Charter.
+    # Catalog artifacts are independently reviewed; runtime never learns trust
+    # from a target database or auto-imports a captured artifact.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       NODE_ENV: test
       POSTGRES_IMAGE: postgres:16-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
       ACCEPTED_COMMIT: 516fb3c157b703f729fc742a4b13f9ea5deef36a
+      BASELINE_COMMIT: 15795cfd9cad5b54bf37a9d945d184841053574d
+      NEXT_TELEMETRY_DISABLED: '1'
+      DATABASE_URL: postgresql://inert:inert@127.0.0.1:1/inert
+      SESSION_SECRET: m13-ci-session-dummy-not-a-production-secret
+      ADMIN_SESSION_SECRET: m13-ci-admin-dummy-not-a-production-secret
     defaults:
       run:
         shell: bash
@@ -118,6 +123,7 @@ jobs:
             assert.equal(catalog.triggers.filter(x=>x.internal).length,80);
             assert.equal(catalog.sequences.length,1);
             const header=JSON.parse(readFileSync('src/lib/executive/m1-2-readiness-manifest.json','utf8'));
+            if(header.catalog) assert.deepEqual(catalog,header.catalog,'reviewed catalog must match; never update expectations automatically');
             const bytes=JSON.stringify({...header,catalog},null,2)+'\n';
             writeFileSync('../evidence/m1-2-readiness-manifest.json',bytes);
             writeFileSync('../evidence/catalog.sha256',createHash('sha256').update(bytes).digest('hex')+'\n');
@@ -126,9 +132,136 @@ jobs:
             try { await client.query('ROLLBACK'); } finally { await client.end(); }
           }
           NODE
+      - name: Generate client, grant disposable-test DML and run Executive acceptance suites
+        working-directory: msf-companion
+        run: |
+          set -o pipefail
+          node node_modules/prisma/build/index.js validate --config prisma.executive-test.config.ts
+          node node_modules/prisma/build/index.js generate --config prisma.executive-test.config.ts
+          node --input-type=module <<'NODE'
+          import { connectTestDatabase, grantTestApplicationAccess } from './tests/executive/test-database.ts';
+          const client=await connectTestDatabase('migrator');
+          try { await grantTestApplicationAccess(client,{allowTruncate:true}); } finally { await client.end(); }
+          NODE
+          node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts \
+            --reporter=default --reporter=json --outputFile=../evidence/executive-tests.json 2>&1 | tee ../evidence/executive-tests.log
+      - name: Preserve generated migration test copies outside application discovery
+        if: always()
+        run: |
+          source="$GITHUB_WORKSPACE/msf-companion/test-results/executive-migrations"
+          target="$GITHUB_WORKSPACE/evidence/migration-rehearsals"
+          if [ -d "$source" ]; then
+            test ! -e "$target"
+            mv -- "$source" "$target"
+          fi
+      - name: Targeted lint and application typecheck
+        working-directory: msf-companion
+        run: |
+          set -o pipefail
+          node node_modules/eslint/bin/eslint.js src/lib/executive scripts/executive tests/executive prisma.executive-test.config.ts vitest.executive.config.ts 2>&1 | tee ../evidence/targeted-lint.log
+          node node_modules/typescript/bin/tsc --noEmit --incremental false 2>&1 | tee ../evidence/candidate-typecheck.log
+      - name: Baseline and candidate web regression comparison
+        env:
+          NODE_ENV: production
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/m13-baseline"
+          git archive "$BASELINE_COMMIT" msf-companion | tar -x -C "$RUNNER_TEMP/m13-baseline"
+          baseline="$RUNNER_TEMP/m13-baseline/msf-companion"
+          candidate="$GITHUB_WORKSPACE/msf-companion"
+          evidence="$GITHUB_WORKSPACE/evidence"
+          (cd "$baseline" && npm ci --include=dev --no-audit --no-fund && node node_modules/prisma/build/index.js generate) 2>&1 | tee "$evidence/install-baseline.log"
+          (cd "$baseline" && node node_modules/typescript/bin/tsc --noEmit --incremental false && npm run build) 2>&1 | tee "$evidence/baseline-build.log"
+          (cd "$candidate" && npm run build) 2>&1 | tee "$evidence/candidate-build.log"
+          for mode in baseline candidate; do
+            if [ "$mode" = baseline ]; then source_dir="$baseline"; else source_dir="$candidate"; fi
+            (
+              cd "$source_dir"
+              set +e
+              NODE_ENV=test node node_modules/vitest/vitest.mjs run --exclude 'functions/**' --exclude 'src/lib/wallet.test.ts' --maxWorkers=4 --reporter=json --outputFile="$evidence/$mode-web-tests.json" > "$evidence/$mode-web-tests.log" 2>&1
+              tests_exit=$?
+              node node_modules/eslint/bin/eslint.js --format json --output-file "$evidence/$mode-lint.json" > "$evidence/$mode-lint.log" 2>&1
+              lint_exit=$?
+              npm audit --json > "$evidence/$mode-dependency-audit.json"
+              audit_exit=$?
+              printf '{"tests":%s,"lint":%s}\n' "$tests_exit" "$lint_exit" > "$evidence/$mode-exit-codes.json"
+              test "$tests_exit" -le 1 && test "$lint_exit" -le 1 && test "$audit_exit" -le 1
+            )
+          done
+          node --input-type=module <<'NODE' | tee evidence/regression-comparison.json
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const read=n=>JSON.parse(fs.readFileSync(`evidence/${n}.json`,'utf8'));
+          const tests=r=>r.testResults.flatMap(f=>f.assertionResults.map(a=>[a.fullName,a.status])).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          const baseline=read('baseline-web-tests'),candidate=read('candidate-web-tests');
+          assert.deepEqual(tests(candidate),tests(baseline),'web test names/status changed');
+          const lint=(report,root)=>report.flatMap(f=>f.messages.map(m=>({file:f.filePath.replace(root,'').replaceAll('\\','/'),rule:m.ruleId,severity:m.severity,line:m.line,column:m.column,message:m.message.replaceAll(root,'')}))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          const beforeLint=read('baseline-lint'),afterLint=read('candidate-lint');
+          assert.deepEqual(lint(afterLint,`${process.env.GITHUB_WORKSPACE}/msf-companion`),lint(beforeLint,`${process.env.RUNNER_TEMP}/m13-baseline/msf-companion`),'lint baseline changed');
+          assert.deepEqual(read('candidate-exit-codes'),read('baseline-exit-codes'));
+          const summary=r=>({passed:r.numPassedTests,failed:r.numFailedTests,total:r.numTotalTests});
+          const beforeAudit=read('baseline-dependency-audit'),afterAudit=read('candidate-dependency-audit');
+          assert.ok(beforeAudit.metadata?.vulnerabilities && afterAudit.metadata?.vulnerabilities,'dependency audit unavailable');
+          const newlyAffected=Object.keys(afterAudit.vulnerabilities).filter(name=>!Object.hasOwn(beforeAudit.vulnerabilities,name));
+          assert.deepEqual(newlyAffected,[],'newly vulnerable packages require review');
+          assert.ok(!afterAudit.vulnerabilities.tsx,'operator runner security gate');
+          console.log(JSON.stringify({passed:true,baseline:summary(baseline),candidate:summary(candidate),lintErrors:afterLint.reduce((n,f)=>n+f.errorCount,0),lintWarnings:afterLint.reduce((n,f)=>n+f.warningCount,0),dependencyAudit:{baseline:beforeAudit.metadata.vulnerabilities,candidate:afterAudit.metadata.vulnerabilities,newlyAffected}},null,2));
+          NODE
+      - name: Build current application container without publication
+        run: |
+          set -o pipefail
+          docker build --pull --progress=plain --tag "msf-m13-check:$GITHUB_SHA" --file msf-companion/Dockerfile msf-companion 2>&1 | tee evidence/container-build.log
+      - name: Application startup, readiness, route and native Sharp smoke
+        run: |
+          set -o pipefail
+          docker run --detach --name msf-m13-app --label "msf.m13.run=$GITHUB_RUN_ID" --network none \
+            --env SESSION_SECRET=m13-ci-session-dummy-not-a-production-secret \
+            --env ADMIN_SESSION_SECRET=m13-ci-admin-dummy-not-a-production-secret \
+            --env DATABASE_URL=postgresql://inert:inert@127.0.0.1:1/inert "msf-m13-check:$GITHUB_SHA"
+          expected_node=$(tr -d '\r\n' < msf-companion/.node-version)
+          docker exec -i --env EXPECTED_NODE_VERSION="$expected_node" msf-m13-app node <<'NODE' | tee evidence/container-smoke.json
+          const assert=require('node:assert/strict');
+          async function run(){
+            assert.equal(process.version,'v'+process.env.EXPECTED_NODE_VERSION);
+            assert.equal(process.getuid(),1001);
+            let ready=false;
+            for(let i=0;i<30;i++){
+              try{const r=await fetch('http://127.0.0.1:3000/api/auth/session',{signal:AbortSignal.timeout(2000)});if(r.status===200&&(await r.json()).authenticated===false){ready=true;break;}}catch{}
+              await new Promise(r=>setTimeout(r,1000));
+            }
+            assert.ok(ready,'readiness timed out');
+            const results=[];
+            const checks=[['/',200],['/faq',200],['/privacy',200],['/terms',200],['/admin',200],['/api/auth/session',200],['/api/msf/inventory',401],['/api/admin/usage-stats',401],['/subscribe',307,'/'],['/admin/dashboard',307,'/admin'],...['dashboard','inventory','roster','planner'].map(p=>['/'+p,307,'/api/auth/refresh?redirect=/dashboard'])];
+            for(const [path,status,location] of checks){
+              const r=await fetch('http://127.0.0.1:3000'+path,{redirect:'manual',signal:AbortSignal.timeout(10000)});
+              assert.equal(r.status,status,path);
+              if(location)assert.equal(r.headers.get('location'),location,path);
+              if(path==='/api/auth/session')assert.deepEqual(await r.json(),{authenticated:false});
+              else if(status===200)assert.match(await r.text(),/<html/);
+              else await r.arrayBuffer();
+              results.push({path,status});
+            }
+            const png=await require('sharp')({create:{width:1,height:1,channels:4,background:'red'}}).png().toBuffer();
+            assert.ok(png.length);
+            console.log(JSON.stringify({passed:true,node:process.version,uid:process.getuid(),readiness:true,checks:results,sharpBytes:png.length},null,2));
+          }
+          run().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+          test "$(docker inspect --format '{{.State.Running}}' msf-m13-app)" = true
+      - name: Capture app startup diagnostics
+        if: always()
+        run: |
+          if docker inspect msf-m13-app >/dev/null 2>&1; then
+            docker logs --timestamps msf-m13-app > evidence/application.log 2>&1
+            docker inspect msf-m13-app --format '{{json .State}}' > evidence/application-state.json
+          fi
       - name: Remove owned disposable container
         if: always()
         run: |
+          if docker inspect msf-m13-app >/dev/null 2>&1; then
+            test "$(docker inspect msf-m13-app --format '{{index .Config.Labels "msf.m13.run"}}')" = "$GITHUB_RUN_ID"
+            docker rm --force --volumes msf-m13-app
+          fi
           if docker inspect msf-m13-catalog >/dev/null 2>&1; then
             test "$(docker inspect msf-m13-catalog --format '{{index .Config.Labels "msf.m13.run"}}')" = "$GITHUB_RUN_ID"
             docker rm --force --volumes msf-m13-catalog
