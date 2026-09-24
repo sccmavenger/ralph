@@ -7,10 +7,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Runtime and regression-check boundaries
 
-- M1.2 was accepted and merged in PR #6 (`516fb3c`). Issue #7 authorizes
-  M1.3 planning only, on `executive/m1.3-bootstrap-plan`. Keep its completed
-  planning PR Draft for Owner review. No implementation, database connection,
-  migration, merge, deployment or later story is authorized by that issue.
+- Issue #10 authorizes only M1.3 implementation from the approved plan merged in
+  PR #8 (`15795cf`), on `executive/m1.3-bootstrap`. Keep its implementation PR
+  Draft while incomplete and stop at Owner gates: G1 exact private DOCX transport,
+  G2 exact Charter/hash/provenance/CEO role before genuine-source apply, and G3
+  real Owner identity before any separately authorized real bootstrap. Only owned
+  disposable, GitHub-hosted validation is approved; no shared/live DB, merge,
+  deployment, auth/UI, execution activation or M1.4 is authorized.
+- A candidate Charter manifest is not an approved release artifact. Until G2 is
+  resolved, keep its four review strings empty and reject it for import; never
+  substitute our decision-request URL for an actual Owner approval. Preserve the
+  original DOCX privately and distinguish OOXML checks from rendered-source review.
 - M1.3 readiness must inspect successful migration records AND actual enabled
   guards. The M1.2 catalog test helper creates scratch tables; do not reuse it
   unchanged for a SELECT-only operator preflight. Pin committed migration bytes,
