@@ -6,6 +6,7 @@ Authorization: [Issue #7](https://github.com/sccmavenger/ralph/issues/7).
 Base: current `main`, `516fb3c157b703f729fc742a4b13f9ea5deef36a`, accepted
 [M1.2 PR #6](https://github.com/sccmavenger/ralph/pull/6).
 Planning branch: `executive/m1.3-bootstrap-plan`.
+Review: [Draft PR #8](https://github.com/sccmavenger/ralph/pull/8).
 
 ## 1. Outcome, authority, and boundaries
 
@@ -39,9 +40,11 @@ M8 Full Owner Portal → M9 Engineering Bridge → M10 Release Hardening.
 ## 2. Operator entry point and invocation contract
 
 Proposed entry point: `msf-companion/scripts/executive/bootstrap.ts`, exposed as
-`npm run executive:bootstrap -- ...` from `msf-companion/`. Proposed package script:
-`tsx scripts/executive/bootstrap.ts`. This uses a locally installed, locked executable,
-not `npx` downloading a runner. Add **exact `tsx` 4.23.15 as a devDependency** only
+`npm run --silent executive:bootstrap -- ...` from `msf-companion/`. Proposed package script:
+`node ./node_modules/tsx/dist/cli.mjs scripts/executive/bootstrap.ts`. This names the
+locked local runner file explicitly: absent local installation must fail rather
+than fall back to a global/ancestor PATH executable or `npx` download. Add
+**exact `tsx` 4.23.15 as a devDependency** only
 after Owner approval of this plan; keep Node 24.21.0 / Prisma 7.6.0 unchanged.
 The [upstream release](https://github.com/privatenumber/tsx/releases/tag/v4.23.15)
 was inspected; compatibility/security of the added lockfile graph remains a future
@@ -57,12 +60,12 @@ request handler, cron, Azure deployment or web configuration is allowed.
 Future invocation examples — **not runnable or authorized in this planning PR**:
 
 ```text
-npm run executive:bootstrap -- --check --input /private/owner.json --source-file /private/MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx --target /private/target.json
-npm run executive:bootstrap -- --apply --input /private/owner.json --source-file /private/MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx --target /private/target.json --confirm-target msf_exec_m12_RUN
+npm run --silent executive:bootstrap -- --check --input /private/owner.json --source-file /private/MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx --target /private/target.json
+npm run --silent executive:bootstrap -- --apply --input /private/owner.json --source-file /private/MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx --target /private/target.json --confirm-target msf_exec_m12_12345
 ```
 
 Exactly one of `--check` or `--apply` is mandatory; neither is the default.
-`--help` opens no files or connection. Reject unknown/repeated flags, positional
+`--help` reads no input/source/target files and opens no connection. Reject unknown/repeated flags, positional
 arguments and empty values. There is no `--force`, `--repair`, `--reset`,
 `--accept-charter`, `--enable`, arbitrary manifest override or inline DB URL option.
 Resolve explicit paths; do not discover inputs from the working directory. Input
@@ -108,19 +111,25 @@ including credentials, TLS, port and database, rather than allowing driver
 environment defaults. No production credentials in fixtures, manifests, PRs or CI.
 Keep private files outside the checkout; only synthetic examples may be committed.
 
-`--check` performs file validation and a read-only readiness/replay assessment;
-it does not take the write lock, allocate sequences or persist rejection events.
+`--check` performs file validation and a READ ONLY, REPEATABLE READ readiness/replay
+transaction so all catalog/history/foundation reads use one coherent snapshot.
+It does not take the write lock, allocate sequences or persist rejection events.
 It returns `READY_EMPTY`, `ALREADY_BOOTSTRAPPED`, or a classified error, never a
 promise that a later apply cannot race. `--apply` repeats all checks. A successful
 apply returns `CREATED` or `ALREADY_BOOTSTRAPPED`, existing IDs, bootstrap version,
 request ID and current inertness flag. Serialize event sequence IDs as decimal
-strings. Print structured, allowlisted JSON only after confirmed commit; npm's own
-banner is not part of that JSON protocol (use `npm run --silent` when capturing it).
+strings. Print structured, allowlisted JSON only after confirmed commit. The
+documented npm invocation must use `--silent`: npm otherwise echoes arguments,
+including private file paths, before the CLI can redact them. Operator shell
+history/process visibility is a separate local-access concern; no secrets in argv.
 
 ## 3. Preflight and actual database readiness
 
 Run pure argument/target/source/manifest/canonical-input validation before creating
-any client. Use a fresh, explicitly configured PrismaPg/Prisma client, not
+any client. Check Node major 24, the approved lockfile's Prisma/adapter versions
+and local runner presence/version before connection; do not install a missing
+dependency or claim another runtime was tested. Use a fresh, explicitly configured
+PrismaPg/Prisma client, not
 `src/lib/prisma.ts`; do not import `prisma.config.ts`, which loads dotenv.
 The operator never generates a client, migrates, grants privileges or repairs a DB.
 Client generation is a separate preparation step in the isolated build harness.
@@ -428,12 +437,20 @@ normal, not partial foundation records. Commit is the final success boundary.
 
 Replay validates immutable birth evidence: Office key/version/hash, one linked
 Owner identity/handle, CEO identity/role definition/reports-to relationship, Charter
-v1 bytes and source hashes, and both original success events with matching IDs,
-digests, request ID and event schema. It does **not** compare mutable display/contact
+v1 bytes and source hashes, and exactly one original import event for this Charter
+and one bootstrap-completed event for this Office/bootstrapVersion. Require matching
+IDs, digests, original request ID, initial-state metadata and event schema across
+the pair. Duplicate birth-success events fail; do not use find-first to conceal
+them. It does **not** compare mutable display/contact
 values to their original values or insist every auth table is still empty. Later
 legitimate enrollment/status/authVersion/display changes and paired Charter
 acceptance pointers are preserved, not reset. Return a separately computed
-`currentlyInert` flag; `ALREADY_BOOTSTRAPPED` does not mean currently unauthenticated.
+`currentlyInert` flag from one coherent state query: executionMode DISABLED plus
+empty CEO tools/permissions and spendingAuthority false. It does not assert that
+the Owner is still pending enrollment or the Charter still unaccepted; report
+those current statuses separately without changing them. `ALREADY_BOOTSTRAPPED`
+does not mean currently unauthenticated. All reported state is a point-in-time
+assessment, not a promise to freeze later authorized activity.
 Additional later audit events are allowed; do not require total Event count two
 on replay. Future contract changes require a reviewed compatible checker.
 
@@ -471,13 +488,19 @@ Rejected-attempt persistence is deliberately bounded:
   failed transaction, and `--check` errors emit redacted **local diagnostics only**;
   no false Event is written to an untrusted/unready/nonexistent Office. Diagnostic
   kinds: `executive.bootstrap.rejected` or `executive.bootstrap.failed`, with only
-  requestId, reasonCode, phase and `auditPersisted: false`.
+  requestId, reasonCode, phase and `auditPersisted: false` when no write/rollback
+  is confirmed. Phase is one of INPUT, PREFLIGHT, LOCK, CREATE, AUDIT, COMMIT,
+  REPLAY. For ambiguous commit acknowledgment **omit auditPersisted** and report
+  `reasonCode: COMMIT_OUTCOME_UNKNOWN`; never assert that its audit is absent.
 - An `--apply` conflict discovered against a valid, ready, committed foundation
   appends the rejection Event in that same locked transaction, with no foundation
   mutation. Return a rejection result from the transaction, commit the audit,
   **then** exit nonzero. Do not throw inside it and accidentally roll back the
   rejection record. If that audit/commit fails, fail closed and report the audit
-  gap; never turn failure into success or retry an unbounded audit loop.
+  gap (or unknown persistence after ambiguous acknowledgment); never turn failure
+  into success or retry an unbounded audit loop. A repeated conflicting invocation
+  is another rejection attempt and may append another rejection event: exactly-once
+  rejection delivery is not promised by the schema's nonunique requestId.
 - Idempotent replay writes nothing. Process-local replay output is not another
   business success event. Failure before creation cannot have a persistent
   Office-scoped audit because no Office exists. This limitation is explicit;
@@ -580,16 +603,16 @@ container engine. All changed guard/history fixtures stay in disposable child DB
 | BOOT-03 | Source raw hash/name/size, Markdown hash/length, manifest/review hashes and exact schema mismatch reject; full Unicode/multiline round-trip; no arbitrary source override or technical-package substitution |
 | BOOT-04 | Successful typed-client transaction uses createManyAndReturn and generated IDs; exactly one Office/Owner/CEO/Charter, exact role and inert fields, two success events, all six other tables empty |
 | BOOT-05 | Identical replay preserves all IDs/handle/timestamps and row/sequence state; mutate each permitted canonical input separately to prove conflict/no overwrite; unsupported versions fail, never reinitialize |
-| BOOT-06 | Replay after synthetic legitimate display/contact/authVersion/status/paired-acceptance progression returns existing IDs without resetting state; partial/corrupt identity/provenance/events fail, never repair |
+| BOOT-06 | Replay after synthetic legitimate display/contact/authVersion/status/paired-acceptance progression returns existing IDs without resetting state; partial/corrupt identity/provenance or missing/duplicate birth events fail, never repair |
 | BOOT-07 | Two independent identical callers → one CREATED, one ALREADY_BOOTSTRAPPED; conflicting callers → one winner, one conflict plus bounded rejection audit; barrier-controlled locking, no arbitrary sleeps as race proof |
 | BOOT-08 | Separate held advisory lock produces bounded timeout and no writes; approved transient retry at most once; all retries use same fixed lock for different hashes/versions |
-| BOOT-09 | Readiness runs in READ ONLY transaction with zero DML/DDL/nextval; zero/missing/failed/rolled-back/checksum-mismatched/duplicate migration records reject; successful record after an old rolled-back attempt handled correctly |
+| BOOT-09 | Readiness runs in READ ONLY transaction with zero DML/DDL/nextval; concurrent check/apply sees a consistent pre- or post-commit snapshot, never mixed partial state; zero/missing/failed/rolled-back/checksum-mismatched/duplicate migration records reject; successful record after an old rolled-back attempt handled correctly |
 | BOOT-10 | Missing/disabled/replica-only/conditional/wrongly timed trigger, altered function body/search_path/security, weakened CHECK/FK/index, missing FK enforcement, view/RLS/rule substitution, sequence misbinding and unsupported version reject |
 | BOOT-11 | Least-privilege non-owner succeeds including Office lock permission; missing SELECT/INSERT/sequence/Office UPDATE, owner/migrator credentials and dangerous inherited/SET ROLE authority reject; broad-DML guards separately remain effective |
 | BOOT-12 | Inject failure after each of Office/Owner/Charter/CEO/first Event/second Event, readback and deferred constraints; every new row rolls back, business sentinels unchanged; sequence gaps explicitly permitted |
-| BOOT-13 | Disconnect before commit rolls back; drop only commit acknowledgment after actual commit, then identical replay recovers same IDs/events; ambiguous acknowledgment never reported as confirmed success/rollback |
-| BOOT-14 | Audit failure rolls back new foundation; valid conflict persists rejection before nonzero exit; unready/empty/check-only failure has no DB audit; idempotent replay produces none; secrets/PII absent in stdout/stderr/errors/metadata |
-| BOOT-15 | Operator process imports cause no DB/network work, help is pure, generated client missing fails clearly without installing, no auth/model/email/cron imports, check writes nothing and apply requires double target confirmation |
+| BOOT-13 | Disconnect before commit rolls back; drop only commit acknowledgment after actual commit, then identical replay recovers same IDs/events; ambiguous acknowledgment never reported as confirmed success/rollback or auditPersisted false |
+| BOOT-14 | Audit failure rolls back new foundation; valid conflict persists rejection before nonzero exit; uncertain rejection commit reports unknown and repeat conflict may append a new attempt; unready/empty/check-only failure has no DB audit; idempotent replay produces none; secrets/PII absent in stdout/stderr/errors/metadata |
+| BOOT-15 | Operator process imports cause no DB/network work, help is pure, missing runner/client fails without installing/global PATH fallback, wrong runtime rejects, npm silent invocation does not echo private paths, no auth/model/email/cron imports, check writes nothing and apply requires double target confirmation |
 | BOOT-16 | Re-run all existing M1.2 tests and unchanged business catalog/sentinel comparisons; no schema/migration change; preserve TowerResult drift exactly, not a repair or passing full-schema compatibility claim |
 
 Never bypass real readiness to make a broken fixture pass. Alter test-only migration
@@ -672,6 +695,10 @@ No unresolved technical choice is hidden behind “implementation detail”: the
 selected designs above are proposals, and changed choices require a visible PR
 amendment. Post decision comments headed **OWNER DECISION REQUIRED** and link
 their resolutions in the PR; do not treat silence or this planning task as consent.
+
+Pending review comments: [D1 contract/runner](https://github.com/sccmavenger/ralph/pull/8#issuecomment-5805065785),
+[D2 scope/source transport](https://github.com/sccmavenger/ralph/pull/8#issuecomment-5805066018),
+[D3 fidelity/identity process](https://github.com/sccmavenger/ralph/pull/8#issuecomment-5805066239).
 
 Remaining risks: fidelity needs human review; trusted-release artifacts are not
 cryptographic Owner signatures; catalog deparser/adapter behavior needs actual
