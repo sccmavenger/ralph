@@ -1,0 +1,10 @@
+{
+  "targetVersion": 1,
+  "environment": "disposable",
+  "host": "127.0.0.1",
+  "port": 55432,
+  "database": "msf_exec_m12_example",
+  "role": "exec_test_app",
+  "tls": "disabled",
+  "runId": "example-owned-container"
+}
