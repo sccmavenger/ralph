@@ -291,7 +291,7 @@ describe("BOOT-01 explicit disposable target and no fallback/no connection", () 
       query_timeout: 20000, lock_timeout: 5000, idle_in_transaction_session_timeout: 15000 });
     expect(config).not.toHaveProperty("connectionString");
     expect(bootstrapConnection(validated, "check", undefined, { ...environment,
-      EXECUTIVE_BOOTSTRAP_DATABASE_URL: url.replace("synthetic-only", "synthetic%40password%3Avalue") }).password)
+      EXECUTIVE_BOOTSTRAP_DATABASE_URL: url.replaceAll("synthetic-only", "synthetic%40password%3Avalue") }).password)
       .toBe("synthetic@password:value");
   });
 
@@ -310,8 +310,8 @@ describe("BOOT-01 explicit disposable target and no fallback/no connection", () 
     url.replace("127.0.0.1", "[::1]"), url.replace("127.0.0.1", "example.postgres.database.azure.com"),
     url.replace("127.0.0.1", "%31%32%37.0.0.1"), url.replace(":55432/", ":5432/"),
     url.replace("exec_test_app:", "exec_test_migrator:"), url.replace("exec_test_app:", "%65xec_test_app:"),
-    url.replace(":synthetic-only@", "@"), url.replace("synthetic-only", ""), url.replace("synthetic-only", "%20"),
-    url.replace("synthetic-only", "%00"), url.replace("synthetic-only", "%zz"), url.replace(database, "production"),
+    url.replace(":synthetic-only@", "@"), url.replaceAll("synthetic-only", ""), url.replaceAll("synthetic-only", "%20"),
+    url.replaceAll("synthetic-only", "%00"), url.replaceAll("synthetic-only", "%zz"), url.replace(database, "production"),
     url.replace(database, "msf_exec_m12_%31"), url.replace(database, `${database}/../production`),
     `${url}?host=production.invalid`, `${url}?sslmode=require`, `${url}#fragment`, `${url} `, `${url}\n`, `${url}\r\n`,
   ])("rejects URL variant %# without touching a database", (value) => {
