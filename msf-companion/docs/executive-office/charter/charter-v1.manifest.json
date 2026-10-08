@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 1,
+  "charterVersion": 1,
+  "title": "AI CEO Charter & Governance Framework",
+  "sourceFileName": "MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx",
+  "sourceFileHash": "654a4baa4e86743af373f620a8dc156519dada487f3288811b39ae42e5413660",
+  "sourceByteLength": 40485,
+  "contentFileName": "charter-v1.md",
+  "contentHash": "673560486fa44a687dcddc6395bd4439848225c40f0f42831dc3a21daee3b3e5",
+  "contentByteLength": 6557,
+  "canonicalization": "utf8-no-bom-lf-one-final-newline-v1",
+  "transcriptionMethod": "faithful-manual-ooxml-and-rendered-review-v1",
+  "sourceSectionCount": 12,
+  "presentationChanges": [
+    "Map the MSF Toolkit title paragraph to a Markdown H1 and the twelve numbered Heading1 paragraphs to Markdown H2 headings, retaining their literal numbers and text.",
+    "Map the fifty ListBullet paragraphs, using style-inherited numbering numId 1 / abstractNumId 8, to unordered Markdown hyphen lists without changing item text or order.",
+    "Represent each nonempty source body paragraph as one nonempty Markdown line; use blank lines for paragraph and section separation instead of the source's layout spacing.",
+    "Do not reproduce Word font families, sizes, direct bold/italic emphasis, colors, borders, alignment, indentation or pagination; this includes the bold subtitle, arrow sequences and principles, and italic tagline. Retain all substantive title, subtitle and body text.",
+    "Omit the repeating footer MSF Toolkit • AI CEO Charter & Governance Framework from Markdown; it is presentation-only duplication, subject to Owner fidelity review.",
+    "Encode the Markdown as UTF-8 without BOM, with LF line endings and exactly one final LF.",
+    "Preserve Unicode characters, punctuation, arrows, internal spaces, capitalization, paragraph order and wording without Unicode normalization, summary, technical-package additions or governance annotations."
+  ],
+  "review": {
+    "reference": "https://github.com/sccmavenger/ralph/pull/11#issuecomment-5807081719",
+    "reviewer": "sccmavenger",
+    "reviewedSourceFileHash": "654a4baa4e86743af373f620a8dc156519dada487f3288811b39ae42e5413660",
+    "reviewedContentHash": "673560486fa44a687dcddc6395bd4439848225c40f0f42831dc3a21daee3b3e5"
+  }
+}
