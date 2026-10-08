@@ -1,6 +1,13 @@
 name: M1.3 Bootstrap Validation
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_genuine_source:
+        description: "Run the protected genuine-source rehearsal lane (requires configured environment secrets)."
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [executive/m1.3-bootstrap]
     paths:

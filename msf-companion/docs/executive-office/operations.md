@@ -23,12 +23,12 @@ instructions as an existing executable CLI or as permission to cross an Owner ga
 - [Exact descriptive CEO role](../../src/lib/executive/bootstrap-role-v1.json).
 - [Verification and review hashes](m1-3-bootstrap-verification.md).
 
-The manifest deliberately has four empty review strings. It is **not importable**
-under the approved contract: there is no actual approval URL, approving identity
-or approved-hash receipt yet. Do not invent a reviewer, use the decision-request
-comment as approval, add an `approved` flag, or weaken validation to accept it.
-The transcriptionMethod identifies the selected process; it does not certify
-that its outstanding rendered-source/Owner review is complete.
+The historical checkpoint used four empty review strings before G2 approval. The
+current manifest now records the exact approved reference, reviewer and approved
+source/content hashes. Do not invent additional reviewers, add an `approved`
+flag, or weaken validation to accept missing review metadata in future updates.
+The transcriptionMethod identifies the selected process; it does not by itself
+certify fidelity or authorize source changes outside the recorded review receipt.
 
 For G2, the Owner must compare the rendered original DOCX, retained privately,
 with the canonical Markdown section by section. OOXML paragraph/style/numbering
