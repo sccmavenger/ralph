@@ -9,13 +9,13 @@ export async function readBoundedFile(path: string, limit: number): Promise<Buff
   const resolved = resolve(path);
   // A handle binds metadata and contents; no streams/devices, symlinks or unbounded reads.
   const before = await lstat(resolved);
-  if (!before.isFile() || before.size > limit || before.size === 0) throw new Error('INVALID_FILE');
+  if (!before.isFile() || before.nlink !== 1 || before.size > limit || before.size === 0) throw new Error('INVALID_FILE');
   const flags = process.platform === 'win32' ? constants.O_RDONLY :
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
   const handle = await open(resolved, flags);
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > limit || stat.size === 0 || stat.dev !== before.dev || stat.ino !== before.ino ||
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > limit || stat.size === 0 || stat.dev !== before.dev || stat.ino !== before.ino ||
         stat.size !== before.size || stat.mtimeMs !== before.mtimeMs || stat.ctimeMs !== before.ctimeMs) throw new Error('INVALID_FILE');
     const bytes = Buffer.alloc(limit + 1);
     let length = 0;
@@ -26,7 +26,7 @@ export async function readBoundedFile(path: string, limit: number): Promise<Buff
     }
     if (length > limit || length !== stat.size) throw new Error('INVALID_FILE');
     const after = await handle.stat();
-    if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs) throw new Error('INVALID_FILE');
+    if (after.nlink !== 1 || after.dev !== stat.dev || after.ino !== stat.ino || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs) throw new Error('INVALID_FILE');
     return bytes.subarray(0, length);
   } finally { await handle.close(); }
 }
