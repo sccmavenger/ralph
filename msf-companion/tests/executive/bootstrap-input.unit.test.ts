@@ -40,7 +40,7 @@ afterEach(() => {
 
 describe("BOOT-01 bounded private-file reads (mock filesystem; no real source access)", () => {
   function mockFile(content: Buffer, chunkSize = content.length) {
-    const stat = { size: content.length, dev: 1, ino: 17, mtimeMs: 1000, ctimeMs: 1000, isFile: () => true };
+    const stat = { size: content.length, nlink: 1, dev: 1, ino: 17, mtimeMs: 1000, ctimeMs: 1000, isFile: () => true };
     let position = 0;
     const handle = {
       stat: vi.fn().mockResolvedValue(stat),
@@ -73,7 +73,7 @@ describe("BOOT-01 bounded private-file reads (mock filesystem; no real source ac
   it.each(["symlink", "directory", "fifo", "device", "empty", "oversized"])(
     "rejects %s before opening", async (kind) => {
       filesystem.lstat.mockResolvedValue({ isFile: () => kind === "empty" || kind === "oversized",
-        size: kind === "empty" ? 0 : 17 });
+        nlink: 1, size: kind === "empty" ? 0 : 17 });
       await expect(readBoundedFile("/private/synthetic.json", 16)).rejects.toThrow("INVALID_FILE");
       expect(filesystem.open).not.toHaveBeenCalled();
     },
