@@ -70,7 +70,9 @@ export class BootstrapRejectionError extends Error {
 type StoredRow = Record<string, unknown>;
 type FoundationSnapshot = {
   offices: StoredRow[]; owners: StoredRow[]; agents: StoredRow[]; charters: StoredRow[];
-  births: StoredRow[]; counts: Record<string, number>;
+  births: StoredRow[];
+  /** Saturating row counts: 3 means three or more, never an exact history total. */
+  counts: Record<string, number>;
 };
 const tables = ["ExecutiveOffice", "ExecutiveOwner", "ExecutiveAgent", "ExecutiveCharter",
   "ExecutiveOwnerCredential", "ExecutiveOwnerEnrollment", "ExecutiveOwnerChallenge", "ExecutiveOwnerSession",
@@ -93,16 +95,22 @@ function object(value: unknown): StoredRow {
 }
 
 // A single SELECT gives the status/identity/pointer assessment one MVCC snapshot,
-// even in READ COMMITTED. Counts avoid loading historical ephemeral auth data.
+// even in READ COMMITTED. Two rows suffice to reject duplicate identities;
+// three birth rows suffice to reject anything other than the required pair.
+// Saturating counts distinguish empty / singleton / pair / excess without
+// scanning all later auth/activity history. No decision needs a total above two.
+// Limits apply BEFORE aggregation. Unordered duplicate witnesses always reject;
+// no limited result is used to select an identity from an invalid foundation.
 const snapshotSql = `SELECT pg_catalog.jsonb_build_object(
-  'offices', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM public."ExecutiveOffice" t),
-  'owners', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM public."ExecutiveOwner" t),
-  'agents', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM public."ExecutiveAgent" t),
-  'charters', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM public."ExecutiveCharter" t WHERE t."version"=1),
+  'offices', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM (SELECT * FROM public."ExecutiveOffice" LIMIT 2) t),
+  'owners', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM (SELECT * FROM public."ExecutiveOwner" LIMIT 2) t),
+  'agents', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM (SELECT * FROM public."ExecutiveAgent" LIMIT 2) t),
+  'charters', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t)), '[]'::jsonb) FROM (SELECT * FROM public."ExecutiveCharter" WHERE "version"=1 LIMIT 2) t),
   'births', (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(t) - 'sequence' || pg_catalog.jsonb_build_object('sequence', t."sequence"::text)), '[]'::jsonb)
-    FROM public."ExecutiveActivityEvent" t WHERE t."eventType"='executive.bootstrap.completed'
-    OR (t."eventType"='executive.charter.imported' AND t."subjectId" IN (SELECT c."id" FROM public."ExecutiveCharter" c WHERE c."version"=1))),
-  'counts', pg_catalog.jsonb_build_object(${tables.map((table) => `'${table}', (SELECT count(*)::int FROM public."${table}")`).join(",")})
+    FROM (SELECT * FROM public."ExecutiveActivityEvent" e WHERE e."eventType"='executive.bootstrap.completed'
+    OR (e."eventType"='executive.charter.imported' AND e."subjectId" IN (SELECT c."id" FROM public."ExecutiveCharter" c WHERE c."version"=1))
+    LIMIT 3) t),
+  'counts', pg_catalog.jsonb_build_object(${tables.map((table) => `'${table}', (SELECT count(*)::int FROM (SELECT 1 FROM public."${table}" LIMIT 3) bounded)`).join(",")})
 ) AS snapshot`;
 
 async function readFoundation(tx: Prisma.TransactionClient): Promise<FoundationSnapshot> {

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { canonicalHash, sha256 } from "../../src/lib/executive/canonical";
 import { runBootstrap, type BootstrapOptions, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
-import { bootstrapReadiness, businessSnapshot, createBootstrapFixture, executiveSnapshot } from "./bootstrap-fixtures";
+import { bootstrapReadiness, businessSnapshot, createBootstrapFixture, executiveSnapshot, interceptBootstrapClient } from "./bootstrap-fixtures";
 import { connectTestDatabase, EXECUTIVE_TABLES, expectSqlFailure, validateTestEnvironment } from "./test-database";
 
 beforeAll(() => { validateTestEnvironment(); });
@@ -147,6 +147,90 @@ describe("BOOT-04/05/06/11/16 typed bootstrap, inertness, continuity and unchang
       expect(await executiveSnapshot(fixture.env)).toEqual(beforeReplay);
     } finally { await fixture.close(); }
   });
+
+  it("bounded replay preserves later Charter, auth and event history in check and apply", async () => {
+    const fixture = await createBootstrapFixture("bounded_history");
+    try {
+      const original = await fixture.run();
+      if (!("officeId" in original)) throw new Error("Creation failed");
+      // Disposable synthetic later state only, not enrollment/acceptance services.
+      const owner = await connectTestDatabase("migrator", fixture.env);
+      try {
+        await owner.query(`INSERT INTO public."ExecutiveActivityEvent"
+          (id,"officeId","eventType","actorType","subjectType","requestId",outcome,metadata)
+          SELECT 'history_event_'||n,$1,'fixture.later','SYSTEM','Fixture','history_request_'||n,
+            'SUCCESS','{"synthetic":true}' FROM generate_series(1,64) n`, [original.officeId]);
+        await owner.query(`INSERT INTO public."ExecutiveAuthRateLimit"
+          (id,"bucketKeyHash","windowStartedAt","expiresAt","updatedAt")
+          SELECT 'history_bucket_'||n,$1||lpad(n::text,4,'0'),clock_timestamp(),
+            clock_timestamp()+interval '1 hour',clock_timestamp() FROM generate_series(1,64) n`, ["a".repeat(60)]);
+        await owner.query(`INSERT INTO public."ExecutiveCharter"
+          (id,"officeId",version,title,"contentMarkdown","contentHash","sourceFileName","sourceFileHash")
+          SELECT 'history_charter_'||n,"officeId",n+1,title,"contentMarkdown","contentHash","sourceFileName","sourceFileHash"
+          FROM public."ExecutiveCharter" CROSS JOIN generate_series(1,8) n WHERE version=1`);
+      } finally { await owner.end(); }
+      const before = await executiveSnapshot(fixture.env);
+      expect(before.rows.ExecutiveActivityEvent).toHaveLength(66);
+      expect(before.rows.ExecutiveAuthRateLimit).toHaveLength(64);
+      expect(before.rows.ExecutiveCharter).toHaveLength(9);
+      for (const mode of ["check", "apply"] as const) {
+        let snapshots = 0;
+        const observing = interceptBootstrapClient(fixture.client, { afterOperation: async operation => {
+          if (operation.method !== "$queryRawUnsafe" || !String(operation.args[0]).includes("AS snapshot")) return;
+          snapshots++;
+          const rows = operation.result as { snapshot: { counts: Record<string, number>; births: unknown[]; charters: unknown[] } }[];
+          expect(rows[0].snapshot.counts.ExecutiveActivityEvent).toBe(3);
+          expect(rows[0].snapshot.counts.ExecutiveAuthRateLimit).toBe(3);
+          expect(rows[0].snapshot.counts.ExecutiveCharter).toBe(3);
+          expect(rows[0].snapshot.births).toHaveLength(2);
+          expect(rows[0].snapshot.charters).toHaveLength(1);
+        } });
+        expect(await runBootstrap({ client: observing, mode, prepared: fixture.prepared,
+          readiness: bootstrapReadiness(fixture.env, mode) })).toMatchObject({
+          status: "ALREADY_BOOTSTRAPPED", officeId: original.officeId, ownerId: original.ownerId,
+          ceoId: original.ceoId, charterId: original.charterId, eventSequences: original.eventSequences,
+        });
+        expect(snapshots).toBe(1);
+        expect(await executiveSnapshot(fixture.env)).toEqual(before);
+      }
+    } finally { await fixture.close(); }
+  });
+
+  it.each(["executive.charter.imported", "executive.bootstrap.completed"])(
+    "bounded replay rejects excess %s birth receipts without writes", async eventType => {
+      const fixture = await createBootstrapFixture(eventType.endsWith("imported") ? "excess_imports" : "excess_completions");
+      try {
+        expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+        const owner = await connectTestDatabase("migrator", fixture.env);
+        try {
+          // Guards remain enabled: append duplicate synthetic receipts rather
+          // than altering/deleting original immutable history.
+          await owner.query(`INSERT INTO public."ExecutiveActivityEvent"
+            (id,"officeId","createdAt","occurredAt","requestId","actorType","actorOwnerId",
+              "eventType",outcome,"subjectType","subjectId",metadata)
+            SELECT 'excess_birth_'||n,"officeId","createdAt","occurredAt","requestId","actorType","actorOwnerId",
+              "eventType",outcome,"subjectType","subjectId",metadata
+            FROM public."ExecutiveActivityEvent" CROSS JOIN generate_series(1,32) n WHERE "eventType"=$1`, [eventType]);
+        } finally { await owner.end(); }
+        const before = await executiveSnapshot(fixture.env);
+        for (const mode of ["check", "apply"] as const) {
+          let snapshots = 0;
+          const observing = interceptBootstrapClient(fixture.client, { afterOperation: async operation => {
+            if (operation.method !== "$queryRawUnsafe" || !String(operation.args[0]).includes("AS snapshot")) return;
+            snapshots++;
+            const rows = operation.result as { snapshot: { births: unknown[] } }[];
+            expect(rows[0].snapshot.births).toHaveLength(3);
+          } });
+          expect(await runBootstrap({ client: observing, mode, prepared: fixture.prepared,
+            readiness: bootstrapReadiness(fixture.env, mode) })).toMatchObject({
+            reasonCode: "FOUNDATION_INCONSISTENT", diagnostic: { auditPersisted: false },
+          });
+          expect(snapshots).toBe(1);
+          expect(await executiveSnapshot(fixture.env)).toEqual(before);
+        }
+      } finally { await fixture.close(); }
+    },
+  );
 
   it("immutable identity/birth mutations fail at PostgreSQL guards and do not interfere with replay", async () => {
     const fixture = await createBootstrapFixture("immutable");

@@ -1,5 +1,75 @@
 # M1.3 implementation — verification record
 
+## Source-free bounded foundation snapshot checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `847ff3c165536c9a9e6a6c6705f13c50142b1280`, detached at the exact
+`origin/executive/m1.3-bootstrap` commit in PR #11's workflow checkout. HEAD and
+pre-existing untracked `.github/codex/` are preserved; this patch remains
+uncommitted for workflow collection. Read-only `gh issue view 10 --repo
+sccmavenger/ralph --json title,body,state` was blocked by missing GitHub
+authentication. No live issue/PR review is claimed. The checked-in M1/M1.3 plans,
+verification records, runtime and tests supplied the task context.
+
+Objective: bound the replay snapshot's row aggregation and cardinality probes.
+Previously bootstrap loaded every matching foundation/birth row and counted all
+later auth/activity history. Only cardinalities zero, one, two and excess affect
+bootstrap decisions. Keep the single SQL statement/MVCC snapshot, aggregate at
+most two rows per identity collection and three relevant birth receipts, and
+count at most three rows per table. Internal counts now saturate at three; they
+are not exact history totals and are not exposed as operator reporting. Any
+three relevant birth receipts reject regardless of order, so limiting does not
+select a winning receipt or hide corruption. Later Charter versions stay outside
+the v1 identity collection. No indexes/schema changes: the filtered birth query
+may still scan history to locate matches; this is a result-row/aggregation bound,
+not a guarantee of constant query time or a byte bound on individual stored rows.
+
+Files and review context:
+
+- `src/lib/executive/bootstrap.ts`: bounded SELECT subqueries before aggregation;
+  saturating cardinality probes retain empty/fresh/singleton/excess invariants.
+  Locking, transaction mode, readiness, write path, audit and output contracts
+  are retained.
+- `tests/executive/bootstrap.integration.test.ts`: three real PostgreSQL cases.
+  One seeds 64 synthetic later events, 64 synthetic rate-limit buckets and eight
+  later Charter versions, observes the actual bounded SQL results, and verifies
+  check/apply replay preserves all identities, event sequences, rows and sequence
+  state. Two append 32 duplicate import/completion receipts with guards enabled,
+  assert the three-row witness and fail-closed no-write result in both modes.
+  These cases remain unrun here and do not establish actual server behavior.
+- This verification record supplies durable review context. No migration,
+  dependency/lockfile, configuration, workflow, policy, Charter content, manifest,
+  approval receipt or provenance artifact changes. No private source access,
+  database connection, cloud/production/shared target, payment, credential change,
+  enrollment/passkey ceremony, Charter acceptance, CEO activation, GitHub write,
+  commit/push, merge, deployment or later-story work. No infrastructure/cost
+  implication and no new Owner decision required for this bounded change.
+
+Actual checks on Linux, Node **24.21.0**:
+
+| Command/check | Result and limits |
+|---|---|
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` in `msf-companion` | Blocked by registry DNS EAI_AGAIN; package/lockfile unchanged. |
+| `node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts tests/executive/bootstrap.integration.test.ts` in `msf-companion` | Blocked before collection: local Vitest absent. An initial invocation from repository root also failed to locate Vitest; corrected working directory did not resolve the missing dependency. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket denied; no container/database accessed. |
+| `node /tmp/m13-bounded-check.cjs` | Passed supplemental bounded-SQL assertions and existing synthetic service fixture checks: empty check/create, advanced-history check/apply replay with counts saturated at three, and both excess-birth check/apply refusals without writes. Four runtime files plus changed integration file transpile without syntactic diagnostics using preinstalled Functions TypeScript. Initial harness failures concerned cross-realm prototypes and its SQL capture; corrected outside the repository. Not pinned Vitest, semantic typecheck, Prisma or PostgreSQL evidence. |
+| `git diff --check` | Passed. |
+
+**No BOOT requirement is newly certified complete.** BOOT-01–16, these new
+integration lanes, full M1.2 preservation, actual Prisma/PostgreSQL transaction,
+catalog/privilege/concurrency/audit/commit behavior, pinned semantic typecheck
+and targeted lint, baseline web/lint/audit/build comparisons and Linux container
+smoke remain unverified in this run. Historical failures below were not rerun;
+no absence-of-regressions claim is made. Genuine-source protected CLI
+check/apply/replay, independent fidelity review and Owner acceptance remain
+mandatory separate gates; synthetic checks cannot satisfy them.
+
+Next proposed action: run the complete pinned dedicated suite on the authorized
+owned disposable PostgreSQL runner, including these cardinality/history cases,
+complete regression/container evidence and genuine-source rehearsal, then Owner
+review. Technical merge readiness: **not ready** pending validation and those
+mandatory gates. No M1.3 acceptance or M1.4 progression is inferred.
+
 ## Source-free mixed driver commit evidence checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
