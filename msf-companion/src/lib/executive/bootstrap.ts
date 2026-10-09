@@ -2,7 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma, PrismaClient } from "../../generated/prisma/client";
-import { canonicalHash } from "./canonical";
+import { canonicalHash, exactObject } from "./canonical";
+import { validateBootstrapInput } from "./bootstrap-config";
 import {
   appendBootstrapEvent, buildBootstrapDiagnostic, createBootstrapEvents, createRejectionEvent,
   isBootstrapRequestId, type BootstrapDiagnostic, type BootstrapEventData,
@@ -251,7 +252,19 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
   let prepared: BootstrapPrepared;
   try {
     prepared = structuredClone(options.prepared);
+    // The reusable transaction boundary must enforce the closed contract too;
+    // a self-consistent hash alone does not validate an envelope's shape or PII.
+    exactObject(prepared, ["envelope", "bootstrapHash", "charter"]);
     const { envelope, charter } = prepared;
+    exactObject(envelope, ["bootstrapVersion", "office", "owner", "ceo", "charter", "auditSchemaVersion"]);
+    exactObject(envelope.office, ["key", "name", "phase", "executionMode", "activeCharterAcceptanceId"]);
+    exactObject(envelope.owner, ["displayName", "contactEmail", "status", "authVersion"]);
+    exactObject(envelope.ceo, ["roleKey", "displayName", "status", "roleDefinitionVersion", "roleDefinition", "governingCharterAcceptanceId"]);
+    exactObject(envelope.charter, ["version", "title", "contentHash", "sourceFileName", "sourceFileHash", "manifestHash", "importedByOwnerId"]);
+    exactObject(charter, ["contentMarkdown", "contentHash", "sourceFileName", "sourceFileHash", "title", "manifestHash"]);
+    validateBootstrapInput({ inputVersion: 1, owner: {
+      displayName: envelope.owner.displayName, contactEmail: envelope.owner.contactEmail,
+    } });
     if (envelope.bootstrapVersion !== 1 || envelope.auditSchemaVersion !== 1
         || !isHash(prepared.bootstrapHash) || canonicalHash(envelope) !== prepared.bootstrapHash
         || !validRole(envelope.ceo.roleDefinition) || envelope.office.key !== "msf-toolkit"

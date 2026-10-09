@@ -259,6 +259,24 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.transaction).not.toHaveBeenCalled();
   });
 
+  it.each(["extra envelope key", "extra owner key", "extra artifact key", "empty owner", "control character", "invalid contact"])(
+    "rejects %s even with a recomputed digest before opening a transaction", async kind => {
+      const fixture = serviceDouble();
+      const prepared = fixture.options.prepared;
+      if (kind === "extra envelope key") Object.assign(prepared.envelope, { secret: "synthetic-private-marker" });
+      if (kind === "extra owner key") Object.assign(prepared.envelope.owner, { token: "synthetic-private-marker" });
+      if (kind === "extra artifact key") Object.assign(prepared.charter, { sourcePath: "/synthetic-private-marker" });
+      if (kind === "empty owner") prepared.envelope.owner.displayName = "";
+      if (kind === "control character") prepared.envelope.owner.displayName = "Synthetic\nOwner";
+      if (kind === "invalid contact") prepared.envelope.owner.contactEmail = "synthetic-private-marker";
+      prepared.bootstrapHash = canonicalHash(prepared.envelope);
+      const result = await runBootstrap(fixture.options);
+      expect(result).toMatchObject({ reasonCode: "INPUT_INVALID", exitCode: 2, diagnostic: { auditPersisted: false } });
+      expect(fixture.transaction).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+    },
+  );
+
   it("readiness rejection and lock timeout expose only stable diagnostics, with no writes/retry", async () => {
     const fixture = serviceDouble();
     fixture.readiness.mockRejectedValueOnce(new BootstrapRejectionError("PRIVILEGE_FAILED"));

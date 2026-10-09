@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -55,7 +56,23 @@ afterAll(async () => {
   if (scratch && scratch.startsWith(join(tmpdir(), 'msf-m13-cli-test-'))) await rm(scratch, { recursive: true, force: true });
 });
 
-describe('BOOT-14 actual Node24/local-tsx operator process before connection', () => {
+describe('BOOT-14/15 actual Node24/local-tsx operator process before connection', () => {
+  it.each(['require', 'import'])('%s of the operator is inert even with invalid arguments and forbidden target environment', async loader => {
+    const script = join(scratch, `inspect-${loader}.cts`);
+    // A prior exit code and hostile arguments expose accidental main execution.
+    // These are subprocess tests of the real entry point, not a mocked main.
+    const load = loader === 'require'
+      ? `require(${JSON.stringify(cli)});`
+      : `await import(${JSON.stringify(pathToFileURL(cli).href)});`;
+    await writeFile(script, `(async () => {
+      process.exitCode = 7;
+      process.argv = [process.execPath, ${JSON.stringify(cli)}, '--force'];
+      ${load}
+      if (process.exitCode !== 7) throw new Error('IMPORT_CHANGED_EXIT_CODE');
+    })();\n`);
+    const result = await command([runner, script], { ...baseEnv, NODE_ENV: 'production' });
+    expect(result).toEqual({ code: 7, stdout: '', stderr: '' });
+  });
   it('help needs no input, environment, generated client or connection', async () => {
     const result = await command(invocation('--help'), { ...baseEnv, EXECUTIVE_BOOTSTRAP_DATABASE_URL: undefined,
       EXECUTIVE_BOOTSTRAP_DATABASE_CONFIRM: undefined });

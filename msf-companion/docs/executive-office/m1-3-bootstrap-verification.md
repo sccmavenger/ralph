@@ -1,5 +1,60 @@
 # M1.3 implementation — verification record
 
+## Source-free development checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted patch starts from `ec44006` on the workflow's detached checkout of
+PR #11. HEAD was left unchanged; no branch creation, commit, push, GitHub write,
+database connection, production action or later milestone work occurred.
+`gh issue view 10 --json title,body,state` could not read the live issue because
+the session has no GitHub authentication. Scope was assessed from the checked-in
+M1.3 plan, operations and verification records, not a renewed live review claim.
+
+Changes in this bounded task:
+
+- `scripts/executive/bootstrap.ts`: guard execution with `require.main === module`
+  for the package's pinned CommonJS tsx entry point. Imports must not execute the
+  operator, parse arguments, read private files or change the caller's exit code.
+- `src/lib/executive/bootstrap.ts`: validate closed prepared/envelope/nested keys
+  and Owner display/contact metadata before opening any transaction. A matching
+  canonical digest alone no longer admits extra fields or invalid Owner metadata.
+  Valid changed bootstrap inputs retain the existing conflict behavior.
+- `tests/executive/bootstrap-cli.integration.test.ts`: add real require/dynamic
+  import subprocess cases with hostile arguments and a pre-existing exit code.
+- `tests/executive/bootstrap-audit.unit.test.ts`: add six rehashed invalid-input
+  cases proving rejection before transaction invocation and diagnostic redaction.
+- This verification record. No schema, migration, dependency, workflow, policy,
+  Charter, manifest, approval receipt or provenance file was changed.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limit |
+|---|---|
+| `npm ci --no-audit --no-fund` in `msf-companion` | Blocked: `EAI_AGAIN` resolving `registry.npmjs.org`; install incomplete. Package/lockfile unchanged. |
+| `docker info --format '{{.ServerVersion}}'` | Blocked: sandbox denies Docker socket access. No container/DB started or existing DB accessed. |
+| Supplemental `node node_modules/vitest/vitest.mjs run --config vitest.config.mts` in a secret-free `/tmp` copy using existing Functions Vitest 3.2.4 | Did not reach test collection: missing Linux Rollup native package. This is not the required Vitest 4 suite. No tests reported as passing. |
+| Supplemental Node inline `typescript.transpileModule` using existing Functions TypeScript, `CommonJS` / `ES2022` | Eight operator/library files transpiled without syntactic diagnostics in `/tmp`; not a semantic typecheck or pinned-tsx proof. |
+| Supplemental Node inline assertions against those transpiled modules | Six rehashed malformed envelopes returned `INPUT_INVALID`, exit 2, no audit and zero transaction calls; one valid synthetic envelope reached a deliberately rejecting transaction double. Seven assertions passed, no DB connection. |
+| Direct `node <temporary-transpiled-cli> --help` | HELP JSON returned with exit 0; generated client absent in the temporary source copy. |
+| Direct `node -e` require and dynamic import of temporary-transpiled CLI | Both retained deliberately assigned exit 7 and emitted no operator output. Runner environment emitted its existing NO_COLOR/FORCE_COLOR warning. These are supplemental direct-process checks, not the new pinned-tsx subprocess tests. |
+| `git diff --check` | Passed. |
+
+A supplemental esbuild attempt could not transpile because existing Functions
+dependencies contain the Windows native binary. TypeScript transpilation was
+used instead. A child-process supplemental harness also encountered sandbox
+`spawnSync EPERM`; its results are not counted as passing. Direct Node invocations
+above were then run independently. No dependency or guard was weakened to make
+these limitations disappear.
+
+The newly added eight automated cases remain **unrun in the required toolchain**.
+BOOT-01–16 completion, actual PostgreSQL transaction/locking/audit/privilege
+verification, all M1.2 preservation checks, semantic typecheck, targeted/full
+lint, web regressions, build and Linux container startup remain unverified by
+this run. Genuine-source protected CLI check/apply/replay and Owner acceptance
+remain mandatory separate gates; synthetic assertions do not satisfy them.
+Next action: validate this patch with the pinned local runner and complete
+disposable PostgreSQL suite in the existing authorized validation environment.
+
 ## Current checkpoint — September 24, 2026
 
 **Implementation in progress; not yet ready for M1.3 acceptance or merge.**

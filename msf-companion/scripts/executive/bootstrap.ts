@@ -78,4 +78,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+// The pinned tsx runner executes this package's entry point as CommonJS.
+// Importing the operator for inspection must never parse arguments, read private
+// files, construct a client, write diagnostics or change the caller's exit code.
+if (require.main === module) void main();
