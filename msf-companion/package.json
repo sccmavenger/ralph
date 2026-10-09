@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "cleanup": "node scripts/cleanup.js",
+    "executive:bootstrap": "node ./node_modules/tsx/dist/cli.mjs scripts/executive/bootstrap.ts",
     "kb:refresh": "npx tsx scripts/refresh-kb.ts",
     "kb:refresh:full": "npx tsx scripts/refresh-kb.ts --full",
     "kb:status": "npx tsx scripts/refresh-kb.ts --status",
@@ -47,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.3"
   }
