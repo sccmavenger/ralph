@@ -262,18 +262,27 @@ export async function checkExecutiveReadiness(
   const add = (category: ReadinessDiagnostic["category"], reason: string) => diagnostics.push({ category, reason });
   let phase: ReadinessDiagnostic["category"] = "runtime";
   try {
+    // Bind the operator contract before the first await. Readiness must never
+    // reinterpret an unknown mode as apply or follow caller mutation while SQL
+    // is in flight. The CLI's connection guard remains independently required.
+    const { expectedDatabase, expectedRole, mode } = options;
+    if ((mode !== "check" && mode !== "apply") || expectedRole !== "exec_test_app"
+      || typeof expectedDatabase !== "string"
+      || /^msf_exec_m12_[a-z0-9][a-z0-9_]{0,49}$/.exec(expectedDatabase)?.[0] !== expectedDatabase) {
+      add("runtime", "TRANSACTION_IDENTITY_OR_MODE_INVALID");
+      return { ready: false, diagnostics };
+    }
     const identities = await query(IDENTITY_QUERY);
     const identity = identities[0];
     if (identities.length !== 1 || !identity
-      || identity.database !== options.expectedDatabase
-      || identity.role !== options.expectedRole || identity.session_role !== options.expectedRole
-      || options.expectedRole !== "exec_test_app"
+      || identity.database !== expectedDatabase
+      || identity.role !== expectedRole || identity.session_role !== expectedRole
       || typeof identity.version !== "string" || !/^16\d{4}$/.test(identity.version)
       || identity.encoding !== "UTF8" || identity.replication !== "origin"
       || identity.search_path !== "pg_catalog" || identity.recovery !== false
       || typeof identity.server_address !== "string" || identity.server_port !== 5432
-      || identity.read_only !== (options.mode === "check" ? "on" : "off")
-      || identity.isolation !== (options.mode === "check" ? "repeatable read" : "read committed")) {
+      || identity.read_only !== (mode === "check" ? "on" : "off")
+      || identity.isolation !== (mode === "check" ? "repeatable read" : "read committed")) {
       add("runtime", "TRANSACTION_IDENTITY_OR_MODE_INVALID");
       return { ready: false, diagnostics };
     }
@@ -302,7 +311,7 @@ export async function checkExecutiveReadiness(
       const successful = history.filter((row) => row.migration_name === migration.name
         && row.finished === true && row.rolled_back === false);
       if (successful.length !== 1 || successful[0].checksum !== migration.checksum
-        || typeof successful[0].applied_steps_count !== "number" || successful[0].applied_steps_count < 1) {
+        || !Number.isSafeInteger(successful[0].applied_steps_count) || (successful[0].applied_steps_count as number) < 1) {
         add("migration", "REQUIRED_MIGRATION_INVALID");
       }
     }

@@ -1,5 +1,67 @@
 # M1.3 implementation — verification record
 
+## Source-free readiness invocation checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted change starts at `7e92a2b` on the detached workflow checkout of
+PR #11. HEAD and the pre-existing untracked `.github/codex/` directory are
+preserved for patch collection. No commit, push, GitHub write, database connection,
+cloud operation, enrollment, acceptance ceremony or later-story work occurred.
+`gh issue view 10 --repo sccmavenger/ralph --json title,body,state` failed because
+GitHub authentication is unavailable. Scope was assessed from the checked-in M1
+and M1.3 plans, implementation, tests and verification history; live issue review
+is not claimed.
+
+Objective: make the exported SELECT-only readiness boundary enforce a stable,
+closed operator invocation. Previously unknown modes were interpreted as apply,
+and options were reread after awaiting identity SQL. Caller mutation could change
+the database, role or isolation expectations during an invocation. A numeric
+migration step count of NaN, infinity or a fraction could also pass the prior
+`< 1` check; those are synthetic malformed results, not normal PG integer output.
+
+Files and decisions:
+
+- `src/lib/executive/readiness.ts`: capture database, role and mode before the
+  first await; reject unknown/missing modes, wrong roles and non-disposable names
+  before querying. Reuse the existing target name contract without replacing
+  the CLI connection/confirmation guard. Require a positive safe integer for
+  successful migration steps. Keep fixed diagnostics and SELECT-only SQL.
+- `tests/executive/bootstrap-readiness.unit.test.ts`: new source-free suite with
+  15 cases for valid lanes, pre-query rejection, in-flight option mutation in
+  both modes and malformed migration step counts. Catalog/privilege metadata are
+  doubles and cannot establish real PostgreSQL readiness.
+- `tests/executive/bootstrap-readiness.integration.test.ts`: one owned-disposable
+  PostgreSQL case mutates caller options while real identity SQL is pending,
+  verifies readiness under the original read-only contract, and compares sequence
+  state and all Executive table counts. This case remains unrun here.
+- This verification record. No schema, migration, dependency/lockfile,
+  configuration, workflow, policy, Charter, manifest, approval receipt or
+  provenance file changed. No new privileges, infrastructure or recurring cost.
+  No new Owner decision is introduced.
+
+Actual checks on Linux / Node **24.21.0**:
+
+| Command/check | Result and limitation |
+|---|---|
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-readiness.unit.test.ts` | Blocked before collection: local Vitest module absent. |
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`; package/lockfile unchanged. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied; CLI returned exit 0 despite diagnostic. No DB/container accessed. |
+| `node /tmp/m13-readiness-check.cjs` | Existing Functions TypeScript transpiled the service and both test files without syntactic diagnostics. All 15 permanent source-free cases passed using a temporary minimal assertion/call-recording shim. No pinned Vitest, semantic typecheck or database proof. Harness remains outside repository. |
+| `git diff --check` | Passed. |
+
+All **16 permanent automated cases remain unrun in the required toolchain**.
+BOOT-01/09 coverage is extended; no BOOT requirement is newly certified complete.
+BOOT-01–16 completion, full M1.2 preservation, actual PostgreSQL/Prisma behavior,
+semantic typecheck, lint, web regressions, build and Linux container checks remain
+unverified by this run. Historical failures below remain separate; supplemental
+assertions cannot establish the absence of new application regressions.
+
+Next action: run pinned unit/operator checks and the guarded disposable database
+suite, followed by required regression/container validation. Protected genuine-source
+check/apply/replay and Owner acceptance remain mandatory separate gates. Technical
+merge readiness is **not ready**. No M1.3 acceptance, merge/deployment authorization
+or progression to M1.4 is inferred.
+
 ## Source-free uncertain-commit checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This

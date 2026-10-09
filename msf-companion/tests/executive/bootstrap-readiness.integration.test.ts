@@ -87,6 +87,28 @@ beforeAll(async () => {
 });
 
 describe("BOOT-09/10/11 SELECT-only migration, full catalog and effective privilege readiness", () => {
+  it("retains the original check contract while caller options mutate during real identity SQL", async () => {
+    const client = await connectTestDatabase("app", baseline);
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      await client.query("SET LOCAL search_path=pg_catalog");
+      const before = (await client.query('SELECT last_value,is_called FROM public."ExecutiveActivityEvent_sequence_seq"')).rows;
+      const invocation = options(baseline);
+      const query: ExecutiveReadinessQuery = async <T extends Record<string, unknown>>(sql: string, values?: readonly unknown[]) => {
+        const pending = pgQuery(client)<T>(sql, values);
+        Object.assign(invocation, { mode: "apply", expectedDatabase: "msf_exec_m12_replaced", expectedRole: "exec_test_migrator" });
+        return pending;
+      };
+      expect(await checkExecutiveReadiness(query, invocation)).toEqual({ ready: true, diagnostics: [] });
+      expect((await client.query('SELECT last_value,is_called FROM public."ExecutiveActivityEvent_sequence_seq"')).rows).toEqual(before);
+      for (const table of EXECUTIVE_TABLES) {
+        expect((await client.query(`SELECT count(*)::int AS count FROM public."${table}"`)).rows[0].count).toBe(0);
+      }
+    } finally {
+      try { await client.query("ROLLBACK"); } finally { await client.end(); }
+    }
+  });
+
   it("accepts the reviewed PG16 contract with minimal grants without consuming a sequence or creating rows", async () => {
     const owner = await connectTestDatabase("migrator", baseline);
     try {
