@@ -12,34 +12,18 @@ export function assertUnicode(value: string): void {
 }
 
 export function canonicalJson(value: unknown, depth = 0): string {
-  if (depth > 64) throw new Error('INVALID_CANONICAL_VALUE');
-  if (value === null || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'string') {
-    assertUnicode(value);
-    return JSON.stringify(value);
-  }
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value) || Object.is(value, -0)) throw new Error('INVALID_CANONICAL_VALUE');
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    if (Reflect.ownKeys(value).length !== value.length + 1 || Object.keys(value).length !== value.length ||
-        Array.from({ length: value.length }, (_, index) => Object.getOwnPropertyDescriptor(value, String(index)))
-          .some(descriptor => !descriptor || !descriptor.enumerable || !('value' in descriptor))) {
-      throw new Error('INVALID_CANONICAL_VALUE');
-    }
-    return `[${value.map(item => canonicalJson(item, depth + 1)).join(',')}]`;
-  }
-  if (typeof value !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) {
-    throw new Error('INVALID_CANONICAL_VALUE');
-  }
-  const object = value as Record<string, unknown>;
-  if (Reflect.ownKeys(object).length !== Object.keys(object).length) throw new Error('INVALID_CANONICAL_VALUE');
-  return `{${Object.keys(object).sort().map(key => {
-    if (!/^[\x20-\x7e]+$/.test(key) || !Object.getOwnPropertyDescriptor(object, key)?.enumerable ||
-        !('value' in Object.getOwnPropertyDescriptor(object, key)!)) throw new Error('INVALID_CANONICAL_VALUE');
-    return `${JSON.stringify(key)}:${canonicalJson(object[key], depth + 1)}`;
-  }).join(',')}}`;
+  // Serialize only detached data. Descriptor validation followed by ordinary
+  // caller reads can execute Proxy traps or an Array subclass's map method and
+  // hash values different from the ones that were validated.
+  const captured = captureCanonicalValue(value, depth);
+  const serialize = (item: unknown): string => {
+    if (item === null || typeof item !== 'object') return JSON.stringify(item);
+    if (Array.isArray(item)) return `[${item.map(serialize).join(',')}]`;
+    const object = item as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map(key =>
+      `${JSON.stringify(key)}:${serialize(object[key])}`).join(',')}}`;
+  };
+  return serialize(captured);
 }
 
 export function sha256(value: string | Uint8Array): string {

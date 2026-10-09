@@ -1,5 +1,61 @@
 # M1.3 implementation — verification record
 
+## Source-free canonical serialization checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `552b5e1`, detached in PR #11's implementation workflow checkout. HEAD
+and pre-existing untracked `.github/codex/` are preserved; this patch remains
+uncommitted for workflow collection. Read-only `gh issue view 10 --repo
+sccmavenger/ralph --json title,body,state` failed for missing GitHub authentication.
+No live issue/PR review is claimed. Scope was assessed from the M1/M1.3 plans,
+verification record, operator, transaction, readiness, canonical runtime and tests.
+
+Objective: make canonical serialization consume exactly the descriptor-captured
+values. Previously it checked descriptors and then read caller properties or
+called caller array methods. A proxy could substitute a different hash input,
+and an Array subclass could execute its own `map`. Strict CLI JSON cannot contain
+these shapes; this closes the reusable canonical hashing boundary.
+
+Files and decisions:
+
+- `src/lib/executive/canonical.ts`: reuse recursive descriptor capture once before
+  serialization. Hash only detached plain objects/arrays. Preserve canonical key
+  ordering, Unicode and scalar restrictions, depth limits and bytes for valid
+  JSON. Reject executable array prototypes and opaque reflection with the bounded
+  canonical error. Reflection traps remain subject to JavaScript Proxy semantics;
+  the guarantee is no ordinary caller property reads or caller array methods.
+- `tests/executive/bootstrap-input.unit.test.ts`: three permanent cases cover
+  object/array read traps, executable array prototypes and attached methods,
+  revoked/opaque proxies, and preservation of own `__proto__` data. These cases
+  await execution by the pinned runner.
+- This verification record supplies durable review context. No schema/migration,
+  dependency/lockfile, configuration, workflow, policy, Charter content, manifest,
+  approval receipt or provenance artifact changed. No database connection,
+  production/shared target, deployment, cloud, payment, credential, Owner ceremony,
+  acceptance, CEO activation, GitHub write, commit/push or later-story work. No
+  new infrastructure, cost or Owner decision required for this bounded change.
+
+Actual checks on Linux, Node **24.21.0**, from repository root except npm:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed: registry DNS `EAI_AGAIN`. Package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-input.unit.test.ts` | Blocked before collection: local Vitest absent. Permanent cases remain unrun. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --types node --typeRoots msf-companion/functions/node_modules/@types --skipLibCheck msf-companion/src/lib/executive/canonical.ts` | Passed isolated semantic check using preinstalled Functions TypeScript; not application typecheck. |
+| `node /tmp/m13-canonical-check.cjs` | Passed supplemental check: reproduced proxy and array-method substitution against HEAD; candidate closes both. 500 deterministic generated JSON vectors and two checked-in public artifact canonical bytes/hashes match HEAD; 16 invalid inputs reject; changed test transpiles without syntactic diagnostics. Temporary harness/baseline outside repository; no Vitest, database or private source evidence. Initial harness attempt was blocked by child-process `EPERM`; reading a shell-extracted baseline allowed the completed check. |
+| `git diff --check` | Passed. |
+
+BOOT-02 canonical hashing is strengthened; **no BOOT requirement is newly certified
+complete**. BOOT-01–16, actual Prisma/PostgreSQL transaction and catalog behavior,
+full M1.2 preservation, pinned typecheck/targeted lint, exact baseline web
+regression/lint/audit/build comparisons and Linux container checks remain
+unverified by this run. Historical failures below remain separate; supplemental
+checks do not prove absence of new regressions. Genuine-source protected CLI
+check/apply/replay, independent fidelity review and Owner acceptance remain
+mandatory gates. Next proposed action: run the pinned dedicated/disposable suites
+and baseline/container comparisons, then genuine-source rehearsal. Technical
+merge readiness: **not ready**. No acceptance or progression to M1.4 is inferred.
+
 ## Source-free typed rejection checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting

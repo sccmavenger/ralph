@@ -164,6 +164,37 @@ describe("BOOT-02 independent restricted canonical vectors", () => {
     expect(() => canonicalJson({ "Ω": "non-ASCII schema key" })).toThrow();
   });
 
+  it("hashes descriptor-captured values without executing caller property reads", () => {
+    const reads = vi.fn(() => { throw new Error("PRIVATE_READ_TRAP"); });
+    const object = new Proxy({ b: 2, a: [true, "Ω"] }, { get: reads });
+    const array = new Proxy([object, null], { get: reads });
+    const expected = '[{"a":[true,"Ω"],"b":2},null]';
+    expect(canonicalJson(array)).toBe(expected);
+    expect(canonicalHash(array)).toBe(sha256(expected));
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it("rejects executable array prototypes without invoking their methods", () => {
+    const map = vi.fn(() => ["substituted"]);
+    class ExecutableArray extends Array { }
+    Object.defineProperty(ExecutableArray.prototype, "map", { value: map });
+    expect(() => canonicalJson(new ExecutableArray("original"))).toThrow("INVALID_CANONICAL_VALUE");
+    expect(map).not.toHaveBeenCalled();
+    expect(() => canonicalHash(Object.assign(["original"], { map }))).toThrow("INVALID_CANONICAL_VALUE");
+    expect(map).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on opaque reflection and preserves own __proto__ data", () => {
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    expect(() => canonicalJson(revoked.proxy)).toThrow("INVALID_CANONICAL_VALUE");
+    const descriptors = vi.fn(() => { throw new Error("PRIVATE_REFLECTION_ERROR"); });
+    expect(() => canonicalHash(new Proxy({}, { ownKeys: descriptors }))).toThrow("INVALID_CANONICAL_VALUE");
+    const value = parseStrictJson('{"__proto__":{"safe":true},"a":1}');
+    expect(canonicalJson(value)).toBe('{"__proto__":{"safe":true},"a":1}');
+    expect(Object.prototype).not.toHaveProperty("safe");
+  });
+
   it("bounds recursion and rejects unpaired surrogates without normalizing valid Unicode", () => {
     let deep: unknown = 1;
     for (let index = 0; index < 66; index++) deep = [deep];
