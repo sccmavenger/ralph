@@ -1,5 +1,60 @@
 # M1.3 implementation — verification record
 
+## Source-free audit capture checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This run
+starts at `cd8b24e`, detached at PR #11's implementation branch commit. A request
+to attach the existing branch failed because `.git` is read-only; HEAD is
+preserved and changes remain uncommitted for workflow patch collection. The
+pre-existing untracked `.github/codex/` directory is untouched. Read-only
+`gh issue view 10 --repo sccmavenger/ralph --json title,body,state` was blocked by
+missing GitHub authentication. Live issue/PR review is not claimed; scope was
+assessed from the checked-in M1/M1.3 plans, runtime, tests and verification record.
+
+Objective: complete descriptor-based capture at the closed audit boundary. The
+append service previously used `structuredClone` before validation, permitting
+getter evaluation and silent removal of hidden fields. Constructors, direct
+validation and optional diagnostic fields also read caller-controlled properties.
+Strict CLI JSON cannot contain these shapes; this protects programmatic callers.
+
+Files and decisions:
+
+- `src/lib/executive/audit.ts`: capture own enumerable data descriptors and
+  recursively validate JSON values before ordinary reads. Reject accessors, hidden
+  and symbol fields, custom prototypes, cycles and invalid scalars. Dates must be
+  plain Date instances without attached properties; copy their internal timestamp
+  using the intrinsic method. Append captures metadata and dates before its first
+  await, retaining exact transaction-bound insert/readback verification. Capture
+  failures use the fixed `AUDIT_EVENT_INVALID` error, without private values.
+- `tests/executive/bootstrap-audit.unit.test.ts`: 12 new permanent cases cover ten
+  invalid event/metadata/Date shapes with zero writes or getter execution, retained
+  input snapshots through writer mutation, and constructor/diagnostic getters.
+- This record supplies review context. No schema/migration, dependency/lockfile,
+  configuration, workflow, policy, Charter, manifest, approval receipt or provenance
+  artifact changes. No DB, cloud, production/shared target, Owner ceremony, GitHub
+  write, commit/push or later-story work. No infrastructure/cost or Owner decision.
+
+Actual checks on Linux, Node **24.21.0**, from repository root unless stated:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`; package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-audit.unit.test.ts` | Blocked before collection: local Vitest absent. All 12 new permanent cases remain unrun in the pinned runner. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --types node --typeRoots msf-companion/functions/node_modules/@types --skipLibCheck msf-companion/src/lib/executive/audit.ts` | Blocked by missing generated Prisma client (`TS2307`); no semantic typecheck pass claimed. |
+| `node /tmp/m13-audit-check.cjs` | 17 supplemental assertions passed; audit, canonical and changed test files transpiled without syntactic diagnostics using preinstalled Functions TypeScript. Includes all three event variants, ten refusal shapes, mutation-stable append, constructor and diagnostic getter refusal, and unknown-commit diagnostics. Synthetic writer/readback doubles only; no DB/network or original-source proof. Temporary harness outside repository. |
+| `git diff --check` | Passed. |
+
+BOOT-14 is strengthened; **no BOOT requirement is newly certified complete**.
+BOOT-01–16 completion, M1.2 preservation, actual Prisma/PostgreSQL transactions,
+pinned typecheck/lint, baseline web regression/build and Linux container checks
+remain unverified by this run. Historical failures below remain separate; these
+supplemental checks do not prove absence of new regressions. Genuine-source
+protected CLI check/apply/replay, independent fidelity review and Owner acceptance
+remain mandatory gates. Next action: run the pinned dedicated/disposable suites
+and required baseline/container comparisons, then genuine-source rehearsal.
+Technical merge readiness: **not ready**. No acceptance, merge/deployment
+authorization or progression to M1.4 is inferred.
+
 ## Source-free prepared-input capture checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This task

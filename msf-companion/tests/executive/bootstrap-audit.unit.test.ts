@@ -93,6 +93,62 @@ describe("BOOT-14 closed audit registry, attribution and public diagnostics", ()
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["event getter", "metadata getter", "hidden event field", "hidden metadata field",
+    "symbol field", "custom prototype", "Date method", "Date subclass", "invalid Date", "cycle"])(
+    "rejects %s before validation or writes without executing caller code", async kind => {
+      const [event] = createBootstrapEvents(eventInput());
+      const getter = vi.fn(() => "synthetic-private-marker");
+      if (kind === "event getter") Object.defineProperty(event, "officeId", { get: getter, enumerable: true });
+      if (kind === "metadata getter") Object.defineProperty(event.metadata, "sourceFileHash", { get: getter, enumerable: true });
+      if (kind === "hidden event field") Object.defineProperty(event, "secret", { value: "synthetic-private-marker" });
+      if (kind === "hidden metadata field") Object.defineProperty(event.metadata, "secret", { value: "synthetic-private-marker" });
+      if (kind === "symbol field") Object.assign(event.metadata, { [Symbol("private")]: "synthetic-private-marker" });
+      if (kind === "custom prototype") Object.setPrototypeOf(event.metadata, { secret: "synthetic-private-marker" });
+      if (kind === "Date method") Object.defineProperty(event.createdAt, "getTime", { get: getter });
+      if (kind === "Date subclass") event.createdAt = new (class extends Date {})(at);
+      if (kind === "invalid Date") event.createdAt = new Date(NaN);
+      if (kind === "cycle") event.metadata.loop = event.metadata;
+      const create = vi.fn();
+      const findUnique = vi.fn();
+      const tx = { executiveActivityEvent: { create, findUnique } } as unknown as Prisma.TransactionClient;
+      expect(() => validateBootstrapEvent(event)).toThrow("AUDIT_EVENT_INVALID");
+      await expect(appendBootstrapEvent(tx, event)).rejects.toThrow("AUDIT_EVENT_INVALID");
+      expect(getter).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(findUnique).not.toHaveBeenCalled();
+    },
+  );
+
+  it("captures event fields, metadata and Dates before waiting for the writer", async () => {
+    const [event] = createBootstrapEvents(eventInput());
+    const original = structuredClone(event);
+    const row = { ...original, id: "event_id", sequence: 1n };
+    const create = vi.fn(async () => {
+      event.requestId = "251e89b2-9dad-44cc-801f-cf991bcd50de";
+      event.metadata.sourceFileHash = "e".repeat(64);
+      event.createdAt.setTime(0);
+      return row;
+    });
+    const findUnique = vi.fn().mockResolvedValue(row);
+    const tx = { executiveActivityEvent: { create, findUnique } } as unknown as Prisma.TransactionClient;
+    expect(await appendBootstrapEvent(tx, event)).toEqual(row);
+    expect(create).toHaveBeenCalledExactlyOnceWith({ data: original });
+  });
+
+  it("constructor and optional diagnostic getters reject without evaluation", () => {
+    const getter = vi.fn(() => "synthetic-private-marker");
+    const input = eventInput();
+    Object.defineProperty(input, "officeId", { get: getter, enumerable: true });
+    expect(() => createBootstrapEvents(input)).toThrow("AUDIT_EVENT_INVALID");
+    const rejection = { officeId: "synthetic_office", requestId, at };
+    Object.defineProperty(rejection, "at", { get: getter, enumerable: true });
+    expect(() => createRejectionEvent(rejection)).toThrow("AUDIT_EVENT_INVALID");
+    const diagnostic = { requestId, reasonCode: "TRANSACTION_FAILED" as const, phase: "CREATE" as const };
+    Object.defineProperty(diagnostic, "auditPersisted", { get: getter, enumerable: true });
+    expect(() => buildBootstrapDiagnostic(diagnostic)).toThrow("AUDIT_EVENT_INVALID");
+    expect(getter).not.toHaveBeenCalled();
+  });
+
   it.each(["missing", "metadata", "request", "time", "sequence", "identity"])(
     "rejects %s persisted audit mismatch without a persistence claim", async kind => {
       const event = createRejectionEvent({ officeId: "synthetic_office", requestId, at });

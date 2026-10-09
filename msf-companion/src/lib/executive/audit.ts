@@ -1,5 +1,6 @@
 import type { Prisma } from "../../generated/prisma/client";
 import { isDeepStrictEqual } from "node:util";
+import { captureCanonicalValue, exactObject } from "./canonical";
 
 export const BOOTSTRAP_PHASES = ["INPUT", "PREFLIGHT", "LOCK", "CREATE", "AUDIT", "COMMIT", "REPLAY"] as const;
 export type BootstrapPhase = typeof BOOTSTRAP_PHASES[number];
@@ -54,7 +55,30 @@ export const isBootstrapRequestId = (value: unknown): value is string => matches
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 
 function exactKeys(value: object, expected: string[]) {
-  if (Object.keys(value).sort().join("|") !== [...expected].sort().join("|")) invalid();
+  try { exactObject(value, expected); } catch { invalid(); }
+}
+
+// Capture the closed data contract before any ordinary reads or asynchronous
+// writes. Dates are the only non-JSON values; accept plain Date instances with
+// no attached properties and read their internal slot without caller methods.
+function captureAuditData<T extends object>(value: T, keys: string[], dates: string[] = []): T {
+  try {
+    const fields = exactObject(value, keys);
+    const captured: Record<string, unknown> = {};
+    for (const key of keys) {
+      const field = fields[key];
+      if (dates.includes(key)) {
+        if (!field || typeof field !== "object" || Object.getPrototypeOf(field) !== Date.prototype
+            || Reflect.ownKeys(field).length !== 0) invalid();
+        const instant = Date.prototype.getTime.call(field);
+        if (!Number.isFinite(instant)) invalid();
+        captured[key] = new Date(instant);
+      } else {
+        captured[key] = captureCanonicalValue(field);
+      }
+    }
+    return captured as T;
+  } catch { return invalid(); }
 }
 
 function validInstant(value: unknown): value is Date {
@@ -69,8 +93,8 @@ function baseEvent(officeId: string, requestId: string, at: Date) {
 
 /** Closed constructors: no input/Owner text or arbitrary metadata can flow here. */
 export function createBootstrapEvents(input: BootstrapEventInput): [BootstrapEventData, BootstrapEventData] {
-  exactKeys(input, ["officeId", "ownerId", "ceoId", "charterId", "requestId", "at", "bootstrapHash",
-    "contentHash", "sourceFileName", "sourceFileHash", "manifestHash"]);
+  input = captureAuditData(input, ["officeId", "ownerId", "ceoId", "charterId", "requestId", "at", "bootstrapHash",
+    "contentHash", "sourceFileName", "sourceFileHash", "manifestHash"], ["at"]);
   if (![input.ownerId, input.ceoId, input.charterId].every(reference)
       || ![input.bootstrapHash, input.contentHash, input.sourceFileHash, input.manifestHash].every(hash)
       || !matches(input.sourceFileName, /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,199}$/)) invalid();
@@ -97,7 +121,7 @@ export function createBootstrapEvents(input: BootstrapEventInput): [BootstrapEve
 }
 
 export function createRejectionEvent(input: { officeId: string; requestId: string; at: Date }): BootstrapEventData {
-  exactKeys(input, ["officeId", "requestId", "at"]);
+  input = captureAuditData(input, ["officeId", "requestId", "at"], ["at"]);
   const event: BootstrapEventData = {
     ...baseEvent(input.officeId, input.requestId, input.at),
     eventType: "executive.bootstrap.rejected", outcome: "REJECTED",
@@ -108,10 +132,14 @@ export function createRejectionEvent(input: { officeId: string; requestId: strin
   return event;
 }
 
+function captureEvent(event: BootstrapEventData): BootstrapEventData {
+  return captureAuditData(event, ["officeId", "createdAt", "occurredAt", "requestId", "actorType", "actorOwnerId",
+    "eventType", "outcome", "subjectType", "subjectId", "metadata"], ["createdAt", "occurredAt"]);
+}
+
 /** Defense in depth at append boundary; reject extra keys instead of redacting them. */
 export function validateBootstrapEvent(event: BootstrapEventData): void {
-  exactKeys(event, ["officeId", "createdAt", "occurredAt", "requestId", "actorType", "actorOwnerId",
-    "eventType", "outcome", "subjectType", "subjectId", "metadata"]);
+  event = captureEvent(event);
   if (!reference(event.officeId) || !reference(event.subjectId) || !isBootstrapRequestId(event.requestId)
       || !validInstant(event.createdAt) || !validInstant(event.occurredAt)
       || event.createdAt.getTime() !== event.occurredAt.getTime()
@@ -146,7 +174,7 @@ export function validateBootstrapEvent(event: BootstrapEventData): void {
 
 /** The caller supplies its interactive transaction; this never opens a client. */
 export async function appendBootstrapEvent(tx: Prisma.TransactionClient, event: BootstrapEventData) {
-  const expected = structuredClone(event);
+  const expected = captureEvent(event);
   validateBootstrapEvent(expected);
   const inserted = await tx.executiveActivityEvent.create({ data: expected });
   if (!reference(inserted.id) || typeof inserted.sequence !== "bigint" || inserted.sequence < 1n) invalid();
@@ -164,8 +192,12 @@ export async function appendBootstrapEvent(tx: Prisma.TransactionClient, event: 
 export function buildBootstrapDiagnostic(input: {
   requestId: string; reasonCode: BootstrapReasonCode; phase: BootstrapPhase; auditPersisted?: boolean;
 }): BootstrapDiagnostic {
-  exactKeys(input, input.auditPersisted === undefined
-    ? ["requestId", "reasonCode", "phase"] : ["requestId", "reasonCode", "phase", "auditPersisted"]);
+  // Reflect before deciding whether the optional field exists; never execute it.
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(input, "auditPersisted");
+    input = captureAuditData(input, descriptor
+      ? ["requestId", "reasonCode", "phase", "auditPersisted"] : ["requestId", "reasonCode", "phase"]);
+  } catch { invalid(); }
   if (!isBootstrapRequestId(input.requestId) || !(BOOTSTRAP_REASON_CODES as readonly string[]).includes(input.reasonCode)
       || !(BOOTSTRAP_PHASES as readonly string[]).includes(input.phase)
       || (input.auditPersisted !== undefined && typeof input.auditPersisted !== "boolean")) invalid();
