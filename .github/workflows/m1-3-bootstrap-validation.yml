@@ -280,3 +280,219 @@ jobs:
           path: evidence/
           retention-days: 7
           if-no-files-found: error
+
+  genuine-source-rehearsal:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_genuine_source && github.ref == 'refs/heads/executive/m1.3-bootstrap'
+    needs: synthetic-validation
+    environment: m1-3-charter-rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: test
+      POSTGRES_IMAGE: postgres:16-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
+      ACCEPTED_COMMIT: 516fb3c157b703f729fc742a4b13f9ea5deef36a
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: msf-companion/.node-version
+      - name: Confirm unchanged accepted migrations and install locked runner
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/commit.txt
+          node --version > evidence/node.txt
+          npm --version > evidence/npm.txt
+          git diff --exit-code "$ACCEPTED_COMMIT" -- msf-companion/prisma
+          cd msf-companion
+          npm ci --no-audit --no-fund
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const manifest=JSON.parse(readFileSync('src/lib/executive/m1-2-readiness-manifest.json','utf8'));
+          for(const item of manifest.migrations) {
+            const bytes=readFileSync(`prisma/migrations/${item.name}/migration.sql`);
+            assert.equal(createHash('sha256').update(bytes).digest('hex'),item.checksum);
+          }
+          NODE
+      - name: Create task-owned disposable PostgreSQL 16
+        id: database
+        run: |
+          db_name="msf_exec_m12_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          admin_password=$(openssl rand -hex 24)
+          migrator_password=$(openssl rand -hex 24)
+          app_password=$(openssl rand -hex 24)
+          echo "::add-mask::$admin_password"
+          echo "::add-mask::$migrator_password"
+          echo "::add-mask::$app_password"
+          docker pull "$POSTGRES_IMAGE"
+          docker run --detach --name msf-m13-catalog --label "msf.m13.run=$GITHUB_RUN_ID" \
+            --publish 127.0.0.1:55432:5432 --env POSTGRES_PASSWORD="$admin_password" "$POSTGRES_IMAGE"
+          ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec msf-m13-catalog pg_isready -U postgres; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec -i msf-m13-catalog psql -U postgres -v ON_ERROR_STOP=1 <<SQL
+          CREATE ROLE exec_test_migrator LOGIN NOSUPERUSER CREATEDB PASSWORD '$migrator_password';
+          CREATE ROLE exec_test_app LOGIN NOSUPERUSER NOCREATEDB PASSWORD '$app_password';
+          CREATE DATABASE "$db_name" OWNER exec_test_migrator;
+          SQL
+          echo "EXECUTIVE_TEST_DATABASE_URL=postgresql://exec_test_app:$app_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_MIGRATION_DATABASE_URL=postgresql://exec_test_migrator:$migrator_password@127.0.0.1:55432/$db_name" >> "$GITHUB_ENV"
+          echo "EXECUTIVE_TEST_DATABASE_CONFIRM=$db_name" >> "$GITHUB_ENV"
+          docker exec msf-m13-catalog psql -U postgres -Atc 'SELECT version()' > evidence/postgres-version.txt
+          docker image inspect "$POSTGRES_IMAGE" --format '{{.Id}} {{json .RepoDigests}}' > evidence/postgres-image.txt
+      - name: Replay accepted migrations using guarded test configuration
+        working-directory: msf-companion
+        run: |
+          node node_modules/prisma/build/index.js migrate deploy --config prisma.executive-test.config.ts
+          node node_modules/prisma/build/index.js migrate status --config prisma.executive-test.config.ts
+      - name: Generate reviewed client and grant disposable rehearsal access
+        working-directory: msf-companion
+        run: |
+          node node_modules/prisma/build/index.js generate --config prisma.executive-test.config.ts
+          node --input-type=module <<'NODE'
+          import { connectTestDatabase, grantTestApplicationAccess } from './tests/executive/test-database.ts';
+          const client = await connectTestDatabase('migrator');
+          try { await grantTestApplicationAccess(client); } finally { await client.end(); }
+          NODE
+      - name: Verify original source and rehearse check, apply and no-write replay
+        working-directory: msf-companion
+        env:
+          M13_CHARTER_SOURCE_B64_01: ${{ secrets.M13_CHARTER_SOURCE_B64_01 }}
+          M13_CHARTER_SOURCE_B64_02: ${{ secrets.M13_CHARTER_SOURCE_B64_02 }}
+        run: |
+          node --import tsx --input-type=module <<'NODE'
+          import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
+          import { join } from 'node:path';
+          import { createHash } from 'node:crypto';
+          import { spawn } from 'node:child_process';
+          import assert from 'node:assert/strict';
+          import { connectTestDatabase, EXECUTIVE_TABLES } from './tests/executive/test-database.ts';
+          let custody;
+          let owner;
+          try {
+            const first = process.env.M13_CHARTER_SOURCE_B64_01;
+            const second = process.env.M13_CHARTER_SOURCE_B64_02;
+            delete process.env.M13_CHARTER_SOURCE_B64_01;
+            delete process.env.M13_CHARTER_SOURCE_B64_02;
+            assert.equal(first?.length, 27000);
+            assert.equal(second?.length, 26980);
+            const bytes = Buffer.from(first + second, 'base64');
+            assert.equal(bytes.length, 40485);
+            const sourceHash = createHash('sha256').update(bytes).digest('hex');
+            assert.equal(sourceHash, '654a4baa4e86743af373f620a8dc156519dada487f3288811b39ae42e5413660');
+            custody = await mkdtemp(join(process.env.RUNNER_TEMP, 'm13-private-source-'));
+            const source = join(custody, 'MSF_Toolkit_AI_CEO_Charter_and_Governance_Framework.docx');
+            const input = join(custody, 'owner.json');
+            const target = join(custody, 'target.json');
+            await writeFile(source, bytes, { mode: 0o600 });
+            bytes.fill(0);
+            await writeFile(input, JSON.stringify({ inputVersion: 1, owner: { displayName: 'Synthetic Test Owner', contactEmail: null } }), { mode: 0o600 });
+            const database = process.env.EXECUTIVE_TEST_DATABASE_CONFIRM;
+            await writeFile(target, JSON.stringify({ targetVersion: 1, environment: 'disposable', host: '127.0.0.1',
+              port: 55432, database, role: 'exec_test_app', tls: 'disabled', runId: process.env.GITHUB_RUN_ID }), { mode: 0o600 });
+            const env = { PATH: process.env.PATH, NODE_ENV: 'test',
+              EXECUTIVE_BOOTSTRAP_DATABASE_URL: process.env.EXECUTIVE_TEST_DATABASE_URL,
+              EXECUTIVE_BOOTSTRAP_DATABASE_CONFIRM: database };
+            owner = await connectTestDatabase('migrator');
+            async function snapshot() {
+              const rows = {};
+              for (const table of EXECUTIVE_TABLES) rows[table] = (await owner.query('SELECT row_to_json(t) AS row FROM public."' + table + '" t ORDER BY id')).rows;
+              const sequence = (await owner.query('SELECT last_value,is_called FROM public."ExecutiveActivityEvent_sequence_seq"')).rows;
+              return JSON.stringify({ rows, sequence });
+            }
+            async function invoke(mode) {
+              const args = ['./node_modules/tsx/dist/cli.mjs', 'scripts/executive/bootstrap.ts', '--' + mode,
+                '--input', input, '--source-file', source, '--target', target];
+              if (mode === 'apply') args.push('--confirm-target', database);
+              const result = await new Promise((resolve, reject) => {
+                const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+                let stdout = '', stderr = '';
+                const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('TIMEOUT')); }, 60000);
+                child.stdout.on('data', b => { stdout += b; if (stdout.length > 65536) child.kill('SIGKILL'); });
+                child.stderr.on('data', b => { stderr += b; if (stderr.length > 65536) child.kill('SIGKILL'); });
+                child.on('error', () => { clearTimeout(timer); reject(new Error('START_FAILED')); });
+                child.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+              });
+              assert.equal(result.code, 0);
+              assert.equal(result.stderr, '');
+              assert.equal(result.stdout.trim().split('\n').length, 1);
+              assert.ok(!result.stdout.includes(custody) && !result.stdout.includes('postgresql://'));
+              return JSON.parse(result.stdout);
+            }
+            const empty = await snapshot();
+            assert.equal((await invoke('check')).status, 'READY_EMPTY');
+            assert.equal(await snapshot(), empty);
+            const created = await invoke('apply');
+            assert.equal(created.status, 'CREATED');
+            const committed = await snapshot();
+            const replay = await invoke('apply');
+            assert.equal(replay.status, 'ALREADY_BOOTSTRAPPED');
+            for (const key of ['officeId', 'ownerId', 'ceoId', 'charterId']) assert.equal(replay[key], created[key]);
+            assert.equal(await snapshot(), committed);
+            assert.equal((await invoke('check')).status, 'ALREADY_BOOTSTRAPPED');
+            assert.equal(await snapshot(), committed);
+            for (const table of ['ExecutiveOwnerCredential','ExecutiveOwnerEnrollment','ExecutiveOwnerChallenge','ExecutiveOwnerSession','ExecutiveAuthRateLimit','ExecutiveCharterAcceptance']) {
+              assert.equal((await owner.query('SELECT count(*)::int AS count FROM public."' + table + '"')).rows[0].count, 0);
+            }
+            const charter = (await owner.query('SELECT "contentMarkdown" FROM public."ExecutiveCharter"')).rows;
+            assert.equal(charter.length, 1);
+            assert.equal(charter[0].contentMarkdown, await readFile('docs/executive-office/charter/charter-v1.md', 'utf8'));
+            assert.equal((await owner.query('SELECT count(*)::int AS count FROM public."ExecutiveActivityEvent"')).rows[0].count, 2);
+            const agent = (await owner.query('SELECT status,"governingCharterAcceptanceId","roleDefinition" FROM public."ExecutiveAgent"')).rows;
+            assert.equal(agent.length, 1);
+            assert.equal(agent[0].status, 'ONBOARDING');
+            assert.equal(agent[0].governingCharterAcceptanceId, null);
+            assert.deepEqual(agent[0].roleDefinition.tools, []);
+            assert.deepEqual(agent[0].roleDefinition.permissions, []);
+            assert.equal(agent[0].roleDefinition.spendingAuthority, false);
+            const evidence = { passed: true, commit: process.env.GITHUB_SHA, sourceHash, sourceBytes: 40485,
+              checkNoWrites: true, applyCreated: true, replayNoWrites: true, identityPreserved: true,
+              charterContentExact: true, acceptanceAbsent: true, authenticationAbsent: true };
+            await writeFile('../evidence/genuine-source-rehearsal.json', JSON.stringify(evidence, null, 2) + '\n');
+            console.log(JSON.stringify(evidence));
+          } catch {
+            console.error('GENUINE_SOURCE_REHEARSAL_FAILED');
+            process.exitCode = 1;
+          } finally {
+            try { await owner?.end(); }
+            finally { if (custody) await rm(custody, { recursive: true, force: true }); }
+          }
+          NODE
+      - name: Verify source cleanup and remove owned disposable container
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readdir, rm } from 'node:fs/promises';
+          import { join } from 'node:path';
+          for (const name of await readdir(process.env.RUNNER_TEMP)) {
+            if (name.startsWith('m13-private-source-')) await rm(join(process.env.RUNNER_TEMP, name), { recursive: true, force: true });
+          }
+          if ((await readdir(process.env.RUNNER_TEMP)).some(name => name.startsWith('m13-private-source-'))) process.exitCode = 1;
+          NODE
+          if docker inspect msf-m13-catalog >/dev/null 2>&1; then
+            test "$(docker inspect msf-m13-catalog --format '{{index .Config.Labels "msf.m13.run"}}')" = "$GITHUB_RUN_ID"
+            docker rm --force --volumes msf-m13-catalog
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: success()
+        with:
+          name: m13-genuine-source-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/commit.txt
+            evidence/node.txt
+            evidence/npm.txt
+            evidence/postgres-version.txt
+            evidence/postgres-image.txt
+            evidence/genuine-source-rehearsal.json
+          retention-days: 7
+          if-no-files-found: error
