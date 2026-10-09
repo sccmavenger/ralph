@@ -1,6 +1,12 @@
 name: Codex M1 Development Agent
 on:
   workflow_dispatch:
+    inputs:
+      cycle:
+        description: 'Bounded autonomous development cycle (1-4)'
+        required: false
+        default: '1'
+        type: string
   schedule:
     - cron: '17 * * * *'
 
@@ -100,6 +106,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -116,6 +123,15 @@ jobs:
       - name: Run source-free M1.3 unit checks
         working-directory: msf-companion
         run: npx vitest run tests/executive/bootstrap-audit.unit.test.ts
+      - name: Continue bounded M1.3 development immediately
+        if: success() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.cycle || '1') < 4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CYCLE: ${{ inputs.cycle || '1' }}
+        run: |
+          next=$((CURRENT_CYCLE + 1))
+          gh workflow run codex-m1-development.yml --ref main -f cycle="$next"
+          echo "Triggered M1.3 development cycle $next of 4" >> "$GITHUB_STEP_SUMMARY"
       - name: Record immediate run result
         if: always()
         shell: bash
