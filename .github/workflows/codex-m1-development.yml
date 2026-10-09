@@ -128,7 +128,7 @@ jobs:
           import { defineConfig } from "vitest/config";
           export default defineConfig({ test: { include: ["tests/executive/**/*.test.ts"], exclude: ["node_modules/**"] } });
           EOF
-          npx vitest run --config ralph-executive-vitest.config.mts tests/executive --testNamePattern="BOOT|bootstrap|readiness|audit|transaction|connection"
+          npx vitest run --config ralph-executive-vitest.config.mts tests/executive --exclude="**/*.integration.test.ts"
       - name: Continue bounded M1.3 development immediately
         if: success() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.cycle || '1') < 4
         env:
