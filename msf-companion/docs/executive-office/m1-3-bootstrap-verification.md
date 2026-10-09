@@ -1,5 +1,76 @@
 # M1.3 implementation — verification record
 
+## Source-free mixed driver commit evidence checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `e35459624953eb6acf17d92262a6a1c962569b52`, detached in the PR #11
+implementation workflow checkout. Checkout and pre-existing untracked
+`.github/codex/` are preserved; changes remain uncommitted for workflow collection.
+Read-only `gh issue view 10 --json title,body,state` failed because authentication
+is unavailable. No live issue/PR inspection is claimed. The checked-in M1/M1.3
+plans, verification records, operator, transaction, audit, readiness and tests
+provided the implementation context.
+
+Objective: correct a runtime ambiguity in BOOT-08/13/14 failure handling. The
+SQLSTATE extractor discarded non-SQLSTATE driver codes. An error containing both
+`ECONNRESET` and `40001` could consequently authorize retry or a confirmed rollback
+claim after COMMIT. All inspected own code fields now contribute evidence:
+unknown, malformed, socket and transport/transaction wrapper codes prevent server
+rollback classification. Only the explicit statement/conflict wrappers P2002,
+P2003, P2004, P2010 and P2034 may accompany matching SQLSTATE evidence. No message,
+SQL, connection string or arbitrary cause-chain parsing is introduced. Existing
+getter/proxy refusal and conflicting-SQLSTATE handling remain intact.
+
+Files and review decisions:
+
+- `src/lib/executive/bootstrap.ts`: conservative structural code extraction.
+  Before callback completion, contradictory driver evidence returns a generic
+  failure without automatic retry. After callback completion, it returns exit 6,
+  COMMIT_OUTCOME_UNKNOWN and omits audit persistence. Known server aborts still
+  permit the existing one bounded retry. Future unrecognized wrappers conservatively
+  lose automatic retry eligibility until independently reviewed.
+- `tests/executive/bootstrap-audit.unit.test.ts`: six mixed-code cases before
+  callback completion, twelve modeled creation/rejection commit cases asserting
+  no retry, redaction, unknown persistence and unchanged replay, and five explicit
+  statement-wrapper mapping cases. These permanent Vitest cases remain unrun.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: expand the existing
+  modeled post-real-commit matrix from two to six lanes, adding socket and
+  transaction wrapper evidence to creation and rejection. These tests commit
+  through real PostgreSQL then inject acknowledgment errors; they are distinct
+  from the separate actual wire relay tests. All six lanes remain unrun here.
+- This verification record provides durable review context. No schema/migration,
+  dependency/lockfile, configuration, workflow, policy, Charter, manifest,
+  approval receipt or provenance artifact changes. No DB connection, private
+  source access, cloud/production/shared target, payment, credential changes,
+  enrollment/passkey ceremony, acceptance, CEO activation, GitHub writes,
+  commit/push, merge, deployment or later-story work. No infrastructure/cost
+  implications or new Owner decision for this bounded runtime fix.
+
+Actual checks on Linux, Node **24.21.0**:
+
+| Command/check | Result and limits |
+|---|---|
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` in `msf-companion` | Blocked by registry DNS EAI_AGAIN; package/lockfile unchanged. |
+| `node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts tests/executive/bootstrap-audit.unit.test.ts` in `msf-companion` | Blocked before collection: local Vitest absent. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket denied; no container or database accessed. |
+| `node /tmp/m13-driver-check.cjs` | Passed 18 mixed-driver orchestration lanes using the existing synthetic service fixture, all five wrapper mappings, strict newline refusal and one bounded known-server retry. Four runtime files and both changed test files transpile without syntactic diagnostics using preinstalled Functions TypeScript. Temporary harness outside repository; not pinned Vitest, semantic typecheck, Prisma/driver, real commit or PostgreSQL evidence. |
+| `git diff --check` | Passed. |
+
+**No BOOT requirement is newly certified complete.** BOOT-01–16, full M1.2
+preservation, actual Prisma/PostgreSQL readiness/catalog/privilege/locking/audit
+and commit behavior, the expanded real-commit matrix and earlier process/wire
+tests remain unverified in this run. Pinned semantic typecheck/targeted lint,
+baseline web/lint/audit/build comparisons and Linux container smoke were not run.
+Historical failures below were not rerun; no absence-of-regressions claim is made.
+Genuine-source protected CLI check/apply/replay, independent fidelity review and
+Owner acceptance remain mandatory gates. Synthetic scenarios cannot satisfy them.
+
+Next proposed action: run the dedicated pinned suite on the authorized owned
+disposable PostgreSQL runner, examine actual driver mappings, complete regression
+and container evidence, then genuine-source rehearsal and Owner review. Technical
+merge readiness: **not ready**, pending those validations and mandatory gates.
+No M1.3 acceptance or M1.4 progression is inferred.
+
 ## Source-free independent-process concurrency checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting

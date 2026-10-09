@@ -266,12 +266,22 @@ export function bootstrapSqlState(error: unknown): string | undefined {
     const adapter = field(meta, "driverAdapterError");
     const cause = field(adapter, "cause");
     const directCause = field(error, "cause");
-    const codes = new Set([field(error, "code"), field(meta, "code"),
+    const evidence = [field(error, "code"), field(meta, "code"),
       field(cause, "originalCode"), field(cause, "code"),
-      field(directCause, "originalCode"), field(directCause, "code")].filter(
-      (code): code is string => typeof code === "string" && code.length === 5
-        && /^[0-9A-Z]{5}$/.test(code) && !/^P\d{4}$/.test(code),
-    ));
+      field(directCause, "originalCode"), field(directCause, "code")];
+    // Only these statement/conflict wrappers can accompany server evidence.
+    // A transport/transaction wrapper (e.g. P1017/P2028), Node socket code,
+    // malformed code or future unknown driver code cannot confirm rollback,
+    // even when another adapter path also carries a retryable SQLSTATE.
+    const wrappers = new Set(["P2002", "P2003", "P2004", "P2010", "P2034"]);
+    const codes = new Set<string>();
+    for (const code of evidence) {
+      if (code === undefined || code === null) continue;
+      if (typeof code !== "string") return;
+      if (wrappers.has(code)) continue;
+      if (code.length !== 5 || !/^[0-9A-Z]{5}$/.test(code) || /^P\d{4}$/.test(code)) return;
+      codes.add(code);
+    }
     if (codes.size === 1) return codes.values().next().value;
   } catch {
     // Opaque errors (including revoked proxies) remain generic/unknown. Error

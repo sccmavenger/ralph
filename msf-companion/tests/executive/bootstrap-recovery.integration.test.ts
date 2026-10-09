@@ -213,30 +213,32 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and mode
     } finally { await fixture.close(); }
   });
 
-  it.each(["creation", "rejection"])("conflicting %s error codes AFTER real commit retain uncertainty and preserve replay state", async lane => {
-    const fixture = await createBootstrapFixture(`conflicting_ack_${lane}`);
-    let commits = 0;
-    try {
-      const prepared = structuredClone(fixture.prepared);
-      if (lane === "rejection") {
-        expect(await fixture.run()).toMatchObject({ status: "CREATED" });
-        prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
-        prepared.bootstrapHash = canonicalHash(prepared.envelope);
-      }
-      const acknowledgmentLost = interceptBootstrapClient(fixture.client, { afterCommitted: async () => {
-        commits++;
-        throw { code: "40001", meta: { code: "40003" }, message: "synthetic-private-marker" };
-      } });
-      const result = await runBootstrap({ client: acknowledgmentLost, mode: "apply", prepared, readiness: fixture.readiness });
-      expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
-      expect("diagnostic" in result && Object.hasOwn(result.diagnostic, "auditPersisted")).toBe(false);
-      expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
-      expect(commits).toBe(1);
-      const before = await executiveSnapshot(fixture.env);
-      expect(before.rows.ExecutiveActivityEvent).toHaveLength(lane === "creation" ? 2 : 3);
-      expect(await fixture.run()).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
-      expect(await executiveSnapshot(fixture.env)).toEqual(before);
-    } finally { await fixture.close(); }
+  it.each(["creation", "rejection"].flatMap(lane => ["sqlstate", "socket", "transaction"].map(kind => ({ lane, kind }))))(
+    "conflicting $kind/$lane error codes AFTER real commit retain uncertainty and preserve replay state", async ({ lane, kind }) => {
+      const fixture = await createBootstrapFixture(`conflicting_ack_${lane}_${kind}`);
+      let commits = 0;
+      try {
+        const prepared = structuredClone(fixture.prepared);
+        if (lane === "rejection") {
+          expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+          prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+          prepared.bootstrapHash = canonicalHash(prepared.envelope);
+        }
+        const acknowledgmentLost = interceptBootstrapClient(fixture.client, { afterCommitted: async () => {
+          commits++;
+          throw { code: kind === "socket" ? "ECONNRESET" : kind === "transaction" ? "P2028" : "40003",
+            meta: { code: "40001" }, message: "synthetic-private-marker" };
+        } });
+        const result = await runBootstrap({ client: acknowledgmentLost, mode: "apply", prepared, readiness: fixture.readiness });
+        expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
+        expect("diagnostic" in result && Object.hasOwn(result.diagnostic, "auditPersisted")).toBe(false);
+        expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+        expect(commits).toBe(1);
+        const before = await executiveSnapshot(fixture.env);
+        expect(before.rows.ExecutiveActivityEvent).toHaveLength(lane === "creation" ? 2 : 3);
+        expect(await fixture.run()).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+        expect(await executiveSnapshot(fixture.env)).toEqual(before);
+      } finally { await fixture.close(); }
   });
 
   it.each(["readback", "constraints"])("conflict %s failure rolls back only the attempted rejection and preserves committed foundation", async boundary => {

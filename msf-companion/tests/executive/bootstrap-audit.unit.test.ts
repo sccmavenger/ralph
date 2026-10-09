@@ -747,6 +747,54 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(bootstrapSqlState(Object.create({ code: "40001" }))).toBeUndefined();
   });
 
+  it.each(["P2002", "P2003", "P2004", "P2010", "P2034"])(
+    "statement wrapper %s retains matching server evidence", code => {
+      expect(bootstrapSqlState({ code, meta: { code: "40001" } })).toBe("40001");
+    },
+  );
+
+  const uncertainDriverErrors = [
+    { code: "ECONNRESET", meta: { code: "40001" } },
+    { code: "40001", cause: { code: "ETIMEDOUT" } },
+    { code: "P1017", meta: { code: "40P01" } },
+    { code: "P2028", meta: { driverAdapterError: { cause: { originalCode: "40001" } } } },
+    { code: "P2010", meta: { code: "23514", driverAdapterError: { cause: { code: "UNKNOWN_DRIVER" } } } },
+    { code: "40001", cause: { originalCode: 40001 } },
+  ];
+
+  it.each(uncertainDriverErrors)("mixed driver evidence never authorizes a transient retry", async error => {
+    expect(bootstrapSqlState(error)).toBeUndefined();
+    const fixture = serviceDouble();
+    fixture.transaction.mockRejectedValueOnce(error);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ reasonCode: "TRANSACTION_FAILED", exitCode: 5 });
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(uncertainDriverErrors.flatMap(error => ["creation", "rejection"].map(lane => ({ lane, error }))))(
+    "mixed driver evidence preserves unknown $lane commit and no-write replay", async ({ lane, error }) => {
+      const fixture = serviceDouble();
+      const prepared = preparedInput();
+      if (lane === "rejection") {
+        expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+        prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+        prepared.bootstrapHash = canonicalHash(prepared.envelope);
+      }
+      fixture.transaction.mockImplementationOnce(async operation => {
+        await operation(fixture.tx as unknown as Prisma.TransactionClient);
+        throw { ...error, message: "synthetic-private-marker" };
+      });
+      const attempts = fixture.transaction.mock.calls.length;
+      const result = await runBootstrap({ ...fixture.options, prepared });
+      expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
+      expect("diagnostic" in result && Object.hasOwn(result.diagnostic, "auditPersisted")).toBe(false);
+      expect(fixture.transaction).toHaveBeenCalledTimes(attempts + 1);
+      expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+      const committed = structuredClone(fixture.state);
+      expect(await runBootstrap(fixture.options)).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+      expect(fixture.state).toEqual(committed);
+    },
+  );
+
   it.each(["code", "meta", "cause"])("error %s getters never execute or escape a safe outcome", async key => {
     const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
     const error = Object.defineProperty({}, key, { get: getter });
