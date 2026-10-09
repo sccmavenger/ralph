@@ -177,7 +177,7 @@ export async function appendBootstrapEvent(tx: Prisma.TransactionClient, event: 
   const expected = captureEvent(event);
   validateBootstrapEvent(expected);
   const inserted = await tx.executiveActivityEvent.create({ data: expected });
-  if (!reference(inserted.id) || typeof inserted.sequence !== "bigint" || inserted.sequence < 1n) invalid();
+  if (!reference(inserted.id) || typeof inserted.sequence !== "bigint" || inserted.sequence < BigInt(1)) invalid();
   // Read the row in the same transaction, including conflict attempts which do
   // not run foundation birth-event readback. A writer acknowledgment alone does
   // not establish that the exact bounded audit evidence was persisted.
