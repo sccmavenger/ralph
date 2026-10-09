@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { connectTestDatabase, type TestEnvironment } from "./test-database";
+import { connectTestDatabase, createTestPrisma, type TestEnvironment } from "./test-database";
 
 const mocks = vi.hoisted(() => ({
   configuration: vi.fn(),
@@ -29,6 +29,24 @@ afterEach(() => {
 });
 
 describe("disposable connection configuration (mocked pg, no database)", () => {
+  it.each([
+    ["missing", undefined],
+    ["remote host", env.EXECUTIVE_TEST_MIGRATION_DATABASE_URL!.replace("127.0.0.1", "remote.invalid")],
+    ["wrong role", env.EXECUTIVE_TEST_MIGRATION_DATABASE_URL!.replace("exec_test_migrator", "exec_test_app")],
+    ["different database", env.EXECUTIVE_TEST_MIGRATION_DATABASE_URL!.replace(database, `${database}_other`)],
+    ["host override", `${env.EXECUTIVE_TEST_MIGRATION_DATABASE_URL}?host=remote.invalid`],
+  ])("rejects a %s migrator URL before constructing any client", async (_, migrationUrl) => {
+    // A valid app URL must not bypass validation of the other required role.
+    const invalid = { ...env, EXECUTIVE_TEST_MIGRATION_DATABASE_URL: migrationUrl };
+    for (const role of ["app", "migrator"] as const) {
+      await expect(connectTestDatabase(role, invalid)).rejects.toThrow();
+      await expect(createTestPrisma(invalid, role)).rejects.toThrow();
+    }
+    expect(mocks.configuration).not.toHaveBeenCalled();
+    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(mocks.end).not.toHaveBeenCalled();
+  });
+
   it.each(["app", "migrator"] as const)("pins the %s connection despite ambient PostgreSQL settings", async (role) => {
     for (const [key, value] of Object.entries({
       PGHOST: "remote.invalid", PGPORT: "5432", PGDATABASE: "shared",
