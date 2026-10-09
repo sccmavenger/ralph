@@ -27,8 +27,17 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
-          ref: automation/codex-m1-work
+          ref: main
           persist-credentials: false
+      - name: Prepare M1.3 implementation checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/codex/m1-agent.md /tmp/m1-agent.md
+          git fetch --no-tags origin refs/heads/executive/m1.3-bootstrap
+          git checkout --detach FETCH_HEAD
+          mkdir -p .github/codex
+          cp /tmp/m1-agent.md .github/codex/m1-agent.md
       - name: Run Codex on M1
         uses: openai/codex-action@v1
         with:
@@ -41,8 +50,8 @@ jobs:
         if: success()
         shell: bash
         run: |
-          git add -N -- . ':!.github/workflows/**' ':!.github/codex/**'
-          git diff --binary -- . ':!.github/workflows/**' ':!.github/codex/**' > /tmp/m1.patch
+          git add -N -- . ':!.github/workflows/**' ':!.github/codex/**' ':!msf-companion/docs/executive-office/charter/**' ':!msf-companion/src/lib/executive/bootstrap-role-v1.json'
+          git diff --binary -- . ':!.github/workflows/**' ':!.github/codex/**' ':!msf-companion/docs/executive-office/charter/**' ':!msf-companion/src/lib/executive/bootstrap-role-v1.json' > /tmp/m1.patch
           cp /tmp/m1.patch m1.patch
       - uses: actions/upload-artifact@v4
         if: success()
@@ -61,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: automation/codex-m1-work
+          ref: executive/m1.3-bootstrap
           persist-credentials: true
       - uses: actions/download-artifact@v4
         with:
@@ -82,4 +91,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Codex: M1 development checkpoint"
-          git push origin HEAD:automation/codex-m1-work
+          git push origin HEAD:executive/m1.3-bootstrap
