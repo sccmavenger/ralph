@@ -203,6 +203,33 @@ describe("BOOT-01/02 strict UTF-8 and JSON", () => {
     expect(exactObject({ a: null }, ["a"])).toEqual({ a: null });
     for (const value of [null, [], true, "a", {}, { a: 1, b: 2 }]) expect(() => exactObject(value, ["a"])).toThrow();
   });
+
+  it("captures plain and parsed JSON fields without retaining the caller's object", () => {
+    for (const original of [{ a: 1 }, parseStrictJson('{"a":1}') as Record<string, unknown>]) {
+      const captured = exactObject(original, ["a"]);
+      original.a = 2;
+      expect(captured.a).toBe(1);
+      expect(captured).not.toBe(original);
+    }
+    expect(exactObject(parseStrictJson('{"__proto__":1}'), ["__proto__"]).__proto__).toBe(1);
+  });
+
+  it.each(["accessor", "hidden extra", "symbol extra", "hidden required", "custom prototype", "revoked proxy"])(
+    "rejects executable/hidden schema shape: %s", kind => {
+      const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+      let value: object = { a: 1 };
+      if (kind === "accessor") value = Object.defineProperty({}, "a", { get: getter, enumerable: true });
+      if (kind === "hidden extra") Object.defineProperty(value, "secret", { value: "synthetic-private-marker" });
+      if (kind === "symbol extra") Object.assign(value, { [Symbol("secret")]: "synthetic-private-marker" });
+      if (kind === "hidden required") value = Object.defineProperty({}, "a", { value: 1 });
+      if (kind === "custom prototype") value = Object.assign(Object.create({ authority: true }), { a: 1 });
+      if (kind === "revoked proxy") {
+        const proxy = Proxy.revocable(value, {}); proxy.revoke(); value = proxy.proxy;
+      }
+      expect(() => exactObject(value, ["a"])).toThrow("INVALID_SCHEMA");
+      expect(getter).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("BOOT-01 closed operator arguments and Owner metadata", () => {
@@ -252,6 +279,36 @@ describe("BOOT-01 closed operator arguments and Owner metadata", () => {
 });
 
 describe("BOOT-01 explicit disposable target and no fallback/no connection", () => {
+  it("binds target data descriptors even when ordinary property reads are intercepted", () => {
+    const read = vi.fn(() => "synthetic-remote.invalid");
+    const intercepted = new Proxy({ ...target }, { get: read });
+    const config = bootstrapConnection(intercepted as ReturnType<typeof validateBootstrapTarget>, "check", undefined, environment);
+    expect(config).toMatchObject({ host: "127.0.0.1", port: 55432, database, user: "exec_test_app" });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it.each(["host", "port", "role", "database", "environment", "tls"])(
+    "refuses changing target %s accessors before driver construction", field => {
+      const getter = vi.fn().mockReturnValueOnce(target[field as keyof typeof target]).mockReturnValue("synthetic-remote.invalid");
+      const executable = Object.defineProperty({ ...target }, field, { enumerable: true, get: getter });
+      expect(() => validateBootstrapTarget(executable)).toThrow("INVALID_SCHEMA");
+      expect(() => bootstrapConnection(executable as ReturnType<typeof validateBootstrapTarget>, "check", undefined, environment))
+        .toThrow("INVALID_TARGET");
+      expect(getter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["inputVersion", "owner", "displayName", "contactEmail"])(
+    "refuses Owner %s accessors without reading private executable values", field => {
+      const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+      const executable = ["inputVersion", "owner"].includes(field)
+        ? Object.defineProperty({ ...input }, field, { enumerable: true, get: getter })
+        : { ...input, owner: Object.defineProperty({ ...input.owner }, field, { enumerable: true, get: getter }) };
+      expect(() => validateBootstrapInput(executable)).toThrow("INVALID_SCHEMA");
+      expect(getter).not.toHaveBeenCalled();
+    },
+  );
+
   it("validation detaches target metadata from the caller", () => {
     const mutable = { ...target };
     const validated = validateBootstrapTarget(mutable);

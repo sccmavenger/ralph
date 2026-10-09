@@ -122,10 +122,25 @@ export function parseStrictJson(text: string): unknown {
 }
 
 export function exactObject(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_SCHEMA');
-  const object = value as Record<string, unknown>;
-  if (Object.keys(object).length !== keys.length || keys.some(key => !Object.hasOwn(object, key))) {
+  // Capture own data once: validating getters and then rereading/spreading the
+  // caller can change a guarded target between validation and driver creation.
+  // JSON objects have plain/null prototypes and no hidden or executable fields.
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error('INVALID_SCHEMA');
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Reflect.ownKeys(descriptors).length !== keys.length || new Set(keys).size !== keys.length) {
+      throw new Error('INVALID_SCHEMA');
+    }
+    const captured: Record<string, unknown> = Object.create(null);
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(descriptors, key)?.value as PropertyDescriptor | undefined;
+      if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw new Error('INVALID_SCHEMA');
+      captured[key] = descriptor.value;
+    }
+    return captured;
+  } catch {
+    // Reflection on a revoked/opaque proxy must fail with the same bounded code.
     throw new Error('INVALID_SCHEMA');
   }
-  return object;
 }

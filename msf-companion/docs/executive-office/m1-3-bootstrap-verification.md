@@ -1,5 +1,67 @@
 # M1.3 implementation — verification record
 
+## Source-free target data-capture checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This task
+starts at `45cf255` in PR #11's detached workflow checkout. HEAD and the
+pre-existing untracked `.github/codex/` directory are preserved for patch
+collection. Changes remain uncommitted; no push, GitHub write, database access,
+production/cloud action, Owner ceremony or later-story work occurred. Read-only
+`gh issue view 10 --repo sccmavenger/ralph --json title,body,state,comments` failed
+because GitHub authentication is unavailable. Live issue/PR review is not claimed;
+scope was assessed from the repository M1/M1.3 plans, implementation and evidence.
+
+Objective: close a reusable operator target-validation bypass. The previous
+`exactObject` returned caller-owned objects and allowed enumerable accessors.
+A host getter could return `127.0.0.1` during validation, then a different host
+when `validateBootstrapTarget` spread the object. `bootstrapConnection` would
+return that different driver host despite its loopback URL guard. A supplemental
+source-free reproduction against HEAD confirms this behavior without constructing
+a driver or making a connection. Strict CLI JSON cannot contain such accessors;
+the vulnerability affects programmatic callers of the exported validator.
+
+Files and decisions:
+
+- `src/lib/executive/canonical.ts`: capture each schema's own enumerable data
+  descriptors into a detached null-prototype object. Reject accessors, hidden or
+  symbol fields, custom prototypes, duplicate expected keys and unreadable
+  reflection with `INVALID_SCHEMA`. Never evaluate getters or ordinary property
+  read traps. Valid plain/null-prototype JSON and canonical hashes are preserved.
+  Capture is shallow; nested schemas continue to require their own validation.
+- `tests/executive/bootstrap-input.unit.test.ts`: 18 new permanent cases cover
+  detached snapshots, safe `__proto__` data, six invalid object shapes, six target
+  accessor fields, four Owner accessor fields, and intercepted ordinary target
+  reads. Existing per-test pg Client/Pool connect spies assert zero connections.
+- This verification record supplies durable review context. No schema/migration,
+  dependency/lockfile, configuration, workflow, policy, Charter, manifest,
+  approval receipt or provenance artifact changed. No new infrastructure,
+  recurring cost, privileges or Owner decision.
+
+Actual checks on Linux / Node **24.21.0**, from repository root unless stated:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`; pinned app toolchain unavailable. Package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-input.unit.test.ts` | Blocked before collection: local Vitest module absent. |
+| Supplemental preinstalled Functions Vitest 3.2.4 invocation against a temporary source copy | Blocked at runner startup: missing `@rollup/rollup-linux-x64-gnu`. No test result; this runner is not the pinned app toolchain. |
+| `node /tmp/m13-schema-check.cjs` | Five service/library/test files transpiled without syntactic diagnostics; 23 direct Node supplemental assertion cases passed, including HEAD host-bypass reproduction, fixed validation, accessor rejection, intercepted reads, valid JSON/driver options and unchanged approved manifest hash. No client construction or DB proof. Temporary harness is outside the repository. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --types node --typeRoots msf-companion/functions/node_modules/@types --skipLibCheck msf-companion/src/lib/executive/canonical.ts` | Passed isolated semantic check of the changed helper using preinstalled Functions TypeScript. Not application/pinned typecheck, lint or generated-client validation. |
+| `git diff --check` | Passed. |
+
+All **18 new permanent automated cases remain unrun in the required toolchain**.
+BOOT-01/02 operator validation is strengthened; no BOOT requirement is newly
+certified complete. BOOT-01–16 completion, M1.2 preservation, actual PostgreSQL/
+Prisma behavior, pinned semantic typecheck/lint, web regression/build and Linux
+container startup remain unverified by this run. Historical failures below remain
+separate; supplemental assertions do not establish absence of new regressions.
+No private original source was accessed, transported or fabricated.
+
+Next action: run the pinned pure/operator checks and guarded owned-disposable DB
+suite, then required baseline regression/container checks. Genuine-source
+protected check/apply/replay and Owner acceptance remain mandatory gates.
+Technical merge readiness: **not ready**. No acceptance, merge/deployment
+authorization or progression to M1.4 is inferred.
+
 ## Source-free error-evidence checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This
