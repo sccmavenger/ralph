@@ -242,15 +242,32 @@ function safeFailure(requestId: string, reasonCode: BootstrapReasonCode, phase: 
 
 /** Only structural error codes are inspected. Never parse messages/SQL/parameters. */
 export function bootstrapSqlState(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") return;
-  const entry = error as Record<string, unknown>;
-  const meta = entry.meta && typeof entry.meta === "object" ? entry.meta as Record<string, unknown> : {};
-  const adapter = meta.driverAdapterError && typeof meta.driverAdapterError === "object"
-    ? meta.driverAdapterError as Record<string, unknown> : {};
-  const cause = adapter.cause && typeof adapter.cause === "object" ? adapter.cause as Record<string, unknown> : {};
-  const directCause = entry.cause && typeof entry.cause === "object" ? entry.cause as Record<string, unknown> : {};
-  for (const code of [entry.code, meta.code, cause.originalCode, cause.code, directCause.originalCode, directCause.code]) {
-    if (typeof code === "string" && code.length === 5 && /^[0-9A-Z]{5}$/.test(code) && !/^P\d{4}$/.test(code)) return code;
+  // Only the known adapter paths and own data properties are evidence. Do not
+  // execute error getters, walk arbitrary causes, or read private messages.
+  // Conflicting codes cannot establish a server-confirmed rollback: choosing
+  // the first could hide an uncertain commit and authorize an unsafe retry.
+  const field = (value: unknown, key: string): unknown => {
+    if (!value || typeof value !== "object") return;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor) return;
+    if (!("value" in descriptor)) throw new Error("UNREADABLE_ERROR_CODE");
+    return descriptor.value;
+  };
+  try {
+    const meta = field(error, "meta");
+    const adapter = field(meta, "driverAdapterError");
+    const cause = field(adapter, "cause");
+    const directCause = field(error, "cause");
+    const codes = new Set([field(error, "code"), field(meta, "code"),
+      field(cause, "originalCode"), field(cause, "code"),
+      field(directCause, "originalCode"), field(directCause, "code")].filter(
+      (code): code is string => typeof code === "string" && code.length === 5
+        && /^[0-9A-Z]{5}$/.test(code) && !/^P\d{4}$/.test(code),
+    ));
+    if (codes.size === 1) return codes.values().next().value;
+  } catch {
+    // Opaque errors (including revoked proxies) remain generic/unknown. Error
+    // inspection must never escape the service's redacted outcome boundary.
   }
 }
 
@@ -400,7 +417,11 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
         continue;
       }
       if (callbackReturned && !confirmedServerAbort(state)) return safeFailure(requestId, "COMMIT_OUTCOME_UNKNOWN", "COMMIT");
-      if (error instanceof BootstrapRejectionError) return safeFailure(requestId, error.reasonCode, failedPhase, false);
+      // Even instanceof can throw for an opaque/revoked adapter error proxy.
+      // Such an error supplies no typed rejection evidence and stays generic.
+      let rejectionReason: BootstrapReasonCode | undefined;
+      try { if (error instanceof BootstrapRejectionError) rejectionReason = error.reasonCode; } catch { /* Opaque error. */ }
+      if (rejectionReason) return safeFailure(requestId, rejectionReason, failedPhase, false);
       if (failedPhase === "LOCK" && state === "55P03") return safeFailure(requestId, "LOCK_TIMEOUT", failedPhase, false);
       if (rejectionAudit || failedPhase === "AUDIT") return safeFailure(requestId, "AUDIT_WRITE_FAILED", failedPhase, false);
       return safeFailure(requestId, "TRANSACTION_FAILED", failedPhase, false);

@@ -1,5 +1,74 @@
 # M1.3 implementation — verification record
 
+## Source-free error-evidence checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted task starts at `edddc6a` in the detached workflow checkout of PR #11.
+HEAD and the pre-existing untracked `.github/codex/` directory are preserved for
+patch collection. No commit, push, GitHub write, database connection, cloud action,
+Owner ceremony or later-story work occurred. Read-only
+`gh issue view 10 --repo sccmavenger/ralph --json title,body,state` failed because
+GitHub authentication is unavailable. Live issue/PR inspection is not claimed;
+scope was assessed from the checked-in M1/M1.3 plans, implementation, tests and
+verification history.
+
+Objective: finish conservative transaction-error interpretation at the runtime
+boundary. Previously the first structural SQLSTATE won even when another known
+adapter field contradicted it. For example, outer `40001` plus nested `40003`
+could authorize a retry after an uncertain commit, or outer `23514` plus nested
+`08007` could claim confirmed rollback. Reading error getters could also throw
+outside the diagnostic boundary. These are source-free modeled error shapes,
+not a claim that the pinned adapter normally emits contradictory fields.
+
+Files and decisions:
+
+- `src/lib/executive/bootstrap.ts`: inspect only own data properties on the
+  existing bounded adapter paths. Matching SQLSTATE fields retain their mapping;
+  divergent fields, accessors and unreadable proxies supply no rollback evidence.
+  No raw message/SQL parsing, arbitrary recursive traversal or automatic retry
+  for contradictory evidence. Preserve `COMMIT_OUTCOME_UNKNOWN` / exit 6 and omit
+  audit persistence after callback completion. Guard typed-rejection inspection
+  against revoked proxies before callback completion as well.
+- `tests/executive/bootstrap-audit.unit.test.ts`: 12 new parameterized cases cover
+  divergent codes before execution, creation/rejection acknowledgment ambiguity,
+  matching adapter mappings, inherited-code refusal, getters without execution,
+  revoked proxies before/after callback completion, redaction and no-write replay.
+  Orchestration doubles do not establish real rollback or adapter behavior.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: two owned-disposable
+  PostgreSQL cases inject divergent codes after actual creation/rejection commits,
+  assert no automatic retry or persistence claim, and compare rows and sequence
+  across identical replay. These cases remain unrun here and model acknowledgment
+  loss; they do not simulate an actual network fault or genuine-source rehearsal.
+- This verification record provides durable review evidence. No schema/migration,
+  dependency/lockfile, configuration, workflow, policy, Charter, manifest, approval
+  receipt or provenance artifact changed. No new infrastructure, privileges or
+  recurring cost. No new Owner decision is introduced.
+
+Actual checks on Linux / Node **24.21.0**, from the repository root unless stated:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`; pinned app toolchain unavailable. Package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-audit.unit.test.ts` | Blocked before collection: local Vitest module absent. |
+| `node /tmp/m13-error-check.cjs` | Existing Functions TypeScript transpiled six service/library/test files without syntactic diagnostics. Twenty supplemental direct Node assertion cases passed using temporary modules and a minimal call-recording shim with the checked-in orchestration fixture. No pinned Vitest, semantic typecheck, lint or DB proof. Harness remains outside repository. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied; no container/DB accessed. CLI returned exit 0 despite the diagnostic. |
+| `git diff --check` | Passed. |
+
+All **14 new permanent automated cases remain unrun in the required toolchain**.
+BOOT-08/13/14 runtime coverage is extended; no BOOT requirement is newly certified
+complete. BOOT-01–16 completion, all M1.2 preservation, actual PostgreSQL/Prisma
+behavior, semantic typecheck, lint, web regressions, builds and Linux container
+startup remain unverified by this run. Historical failures below remain separate;
+supplemental assertions cannot establish absence of new application regressions.
+The conservative own-property rule requires validation against the real pinned
+adapter in the existing integration cases before merge readiness can be claimed.
+
+Next action: run pinned unit/operator checks and the guarded disposable PostgreSQL
+suite, then required regression/container checks. Protected genuine-source
+check/apply/replay and Owner acceptance remain mandatory separate gates. Technical
+merge readiness: **not ready**. No acceptance, merge/deployment authorization or
+progression to M1.4 is inferred.
+
 ## Source-free readiness invocation checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This

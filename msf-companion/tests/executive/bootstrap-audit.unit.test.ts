@@ -567,4 +567,78 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(bootstrapSqlState({ message: "40001" })).toBeUndefined();
     expect(bootstrapSqlState(null)).toBeUndefined();
   });
+
+  it.each([
+    { code: "40001", meta: { code: "40003" } },
+    { code: "23514", cause: { originalCode: "08007" } },
+    { meta: { code: "40P01", driverAdapterError: { cause: { originalCode: "40003" } } } },
+    { cause: { originalCode: "40003", code: "40001" } },
+  ])("conflicting SQLSTATE evidence cannot authorize a retry or claim rollback", async error => {
+    expect(bootstrapSqlState(error)).toBeUndefined();
+    const fixture = serviceDouble();
+    fixture.transaction.mockRejectedValueOnce(error);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ reasonCode: "TRANSACTION_FAILED", exitCode: 5 });
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["creation", "rejection"])("conflicting %s commit evidence preserves uncertainty and replay", async lane => {
+    const fixture = serviceDouble();
+    const prepared = preparedInput();
+    if (lane === "rejection") {
+      expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+      prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+      prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    }
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw { code: "40001", meta: { code: "40003" }, message: "synthetic-private-marker" };
+    });
+    const beforeAttempts = fixture.transaction.mock.calls.length;
+    const result = await runBootstrap({ ...fixture.options, prepared });
+    expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
+    expect("diagnostic" in result && Object.hasOwn(result.diagnostic, "auditPersisted")).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+    expect(fixture.transaction).toHaveBeenCalledTimes(beforeAttempts + 1);
+    const before = structuredClone(fixture.state);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+    expect(fixture.state).toEqual(before);
+  });
+
+  it("matching structural codes retain the verified adapter mapping", () => {
+    expect(bootstrapSqlState({ code: "P2010", meta: { code: "40001",
+      driverAdapterError: { cause: { originalCode: "40001", code: "40001" } } } })).toBe("40001");
+    expect(bootstrapSqlState(Object.create({ code: "40001" }))).toBeUndefined();
+  });
+
+  it.each(["code", "meta", "cause"])("error %s getters never execute or escape a safe outcome", async key => {
+    const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+    const error = Object.defineProperty({}, key, { get: getter });
+    expect(bootstrapSqlState(error)).toBeUndefined();
+    const fixture = serviceDouble();
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw error;
+    });
+    const result = await runBootstrap(fixture.options);
+    expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
+    expect(getter).not.toHaveBeenCalled();
+    expect("diagnostic" in result && Object.hasOwn(result.diagnostic, "auditPersisted")).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])("a revoked error proxy cannot escape classification after callback=%s", async afterCallback => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    expect(bootstrapSqlState(proxy)).toBeUndefined();
+    const fixture = serviceDouble();
+    fixture.transaction.mockImplementationOnce(async operation => {
+      if (afterCallback) await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw proxy;
+    });
+    expect(await runBootstrap(fixture.options)).toMatchObject({
+      reasonCode: afterCallback ? "COMMIT_OUTCOME_UNKNOWN" : "TRANSACTION_FAILED", exitCode: afterCallback ? 6 : 5,
+    });
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+  });
 });
