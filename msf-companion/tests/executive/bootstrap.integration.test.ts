@@ -7,6 +7,35 @@ import { connectTestDatabase, EXECUTIVE_TABLES, expectSqlFailure, validateTestEn
 beforeAll(() => { validateTestEnvironment(); });
 
 describe("BOOT-04/05/06/11/16 typed bootstrap, inertness, continuity and unchanged business data", () => {
+  it("noncanonical handle readback rejects replay and conflict without changing permanent history", async () => {
+    const fixture = await createBootstrapFixture("noncanonical_handle");
+    try {
+      expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+      const before = await executiveSnapshot(fixture.env);
+      const conflicting = structuredClone(fixture.prepared);
+      conflicting.envelope.owner.displayName = "Different synthetic Owner";
+      conflicting.bootstrapHash = canonicalHash(conflicting.envelope);
+      for (const mode of ["check", "apply"] as const) {
+        for (const prepared of [fixture.prepared, conflicting]) {
+          let injected = false;
+          const client = interceptBootstrapClient(fixture.client, { afterOperation: async operation => {
+            if (operation.method !== "$queryRawUnsafe" || !String(operation.args[0]).includes("AS snapshot")) return;
+            const rows = operation.result as { snapshot: { owners: Record<string, unknown>[] } }[];
+            rows[0].snapshot.owners[0].webauthnUserId = "_".repeat(42) + "9";
+            injected = true;
+          } });
+          expect(await runBootstrap({ client, mode, prepared, readiness: bootstrapReadiness(fixture.env, mode) })).toMatchObject({
+            reasonCode: "FOUNDATION_INCONSISTENT", diagnostic: { auditPersisted: false },
+          });
+          expect(injected).toBe(true);
+          expect(await executiveSnapshot(fixture.env)).toEqual(before);
+        }
+      }
+      expect(await fixture.run()).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+      expect(await executiveSnapshot(fixture.env)).toEqual(before);
+    } finally { await fixture.close(); }
+  });
+
   it("noncanonical prepared Markdown is rejected before check/apply without rows or sequence allocations", async () => {
     const fixture = await createBootstrapFixture("invalid_markdown", { business: true });
     try {

@@ -1,5 +1,87 @@
 # M1.3 implementation — verification record
 
+## Source-free immutable identity contract checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `d6128c002a9c10e1a62efed8a146b8416d7da760`, detached at the exact
+`origin/executive/m1.3-bootstrap` implementation commit. Checkout and pre-existing
+untracked `.github/codex/` are preserved. Changes remain uncommitted for workflow
+collection; no commit, push or GitHub write. Read-only `gh issue view 10 --json
+title,body,comments` and `gh pr view 11 --json title,body,headRefName,state` were
+blocked by missing authentication. No current live issue/PR inspection is claimed.
+The checked-in M1 plan, M1.3 plan, operations/verification record, runtime and tests
+provided implementation context.
+
+Objective and authorized scope: enforce the approved generated-identity contract
+on creation and canonical immutable Owner handle on replay. The previous replay
+check accepted any 43-character base64url-alphabet string. Node decodes nonzero
+unused padding bits permissively, so some accepted spellings were not canonical
+encodings of 32 bytes. Replay now requires exact decode/re-encode equality and a
+32-byte decoded length. A corrupt handle rejects before replay success or conflict
+rejection audit; it is never normalized, replaced or exposed. This validates an
+opaque stored account identifier, not enrollment or a passkey ceremony. The
+existing SQL alphabet/length CHECK and immutable guard remain unchanged; runtime
+validation supplies the stricter contract without a migration.
+
+Creation previously checked the generated cuid format only for Office. It now
+checks Owner, Charter and CEO returned IDs immediately after their writes, before
+using them in later relationships or audit records. A malformed acknowledgment
+throws the same safe foundation-inconsistency rejection inside the transaction,
+so the actual insert must roll back. Existing replay IDs remain preserved under
+the existing reference contract; no historical identity rewriting or repair mode.
+
+Files changed:
+
+- `src/lib/executive/bootstrap.ts`: canonical handle validation and immediate
+  generated-ID checks for all four new identities.
+- `tests/executive/bootstrap-audit.unit.test.ts`: five orchestration cases cover
+  noncanonical handles in both modes for identical/conflicting attempts, and
+  malformed Owner/Charter/CEO acknowledgments stopping downstream writes/audit.
+- `tests/executive/bootstrap.integration.test.ts`: one actual PostgreSQL case
+  intercepts returned snapshot data only, verifies check/apply identical/conflict
+  refusals leave permanent rows and sequence unchanged, then proves normal replay.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: four actual PostgreSQL
+  cases intercept each generated-ID acknowledgment after its real insert, require
+  rollback of all rows without sequence allocation/audit writes, preserve business
+  catalogs/sentinels and then allow a normal identical creation. These five new
+  PostgreSQL cases are unrun here; interception never rewrites permanent history
+  or bypasses readiness/guards.
+- This verification record supplies durable review context and limitations.
+
+Actual checks on Linux, Node **24.21.0**:
+
+| Command/check | Result and limits |
+|---|---|
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` in `msf-companion` | Blocked by registry DNS EAI_AGAIN. Package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts tests/executive/bootstrap-audit.unit.test.ts tests/executive/bootstrap.integration.test.ts tests/executive/bootstrap-recovery.integration.test.ts` from repository root | Blocked before collection: pinned local Vitest absent. |
+| `node msf-companion/functions/node_modules/vitest/vitest.mjs run --config /tmp/m13-source-free-vitest.config.mjs` | Supplemental attempt with preinstalled Vitest 3.2.4, isolated envDir-disabled config and explicit pure files only; blocked before collection by missing `@rollup/rollup-linux-x64-gnu`. No dependencies/configuration modified to bypass this. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket denied; no container/database accessed. |
+| `node /tmp/m13-identity-check.cjs` | Passed six supplemental cases using existing service double: five new identity cases plus advanced-state replay preserving identities/history. All four changed TS files transpile with no syntactic diagnostics using preinstalled TypeScript 5.9.3. External harness uses Node assertions and small mock/matcher adapters; not pinned Vitest, semantic typecheck, Prisma or PostgreSQL evidence. |
+| `git diff --check` | Passed. |
+
+No schema/migration, dependency/lockfile, configuration, workflow, policy, Charter
+content, manifest, approval receipt or provenance artifact change. No original
+source access, production/shared/live DB, cloud deployment, payment, credentials,
+Owner enrollment/passkey ceremony, Charter acceptance, CEO activation or M2 work.
+No infrastructure/cost implication or new Owner decision needed for this bounded
+validation change. Historical failures below were not rerun and are not new
+regression results; no absence-of-regressions claim is made.
+
+BOOT-04/06/12 boundary implementation is strengthened; **no BOOT requirement is
+newly certified complete**. BOOT-01–16 completion, full M1.2 preservation, actual
+Prisma/PostgreSQL transaction/catalog/privilege/concurrency/audit/commit behavior,
+pinned semantic typecheck/targeted lint, baseline web/lint/audit/build comparisons
+and Linux container startup remain unverified here. Genuine-source protected CLI
+check/apply/replay, independent fidelity review and Owner acceptance remain
+mandatory separate gates. Synthetic checks cannot satisfy them.
+
+Next proposed action: run the complete pinned dedicated suite on the authorized
+owned disposable PostgreSQL runner, including the new rollback/readback cases,
+complete regression/container evidence and protected genuine-source rehearsal,
+then Owner review. Technical merge readiness: **not ready**, pending required
+verification and mandatory gates. No M1.3 acceptance, merge authorization or M1.4
+progression is inferred.
+
 ## Source-free bounded foundation snapshot checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting

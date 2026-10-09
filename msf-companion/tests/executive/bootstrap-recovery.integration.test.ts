@@ -15,6 +15,35 @@ beforeAll(() => { validateTestEnvironment(); });
 const boundaries = ["Office", "Owner", "Charter", "CEO", "first event", "second event", "readback", "constraints"] as const;
 
 describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and modeled acknowledgment loss", () => {
+  it.each(["executiveOffice", "executiveOwner", "executiveCharter", "executiveAgent"])(
+    "malformed generated ID returned by %s rolls back its actual insert before audit", async model => {
+      const fixture = await createBootstrapFixture(`invalid_id_${model.toLowerCase()}`, { business: true });
+      try {
+        const before = await executiveSnapshot(fixture.env);
+        const business = await businessSnapshot(fixture.env);
+        let injected = false;
+        let auditWrites = 0;
+        const client = interceptBootstrapClient(fixture.client, { afterOperation: async operation => {
+          if (operation.model === "executiveActivityEvent" && operation.method === "create") auditWrites++;
+          if (operation.model !== model || !["create", "createManyAndReturn"].includes(operation.method)) return;
+          // Alter the returned acknowledgment only. The real insert and strict
+          // readiness/guards run unchanged; no persisted identity is rewritten.
+          const row = (Array.isArray(operation.result) ? operation.result[0] : operation.result) as Record<string, unknown>;
+          row.id = "not_a_generated_cuid";
+          injected = true;
+        } });
+        expect(await runBootstrap({ client, mode: "apply", prepared: fixture.prepared, readiness: fixture.readiness })).toMatchObject({
+          reasonCode: "FOUNDATION_INCONSISTENT", diagnostic: { phase: "CREATE", auditPersisted: false },
+        });
+        expect(injected).toBe(true);
+        expect(auditWrites).toBe(0);
+        expect(await executiveSnapshot(fixture.env)).toEqual(before);
+        expect(await businessSnapshot(fixture.env)).toEqual(business);
+        expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+      } finally { await fixture.close(); }
+    },
+  );
+
   it.each(["creation", "rejection"])("drops the real PostgreSQL %s COMMIT acknowledgment before PrismaPg can observe it", async lane => {
     const fixture = await createBootstrapFixture(`wire_ack_${lane}`);
     let relay: Awaited<ReturnType<typeof startCommitAcknowledgmentRelay>> | undefined;

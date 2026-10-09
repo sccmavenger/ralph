@@ -386,6 +386,40 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.tx.executiveOffice.createManyAndReturn).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["check", "apply"] as const)("%s rejects noncanonical immutable handles before replay or conflict audit", async mode => {
+    const fixture = serviceDouble();
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+    const canonical = Buffer.alloc(32, 255).toString("base64url");
+    const alias = canonical.slice(0, -1) + "9";
+    expect(Buffer.from(alias, "base64url")).toEqual(Buffer.from(canonical, "base64url"));
+    fixture.state.owners[0].webauthnUserId = alias;
+    const before = structuredClone(fixture.state);
+    const conflicting = preparedInput();
+    conflicting.envelope.owner.displayName = "Different synthetic Owner";
+    conflicting.bootstrapHash = canonicalHash(conflicting.envelope);
+    for (const prepared of [fixture.options.prepared, conflicting]) {
+      expect(await runBootstrap({ ...fixture.options, mode, prepared })).toMatchObject({
+        reasonCode: "FOUNDATION_INCONSISTENT", diagnostic: { auditPersisted: false },
+      });
+      expect(fixture.state).toEqual(before);
+    }
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["owner", "charter", "ceo"] as const)("refuses a malformed generated %s ID before downstream relationships or audit", async kind => {
+    const fixture = serviceDouble();
+    const writer = kind === "owner" ? fixture.tx.executiveOwner.create
+      : kind === "charter" ? fixture.tx.executiveCharter.create : fixture.tx.executiveAgent.create;
+    writer.mockResolvedValueOnce({ id: "not_a_generated_cuid" });
+    expect(await runBootstrap(fixture.options)).toMatchObject({
+      reasonCode: "FOUNDATION_INCONSISTENT", diagnostic: { auditPersisted: false, phase: "CREATE" },
+    });
+    expect(fixture.tx.executiveActivityEvent.create).not.toHaveBeenCalled();
+    if (kind === "owner") expect(fixture.tx.executiveCharter.create).not.toHaveBeenCalled();
+    if (kind !== "ceo") expect(fixture.tx.executiveAgent.create).not.toHaveBeenCalled();
+    // This double proves ordering only; real rollback is covered in PG cases.
+  });
+
   it("rejects a mismatched prepared digest before even opening an interactive transaction", async () => {
     const fixture = serviceDouble();
     fixture.options.prepared.envelope.owner.displayName = "Changed without rehash";

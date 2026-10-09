@@ -84,6 +84,14 @@ function requireCondition(value: unknown): asserts value { if (!value) reject();
 const hashText = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const isHash = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{64}$/.exec(value)?.[0] === value;
 const isId = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{1,200}$/.exec(value)?.[0] === value;
+const isGeneratedId = (value: unknown): value is string => typeof value === "string" && /^c[a-z0-9]{24}$/.exec(value)?.[0] === value;
+function isOwnerHandle(value: unknown): value is string {
+  if (typeof value !== "string" || /^[A-Za-z0-9_-]{43}$/.exec(value)?.[0] !== value) return false;
+  // Node's decoder accepts nonzero unused padding bits. Length/alphabet alone
+  // therefore allow several spellings of the same opaque 32-byte identity.
+  const bytes = Buffer.from(value, "base64url");
+  return bytes.length === 32 && bytes.toString("base64url") === value;
+}
 function milliseconds(value: unknown): number {
   const instant = value instanceof Date ? value.getTime() : typeof value === "string" ? Date.parse(value) : NaN;
   requireCondition(Number.isFinite(instant));
@@ -168,8 +176,7 @@ function inspectExisting(state: FoundationSnapshot) {
   requireCondition(state.counts.ExecutiveOffice === 1 && state.counts.ExecutiveOwner === 1 && state.counts.ExecutiveAgent === 1);
   requireCondition(office.key === "msf-toolkit" && office.bootstrapVersion === 1 && isHash(office.bootstrapHash)
     && office.phase === "FOUNDATION" && office.executionMode === "DISABLED");
-  requireCondition(owner.officeId === office.id && typeof owner.webauthnUserId === "string"
-    && /^[A-Za-z0-9_-]{43}$/.exec(owner.webauthnUserId)?.[0] === owner.webauthnUserId);
+  requireCondition(owner.officeId === office.id && isOwnerHandle(owner.webauthnUserId));
   requireCondition(ceo.officeId === office.id && ceo.reportsToOwnerId === owner.id && ceo.roleKey === "CEO"
     && ceo.roleDefinitionVersion === 1 && validRole(ceo.roleDefinition));
   requireCondition(charter.officeId === office.id && charter.version === 1 && charter.importedByOwnerId === null
@@ -401,22 +408,25 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
             key: "msf-toolkit", name: envelope.office.name, phase: "FOUNDATION", executionMode: "DISABLED",
             activeCharterAcceptanceId: null, bootstrapVersion: 1, bootstrapHash: prepared.bootstrapHash, createdAt: at, updatedAt: at,
           }] });
-          requireCondition(offices.length === 1 && typeof offices[0].id === "string" && /^c[a-z0-9]{24}$/.exec(offices[0].id)?.[0] === offices[0].id);
+          requireCondition(offices.length === 1 && isGeneratedId(offices[0].id));
           const office = offices[0];
           const owner = await tx.executiveOwner.create({ data: {
             displayName: envelope.owner.displayName, contactEmail: envelope.owner.contactEmail, status: "PENDING_ENROLLMENT",
             authVersion: 1, officeId: office.id, webauthnUserId: handle, createdAt: at, updatedAt: at,
           } });
+          requireCondition(isGeneratedId(owner.id));
           const imported = await tx.executiveCharter.create({ data: {
             officeId: office.id, version: 1, title: charter.title, contentMarkdown: charter.contentMarkdown,
             contentHash: charter.contentHash, sourceFileName: charter.sourceFileName, sourceFileHash: charter.sourceFileHash,
             importedByOwnerId: null, createdAt: at,
           } });
+          requireCondition(isGeneratedId(imported.id));
           const ceo = await tx.executiveAgent.create({ data: {
             roleKey: "CEO", displayName: envelope.ceo.displayName, status: "ONBOARDING", roleDefinitionVersion: 1,
             roleDefinition: envelope.ceo.roleDefinition, governingCharterAcceptanceId: null,
             officeId: office.id, reportsToOwnerId: owner.id, createdAt: at, updatedAt: at,
           } });
+          requireCondition(isGeneratedId(ceo.id));
           phase = "AUDIT";
           const events = createBootstrapEvents({ officeId: office.id, ownerId: owner.id, ceoId: ceo.id, charterId: imported.id,
             requestId, at, bootstrapHash: prepared.bootstrapHash, contentHash: charter.contentHash,
