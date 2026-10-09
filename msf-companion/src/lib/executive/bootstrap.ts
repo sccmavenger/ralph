@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma, PrismaClient } from "../../generated/prisma/client";
-import { assertUnicode, canonicalHash, canonicalJson, exactObject } from "./canonical";
+import { assertUnicode, canonicalHash, canonicalJson, captureCanonicalValue, exactObject } from "./canonical";
 import { validateBootstrapInput } from "./bootstrap-config";
 import {
   appendBootstrapEvent, buildBootstrapDiagnostic, createBootstrapEvents, createRejectionEvent,
@@ -291,7 +291,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
   // Retain exactly these prevalidated bytes/values through both bounded attempts.
   let prepared: BootstrapPrepared;
   try {
-    prepared = structuredClone(options.prepared);
+    prepared = captureCanonicalValue(options.prepared) as BootstrapPrepared;
     // The reusable transaction boundary must enforce the closed contract too;
     // a self-consistent hash alone does not validate an envelope's shape or PII.
     exactObject(prepared, ["envelope", "bootstrapHash", "charter"]);

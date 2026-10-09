@@ -1,5 +1,67 @@
 # M1.3 implementation — verification record
 
+## Source-free prepared-input capture checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This task
+starts at `72d125e`, detached at the same commit as
+`origin/executive/m1.3-bootstrap` in PR #11's workflow checkout. HEAD and the
+pre-existing untracked `.github/codex/` directory are preserved. All changes remain
+uncommitted for workflow collection. Read-only `gh issue view 10 --repo
+sccmavenger/ralph` failed because GitHub authentication is unavailable; live
+issue/PR review is not claimed. Scope was assessed from the repository M1/M1.3
+plans, runtime, tests and verification record.
+
+Objective: enforce the closed prepared-input contract before transformation.
+`structuredClone` previously executed nested getters and silently discarded
+hidden/symbol fields or custom prototypes before `exactObject` could inspect
+them. A synthetic supplemental reproduction confirms both getter execution and
+hidden-field removal. Strict CLI JSON cannot carry those shapes; this closes the
+exported transaction service's programmatic input boundary.
+
+Files and decisions:
+
+- `src/lib/executive/canonical.ts`: add recursive descriptor-based canonical data
+  capture, retaining detached objects/arrays while rejecting accessors, hidden or
+  symbol fields, custom prototypes, sparse/extended arrays, invalid scalars and
+  excessive depth/cycles. Ordinary property read traps are not evaluated; revoked
+  or unreadable reflection fails with a bounded code. Safe own `__proto__` data
+  does not modify the captured object's prototype. Existing canonical serialization
+  and constitutional artifact hashes are unchanged.
+- `src/lib/executive/bootstrap.ts`: capture supplied prepared data before existing
+  exact-schema, inert-state and hash validation. Invalid data returns redacted
+  `INPUT_INVALID` with no interactive transaction. Captured data remains stable
+  through asynchronous waits/retries.
+- `tests/executive/bootstrap-audit.unit.test.ts`: eight permanent service cases
+  cover nested getters, hidden/symbol fields, prototypes, array accessors/extra
+  fields, cycles and ordinary read traps. These are orchestration tests, not real
+  PostgreSQL or original-source evidence.
+- No schema/migration, dependency/lockfile, configuration, workflow, policy,
+  Charter, manifest, approval receipt or provenance artifact changed. No database,
+  cloud, production/shared target, Owner ceremony, GitHub write, commit/push or
+  later-story work. No new infrastructure, recurring cost or Owner decision.
+
+Actual checks on Linux, Node **24.21.0**, from repository root unless stated:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`; package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-audit.unit.test.ts` | Blocked before collection: local Vitest module absent. All eight new permanent cases remain unrun by the pinned runner. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --types node --typeRoots msf-companion/functions/node_modules/@types --skipLibCheck msf-companion/src/lib/executive/canonical.ts` | Passed isolated semantic check using preinstalled Functions TypeScript; not application typecheck. |
+| `node /tmp/m13-capture-check.cjs` | Five runtime modules transpiled without syntactic diagnostics; 16 supplemental assertion cases passed. Covers supplied-data refusal, revoked proxy, nested snapshot/hash stability, ordinary read trap, safe prototype key, unsupported values and old clone behavior. Synthetic transaction double only; no client/network/DB. Temporary harness outside repository. |
+| Functions TypeScript `transpileModule` on the changed test file | Passed without syntactic diagnostics; not semantic test/client validation or lint. |
+| `git diff --check` | Passed. |
+
+BOOT-01/02 input handling is strengthened; **no BOOT requirement is newly
+certified complete**. BOOT-01–16, all M1.2 preservation, actual Prisma/PostgreSQL
+transactions, pinned typecheck/lint, web regression/build and Linux container
+checks remain unverified by this run. Historical failures below remain separate;
+these supplemental checks do not establish absence of new regressions.
+Genuine-source protected CLI check/apply/replay, independent fidelity review and
+Owner acceptance remain mandatory gates. Next action: run the pinned dedicated
+and guarded disposable suites plus required baseline/container comparisons, then
+the genuine-source rehearsal. Technical merge readiness: **not ready**. No merge,
+deployment, acceptance or progression to M1.4 is inferred.
+
 ## Source-free membership administration checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This task

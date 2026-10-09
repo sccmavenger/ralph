@@ -337,6 +337,35 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.transaction).not.toHaveBeenCalled();
   });
 
+  it.each(["accessor", "hidden", "symbol", "prototype", "array accessor", "array extra", "cycle"])(
+    "rejects supplied %s without cloning away evidence or opening a transaction", async kind => {
+      const fixture = serviceDouble();
+      const prepared = fixture.options.prepared;
+      const getter = vi.fn(() => "Synthetic Owner");
+      if (kind === "accessor") Object.defineProperty(prepared.envelope.owner, "displayName", { enumerable: true, get: getter });
+      if (kind === "hidden") Object.defineProperty(prepared.envelope.owner, "privateMarker", { value: "synthetic-private-marker" });
+      if (kind === "symbol") Object.defineProperty(prepared, Symbol("privateMarker"), { value: "synthetic-private-marker" });
+      if (kind === "prototype") Object.setPrototypeOf(prepared.envelope.owner, { inherited: true });
+      const responsibilities = prepared.envelope.ceo.roleDefinition.responsibilities;
+      if (kind === "array accessor") Object.defineProperty(responsibilities, "0", { enumerable: true, get: getter });
+      if (kind === "array extra") Object.defineProperty(responsibilities, "privateMarker", { value: "synthetic-private-marker" });
+      if (kind === "cycle") Object.assign(prepared, { cycle: prepared });
+      const outcome = await runBootstrap(fixture.options);
+      expect(outcome).toMatchObject({ reasonCode: "INPUT_INVALID", exitCode: 2, diagnostic: { auditPersisted: false } });
+      expect(JSON.stringify(outcome)).not.toContain("synthetic-private-marker");
+      expect(getter).not.toHaveBeenCalled();
+      expect(fixture.transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("captures nested own data without executing ordinary read traps", async () => {
+    const fixture = serviceDouble();
+    const read = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+    fixture.options.prepared.envelope.owner = new Proxy(fixture.options.prepared.envelope.owner, { get: read });
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED", exitCode: 0 });
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it.each(["noncanonical content", "empty responsibilities"])(
     "rejects persisted %s before a conflicting attempt can append a rejection", async kind => {
       const fixture = serviceDouble();

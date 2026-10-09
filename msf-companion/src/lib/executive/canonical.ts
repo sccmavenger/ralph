@@ -48,6 +48,45 @@ export function sha256(value: string | Uint8Array): string {
 
 export function canonicalHash(value: unknown): string { return sha256(canonicalJson(value)); }
 
+/** Capture canonical data without executing getters or discarding hidden fields. */
+export function captureCanonicalValue(value: unknown, depth = 0): unknown {
+  if (depth > 64) throw new Error('INVALID_CANONICAL_VALUE');
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') { assertUnicode(value); return value; }
+  if (typeof value === 'number' && Number.isSafeInteger(value) && !Object.is(value, -0)) return value;
+  if (!value || typeof value !== 'object') throw new Error('INVALID_CANONICAL_VALUE');
+  try {
+    const array = Array.isArray(value);
+    const prototype = Object.getPrototypeOf(value);
+    if (array ? prototype !== Array.prototype : ![Object.prototype, null].includes(prototype)) {
+      throw new Error('INVALID_CANONICAL_VALUE');
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    const captured: Record<string, unknown> | unknown[] = array ? [] : {};
+    if (array) {
+      const length = descriptors.length?.value;
+      if (!Number.isSafeInteger(length) || length < 0 || keys.length !== length + 1) throw new Error('INVALID_CANONICAL_VALUE');
+      for (let index = 0; index < length; index++) {
+        const descriptor = descriptors[String(index)];
+        if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw new Error('INVALID_CANONICAL_VALUE');
+        (captured as unknown[]).push(captureCanonicalValue(descriptor.value, depth + 1));
+      }
+    } else {
+      for (const key of keys) {
+        if (typeof key !== 'string' || !/^[\x20-\x7e]+$/.test(key)) throw new Error('INVALID_CANONICAL_VALUE');
+        const descriptor = Object.getOwnPropertyDescriptor(descriptors, key)?.value as PropertyDescriptor | undefined;
+        if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw new Error('INVALID_CANONICAL_VALUE');
+        Object.defineProperty(captured, key, { value: captureCanonicalValue(descriptor.value, depth + 1),
+          enumerable: true, writable: true, configurable: true });
+      }
+    }
+    return captured;
+  } catch {
+    throw new Error('INVALID_CANONICAL_VALUE');
+  }
+}
+
 export function decodeUtf8(bytes: Uint8Array): string {
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) throw new Error('INVALID_UTF8');
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
