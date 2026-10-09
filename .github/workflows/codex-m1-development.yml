@@ -1,0 +1,85 @@
+name: Codex M1 Development Agent
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 14 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-m1-development
+  cancel-in-progress: false
+
+jobs:
+  develop:
+    if: github.repository == 'sccmavenger/ralph' && (github.event_name == 'workflow_dispatch' || vars.CODEX_M1_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Check API credential
+        env:
+          CODEX_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$CODEX_KEY" ]; then
+            echo "::error::Configure OPENAI_API_KEY in GitHub Actions secrets before running Codex."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/codex-m1-work
+          persist-credentials: false
+      - name: Run Codex on M1
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/m1-agent.md
+          working-directory: .
+      - name: Save code-only patch
+        if: success()
+        shell: bash
+        run: |
+          git add -N -- . ':!.github/workflows/**' ':!.github/codex/**'
+          git diff --binary -- . ':!.github/workflows/**' ':!.github/codex/**' > /tmp/m1.patch
+          cp /tmp/m1.patch m1.patch
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: codex-m1-patch
+          path: m1.patch
+          retention-days: 3
+          if-no-files-found: error
+
+  publish:
+    needs: develop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/codex-m1-work
+          persist-credentials: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-m1-patch
+      - name: Apply patch and commit to agent branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -s m1.patch ]; then
+            echo "No changes proposed."
+            exit 0
+          fi
+          git apply --check m1.patch
+          git apply m1.patch
+          rm m1.patch
+          git add -A
+          git diff --cached --quiet && exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Codex: M1 development checkpoint"
+          git push origin HEAD:automation/codex-m1-work
