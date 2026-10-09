@@ -176,7 +176,7 @@ describe("BOOT-02 independent restricted canonical vectors", () => {
 
   it("rejects executable array prototypes without invoking their methods", () => {
     const map = vi.fn(() => ["substituted"]);
-    class ExecutableArray extends Array { }
+    class ExecutableArray extends Array<string> { }
     Object.defineProperty(ExecutableArray.prototype, "map", { value: map });
     expect(() => canonicalJson(new ExecutableArray("original"))).toThrow("INVALID_CANONICAL_VALUE");
     expect(map).not.toHaveBeenCalled();
