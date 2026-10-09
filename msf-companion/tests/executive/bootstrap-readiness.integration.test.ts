@@ -300,6 +300,45 @@ describe("BOOT-09/10/11 SELECT-only migration, full catalog and effective privil
       .toContainEqual({ category: "privilege", reason: "OPERATOR_PRIVILEGES_INVALID" });
   });
 
+  it.each([
+    { adminOption: false, throughRole: false }, { adminOption: true, throughRole: false },
+    { adminOption: false, throughRole: true }, { adminOption: true, throughRole: true },
+  ])("evaluates membership administration in the actual privilege SQL: $adminOption / SET ROLE path: $throughRole", async ({ adminOption, throughRole }) => {
+    // No cluster role grants: these rows model a direct membership with SET
+    // and INHERIT disabled. Execute the full predicate on PostgreSQL against
+    // the real baseline catalog, replacing only its membership data source.
+    // This proves the SQL predicate, not actual GRANT/escalation behavior.
+    const client = await connectTestDatabase("app", baseline);
+    let evaluated = false;
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      await client.query("SET LOCAL search_path=pg_catalog");
+      const query: ExecutiveReadinessQuery = async <T extends Record<string, unknown>>(sql: string, values?: readonly unknown[]) => {
+        if (sql.includes("AS safe_role")) {
+          const source = "FROM pg_catalog.pg_auth_members membership";
+          expect(sql.split(source)).toHaveLength(2);
+          sql = sql.replace(source, `FROM (SELECT oid AS member, ${adminOption ? "true" : "false"} AS admin_option
+            FROM pg_catalog.pg_roles WHERE rolname=${throughRole ? "'pg_monitor'" : "current_user"}) membership`);
+          if (throughRole) {
+            // Model a SET-reachable non-owner, non-DDL role. Its administrative
+            // membership must be rejected even when the login has none itself.
+            const candidate = "OR pg_catalog.pg_has_role(current_user,r.oid,'SET')";
+            expect(sql.split(candidate)).toHaveLength(2);
+            sql = sql.replace(candidate, `${candidate} OR r.rolname='pg_monitor'`);
+          }
+          evaluated = true;
+        }
+        return pgQuery(client)<T>(sql, values);
+      };
+      expect(await checkExecutiveReadiness(query, options(baseline))).toEqual(adminOption
+        ? { ready: false, diagnostics: [{ category: "privilege", reason: "OPERATOR_PRIVILEGES_INVALID" }] }
+        : { ready: true, diagnostics: [] });
+      expect(evaluated).toBe(true);
+    } finally {
+      try { await client.query("ROLLBACK"); } finally { await client.end(); }
+    }
+  });
+
   it("redacts raw query exceptions and never includes SQL, target values or migration logs", async () => {
     const query: ExecutiveReadinessQuery = async () => { throw new Error("synthetic-secret-database-url and private SQL"); };
     expect(await checkExecutiveReadiness(query, options(baseline))).toEqual({

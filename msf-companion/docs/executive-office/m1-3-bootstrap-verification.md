@@ -1,5 +1,82 @@
 # M1.3 implementation — verification record
 
+## Source-free membership administration checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This task
+starts at `223a8a3` in PR #11's detached workflow checkout. HEAD and the existing
+untracked `.github/codex/` directory are preserved; changes remain uncommitted
+for workflow patch collection. Read-only Issue #10 retrieval with
+`gh issue view 10 --repo sccmavenger/ralph --json title,body,state,comments` was
+blocked by missing GitHub authentication. Live issue/PR review is not claimed.
+Scope was assessed from repository M1/M1.3 plans, runtime and test evidence.
+
+Objective: close a BOOT-11 operator privilege escalation gap. The previous
+readiness predicate examined current/SET-reachable roles and effective object
+privileges, but not membership administration. On actual PostgreSQL 16.15,
+`GRANT exec_test_migrator TO exec_test_app WITH ADMIN TRUE, INHERIT FALSE,
+SET FALSE` leaves neither inherited nor immediate SET access, so the old
+predicate reports safe. The app role can then execute
+`GRANT exec_test_migrator TO exec_test_app WITH SET TRUE` and gain SET access
+to the migrator. This was reproduced solely in an owned, synthetic scratch
+cluster using the preinstalled PostgreSQL single-user engine; no network,
+shared/live database, credentials or original Charter was involved.
+
+Files and decisions:
+
+- `src/lib/executive/readiness.ts`: the SELECT-only privilege predicate rejects
+  any membership ADMIN OPTION held by the operator or a SET-reachable candidate.
+  Administrative role grants are unnecessary for the bounded bootstrap operator;
+  checking all administrative memberships avoids trusting mutable SET/INHERIT
+  options. The existing fixed privilege diagnostic and no-write failure remain.
+- `tests/executive/bootstrap-readiness.integration.test.ts`: four permanent cases
+  execute the full actual privilege SQL with synthetic membership rows for direct
+  and modeled SET-reachable administration, with positive non-admin controls.
+  They substitute only catalog metadata/candidate selection inside a rollback-only
+  READ ONLY transaction; no cluster roles are granted or changed. This proves
+  predicate evaluation, not real GRANT behavior. The separate supplemental check
+  below reproduced real administration/escalation.
+- No schema/migration, configuration, dependency/lockfile, workflow, policy,
+  Charter, manifest, receipt or provenance artifact changed. No cloud/deployment,
+  production/shared target, Owner ceremony, GitHub write, commit/push or M2 work.
+  No new infrastructure, recurring cost or additional Owner decision.
+
+Actual checks on Linux, Node **24.21.0**, PostgreSQL **16.15**:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with registry DNS `EAI_AGAIN`. Package/lockfile unchanged; pinned app toolchain unavailable. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-readiness.unit.test.ts msf-companion/tests/executive/bootstrap-readiness.integration.test.ts` | Blocked before collection: local Vitest module absent. All four new permanent cases remain unrun by the required runner. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --resolveJsonModule --esModuleInterop --skipLibCheck --types node --typeRoots msf-companion/functions/node_modules/@types msf-companion/src/lib/executive/readiness.ts` | Passed isolated semantic check with preinstalled Functions TypeScript; not pinned application typecheck. |
+| Functions TypeScript `transpileModule` on both changed TS files | Passed without syntactic diagnostics; not semantic test-file/client validation or lint. |
+| `docker info --format '{{.ServerVersion}}'` | Socket access denied. No container used. |
+| Temporary PostgreSQL socket-only startup with `pg_ctl` | Sandbox denied Unix socket creation; server exited. No connection established. |
+| `/usr/lib/postgresql/16/bin/initdb -D /tmp/m13-role-check.NLwkpQ/proof-all -A trust --no-locale --encoding=UTF8`, then `/usr/lib/postgresql/16/bin/postgres --single -j -D /tmp/m13-role-check.NLwkpQ/proof-all postgres < /tmp/m13-role-check.NLwkpQ/proof-all.sql > /tmp/m13-role-check.NLwkpQ/proof-all.log 2>&1` | Eight supplemental PostgreSQL assertions passed; no ERROR/FATAL in final log. Engine exited cleanly. No socket/server or permanent engine installation. |
+| `git diff --check` | Passed. |
+
+The temporary SQL proof installed the unchanged two Executive migrations under
+an owned synthetic migrator, created synthetic migration-history relation/grants,
+and evaluated the exact `PRIVILEGES_QUERY` extracted from the changed source.
+Eight assertions: baseline safe; four direct/SET-candidate modeled membership
+controls matching the permanent tests; real ADMIN membership rejected; the same
+real membership accepted by the old predicate; real app-role grant of SET access
+succeeded. Intermediate harness attempts failed on scratch schema grants and
+PL/pgSQL variable/session handling; these were corrected before the final run.
+Each final check raised a distinct `SUPPLEMENTAL_PASS_*` marker and asserted the
+expected boolean; SQL errors were inspected separately from process exit status.
+The temporary harness/logs remain outside the repository and contain synthetic
+values only. This evidence validates the privilege predicate and escalation gap,
+not client transactions, target identity, concurrency or source custody.
+
+BOOT-11 is strengthened; **no BOOT requirement is newly certified complete**.
+BOOT-01–16 completion, full M1.2 preservation, Prisma/guarded loopback integration,
+pinned typecheck/lint, web regression/build and Linux container evidence remain
+unverified. Genuine-source protected CLI check/apply/replay, fidelity review and
+Owner acceptance remain mandatory gates. Historical failures below are separate;
+these checks do not establish absence of new regressions. Next action: run the
+pinned dedicated/disposable suite and required baseline/container comparisons,
+then the genuine-source protected rehearsal. Technical merge readiness: **not
+ready**. No acceptance or permission to merge/deploy/begin M1.4 is inferred.
+
 ## Source-free target data-capture checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This task

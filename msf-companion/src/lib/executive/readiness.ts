@@ -231,6 +231,11 @@ const PRIVILEGES_QUERY = `WITH candidates AS (
     OR pg_catalog.pg_has_role(c.oid,'pg_read_server_files','USAGE')
     OR pg_catalog.pg_has_role(c.oid,'pg_write_server_files','USAGE')
     OR pg_catalog.pg_has_role(c.oid,'pg_execute_server_program','USAGE')
+    -- ADMIN OPTION can change membership options even when INHERIT and SET
+    -- are currently false. The operator must not administer any role, either
+    -- directly or after SET ROLE; present effective privileges alone miss this.
+    OR EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members membership
+      WHERE membership.member=c.oid AND membership.admin_option)
     OR EXISTS (SELECT 1 FROM pg_catalog.pg_database d WHERE d.datname=current_database()
       AND pg_catalog.pg_has_role(c.oid,d.datdba,'USAGE'))
     OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace n WHERE n.nspname='public'
