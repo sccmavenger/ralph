@@ -123,11 +123,11 @@ jobs:
       - name: Run source-free M1.3 unit checks
         working-directory: msf-companion
         run: |
-          cat > /tmp/ralph-executive-vitest.config.mts <<'EOF'
-          import { defineConfig } from "/home/runner/work/ralph/ralph/msf-companion/node_modules/vitest/config";
+          cat > ralph-executive-vitest.config.mts <<'EOF'
+          import { defineConfig } from "vitest/config";
           export default defineConfig({ test: { include: ["tests/executive/**/*.test.ts"], exclude: ["node_modules/**"] } });
           EOF
-          npx vitest run --config /tmp/ralph-executive-vitest.config.mts tests/executive/bootstrap-audit.unit.test.ts
+          npx vitest run --config ralph-executive-vitest.config.mts tests/executive/bootstrap-audit.unit.test.ts
       - name: Continue bounded M1.3 development immediately
         if: success() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.cycle || '1') < 4
         env:
