@@ -255,7 +255,12 @@ export function bootstrapSqlState(error: unknown): string | undefined {
 }
 
 function confirmedServerAbort(state: string | undefined) {
-  return state !== undefined && (/^(22|23|25|40)/.test(state) || state === "55P03" || state === "57014");
+  // Class 40 also includes 40003 (statement_completion_unknown). It cannot
+  // establish rollback after COMMIT was sent, including a rejection-audit commit.
+  // Keep rollback evidence explicit rather than trusting the whole class or a
+  // future driver/server code whose transaction outcome has not been verified.
+  return state !== undefined && (/^(22|23|25)/.test(state)
+    || ["40000", "40001", "40002", "40P01", "55P03", "57014"].includes(state));
 }
 
 /** Explicit operator service. No import-time client, environment read, logging or I/O. */

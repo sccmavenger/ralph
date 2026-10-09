@@ -1,5 +1,66 @@
 # M1.3 implementation — verification record
 
+## Source-free uncertain-commit checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted task starts at `27bba0b` on the detached workflow checkout of PR #11.
+HEAD and the existing untracked `.github/codex/` directory were preserved. No
+commit, push, GitHub write, DB connection, cloud operation, Owner ceremony or M2
+work occurred. `gh issue view 10 --json title,body,state` failed because GitHub
+authentication is unavailable. Scope was assessed from the checked-in M1.3 plan,
+verification records, implementation and tests; live issue inspection is not
+claimed.
+
+The transaction service previously accepted the entire SQLSTATE class 40 as
+confirmed rollback evidence after callback completion. That class includes
+`40003` (`statement_completion_unknown`). A commit acknowledgment with that code
+could therefore emit `TRANSACTION_FAILED` / `auditPersisted: false` even when the
+foundation or rejection audit persisted. The service now explicitly lists the
+known class-40 rollback codes, preserving exit 6 / `COMMIT_OUTCOME_UNKNOWN` and
+omitting audit persistence for `40003`. It does not automatically retry an
+uncertain commit. Existing deadlock/serialization retry limits are unchanged.
+
+Files changed:
+
+- `src/lib/executive/bootstrap.ts`: correct confirmed-abort classification.
+- `tests/executive/bootstrap-audit.unit.test.ts`: exercise direct and nested
+  uncertain codes, creation/rejection acknowledgment loss, no automatic retry,
+  redaction, replay and separate repeated conflict attempts; preserve confirmed
+  abort classification. Ten additional parameterized unit cases.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: extend existing
+  post-real-commit acknowledgment interception to `08007` and `40003` for both
+  creation and conflict. Four additional PostgreSQL cases. These deliberately
+  model acknowledgment loss after real commit; they do not claim a real network
+  fault or genuine-source rehearsal.
+- This verification record. No schema, migration, configuration, dependency,
+  workflow, policy, Charter, manifest, approval receipt or provenance changes.
+
+Actual checks on Linux / Node **24.21.0**, from the repository root:
+
+| Command/check | Result and limit |
+|---|---|
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-audit.unit.test.ts` | Blocked before test collection: required local Vitest module is absent. No pinned tests passed. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied. No container started or database accessed; CLI returned exit 0 despite the diagnostic. |
+| Supplemental `node` heredoc using existing Functions `typescript.transpileModule`, CommonJS / ES2022 | Seven service/library/test files transpiled into `/tmp` without syntactic diagnostics. Not a semantic typecheck or pinned runner validation. |
+| Supplemental `node` heredoc against those temporary modules | Eleven source-free outcome cases passed: five uncertain creation errors, two uncertain conflict errors and four confirmed aborts. Used the checked-in orchestration fixture with a minimal temporary call-recording shim, not Vitest. Proves classification and no-retry/replay behavior only, not DB rollback, locking or adapter behavior. |
+| `git diff --check` | Passed. |
+
+The fourteen additional automated cases remain **unrun in the required
+toolchain**. BOOT-13/14 coverage is extended, but no BOOT requirement is newly
+certified complete. BOOT-01–16 completion, real PostgreSQL behavior, all M1.2
+preservation checks, semantic typecheck, lint, web regressions, build and Linux
+container startup remain unverified by this run. Historical failures in this
+record remain separate; these supplemental checks do not assess new application
+regressions. This change adds no infrastructure or recurring cost and prevents a
+false persistence claim without exposing private driver messages.
+
+Next action: run the pinned unit suite and guarded disposable PostgreSQL suite,
+including the extended recovery cases, in the authorized validation environment.
+Genuine-source protected rehearsal and Owner acceptance remain mandatory gates.
+No new Owner decision is introduced by this correction; technical merge readiness
+remains **not ready** pending required verification and gates. Merge and deployment
+authorization are separate and are not inferred.
+
 ## Source-free prepared-release semantic checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This

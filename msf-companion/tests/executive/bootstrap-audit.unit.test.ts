@@ -468,11 +468,15 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(JSON.stringify(result)).not.toMatch(/private|example.invalid|token/);
   });
 
-  it("a lost acknowledgment after callback completion is unknown, never success or confirmed absent audit", async () => {
+  it.each([
+    { code: "ECONNRESET" }, { code: "08007" }, { code: "40003" },
+    { code: "P2010", meta: { code: "40003" } },
+    { meta: { driverAdapterError: { cause: { originalCode: "40003" } } } },
+  ])("a lost acknowledgment (%j) after callback completion is unknown, never success or confirmed absent audit", async error => {
     const fixture = serviceDouble();
     fixture.transaction.mockImplementationOnce(async (operation) => {
       await operation(fixture.tx as unknown as Prisma.TransactionClient);
-      throw { code: "ECONNRESET", message: "private connection string" };
+      throw { ...error, message: "private connection string" };
     });
     const outcome = await runBootstrap(fixture.options);
     expect(outcome).toMatchObject({ status: "FAILED", reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6, diagnostic: { phase: "COMMIT" } });
@@ -480,6 +484,44 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.transaction).toHaveBeenCalledTimes(1);
     expect(await runBootstrap(fixture.options)).toMatchObject({ status: "ALREADY_BOOTSTRAPPED", exitCode: 0 });
     expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["40003", "08007"])("uncertain %s rejection commit omits persistence and never retries the audit", async code => {
+    const fixture = serviceDouble();
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+    const prepared = preparedInput();
+    prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+    prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw { code, message: "synthetic-private-marker" };
+    });
+    const result = await runBootstrap({ ...fixture.options, prepared });
+    expect(result).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6, diagnostic: { phase: "COMMIT" } });
+    if (!("diagnostic" in result)) throw new Error("Expected unknown outcome diagnostic");
+    expect(result.diagnostic).not.toHaveProperty("auditPersisted");
+    expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+    expect(fixture.transaction).toHaveBeenCalledTimes(2);
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(3);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+    // Repeat conflict is a separate bounded attempt, not exactly-once delivery.
+    expect(await runBootstrap({ ...fixture.options, prepared })).toMatchObject({
+      reasonCode: "BOOTSTRAP_CONFLICT", diagnostic: { auditPersisted: true },
+    });
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(["40000", "40002", "23514", "57014"])("confirmed %s commit abort retains the bounded failure diagnostic", async code => {
+    const fixture = serviceDouble();
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw { code };
+    });
+    // Classification only: this double does not simulate server rollback.
+    expect(await runBootstrap(fixture.options)).toMatchObject({
+      reasonCode: "TRANSACTION_FAILED", exitCode: 5, diagnostic: { phase: "COMMIT", auditPersisted: false },
+    });
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("structural SQLSTATE extraction never guesses retryability from raw message text", () => {

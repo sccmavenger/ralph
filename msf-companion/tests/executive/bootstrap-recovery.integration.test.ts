@@ -141,13 +141,13 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry and modeled ac
     } finally { await controller.end(); await fixture.close(); }
   });
 
-  it("models a dropped adapter acknowledgment AFTER real commit, then resolves through no-write replay", async () => {
-    const fixture = await createBootstrapFixture("lost_ack");
+  it.each(["ECONNRESET", "08007", "40003"])("models %s acknowledgment loss AFTER real commit, then resolves through no-write replay", async code => {
+    const fixture = await createBootstrapFixture(`lost_ack_${code.toLowerCase()}`);
     let committed = false;
     try {
       const acknowledgmentLost = interceptBootstrapClient(fixture.client, { afterCommitted: async () => {
         committed = true;
-        throw Object.assign(new Error("Synthetic dropped acknowledgment"), { code: "ECONNRESET" });
+        throw Object.assign(new Error("Synthetic dropped acknowledgment"), { code });
       } });
       const result = await runBootstrap({ client: acknowledgmentLost, mode: "apply", prepared: fixture.prepared, readiness: fixture.readiness });
       expect(committed).toBe(true);
@@ -196,14 +196,16 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry and modeled ac
     } finally { await fixture.close(); }
   });
 
-  it("unknown rejection acknowledgment does not falsely claim absent audit; another conflicting attempt may append", async () => {
-    const fixture = await createBootstrapFixture("reject_ack");
+  it.each(["ECONNRESET", "08007", "40003"])("unknown %s rejection acknowledgment does not falsely claim absent audit; another conflicting attempt may append", async code => {
+    const fixture = await createBootstrapFixture(`reject_ack_${code.toLowerCase()}`);
     try {
       expect(await fixture.run()).toMatchObject({ status: "CREATED" });
       const changed = structuredClone(fixture.prepared);
       changed.envelope.owner.displayName = "Conflicting synthetic Owner";
       changed.bootstrapHash = canonicalHash(changed.envelope);
-      const acknowledgmentLost = interceptBootstrapClient(fixture.client, { afterCommitted: async () => { throw new Error("Synthetic acknowledgment lost"); } });
+      const acknowledgmentLost = interceptBootstrapClient(fixture.client, { afterCommitted: async () => {
+        throw Object.assign(new Error("Synthetic acknowledgment lost"), { code });
+      } });
       const unknown = await runBootstrap({ client: acknowledgmentLost, mode: "apply", prepared: changed, readiness: fixture.readiness });
       expect(unknown).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
       if (!("diagnostic" in unknown)) throw new Error("Expected unknown outcome diagnostic");
