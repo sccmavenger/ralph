@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { bootstrapSqlState, runBootstrap } from "../../src/lib/executive/bootstrap";
 import { canonicalHash } from "../../src/lib/executive/canonical";
+import { bootstrapConnection } from "../../src/lib/executive/bootstrap-config";
+import { startCommitAcknowledgmentRelay } from "./commit-acknowledgment";
 import {
   businessSnapshot, createBootstrapFixture, executiveSnapshot, interceptBootstrapClient,
   type TransactionOperation,
@@ -12,7 +14,56 @@ beforeAll(() => { validateTestEnvironment(); });
 
 const boundaries = ["Office", "Owner", "Charter", "CEO", "first event", "second event", "readback", "constraints"] as const;
 
-describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry and modeled acknowledgment loss", () => {
+describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and modeled acknowledgment loss", () => {
+  it.each(["creation", "rejection"])("drops the real PostgreSQL %s COMMIT acknowledgment before PrismaPg can observe it", async lane => {
+    const fixture = await createBootstrapFixture(`wire_ack_${lane}`);
+    let relay: Awaited<ReturnType<typeof startCommitAcknowledgmentRelay>> | undefined;
+    let wireClient: typeof fixture.client | undefined;
+    try {
+      const target = validateTestEnvironment(fixture.env);
+      const prepared = structuredClone(fixture.prepared);
+      if (lane === "rejection") {
+        expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+        prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+        prepared.bootstrapHash = canonicalHash(prepared.envelope);
+      }
+      // Preserve the normal guarded database/role/password and driver defaults.
+      // Only the test-owned loopback relay port differs; its upstream is fixed
+      // at 127.0.0.1:55432 and independently validates both disposable roles.
+      const connection = bootstrapConnection({ targetVersion: 1, environment: "disposable", host: "127.0.0.1",
+        port: 55432, database: target.database, role: "exec_test_app", tls: "disabled", runId: "wire-ack-test" },
+      "apply", target.database, { NODE_ENV: "test", EXECUTIVE_BOOTSTRAP_DATABASE_URL: target.appUrl,
+        EXECUTIVE_BOOTSTRAP_DATABASE_CONFIRM: target.database });
+      relay = await startCommitAcknowledgmentRelay(fixture.env);
+      const [{ PrismaClient }, { PrismaPg }] = await Promise.all([
+        import("../../src/generated/prisma/client"), import("@prisma/adapter-pg"),
+      ]);
+      wireClient = new PrismaClient({ adapter: new PrismaPg({ ...connection, port: relay.port }), log: [] });
+      const outcome = await runBootstrap({ client: wireClient, mode: "apply", prepared, readiness: fixture.readiness });
+      expect(relay.evidence()).toEqual({ connections: 1, dropped: 1, failed: false });
+      expect(outcome).toMatchObject({ status: "FAILED", reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6,
+        diagnostic: { phase: "COMMIT" } });
+      expect("diagnostic" in outcome && Object.hasOwn(outcome.diagnostic, "auditPersisted")).toBe(false);
+      // A separate connection observes the server commit. No mocked transaction
+      // callback or afterCommitted hook supplies the acknowledgment-loss result.
+      const committed = await executiveSnapshot(fixture.env);
+      expect(committed.rows.ExecutiveOffice).toHaveLength(1);
+      expect(committed.rows.ExecutiveActivityEvent).toHaveLength(lane === "creation" ? 2 : 3);
+      const replay = await fixture.run();
+      expect(replay).toMatchObject({ status: "ALREADY_BOOTSTRAPPED", exitCode: 0 });
+      if (!("officeId" in replay)) throw new Error("Expected recovered identity");
+      expect(committed.rows.ExecutiveOffice[0]).toMatchObject({ row: { id: replay.officeId } });
+      expect(committed.rows.ExecutiveOwner[0]).toMatchObject({ row: { id: replay.ownerId } });
+      expect(committed.rows.ExecutiveAgent[0]).toMatchObject({ row: { id: replay.ceoId } });
+      expect(committed.rows.ExecutiveCharter[0]).toMatchObject({ row: { id: replay.charterId } });
+      expect(await executiveSnapshot(fixture.env)).toEqual(committed);
+    } finally {
+      // Close owned sockets first so even a failed driver does not hold cleanup.
+      try { await relay?.close(); }
+      finally { try { await wireClient?.$disconnect(); } finally { await fixture.close(); } }
+    }
+  }, 60_000);
+
   it.each(boundaries)("rolls back every Executive row after %s and preserves all 22 existing business catalogs/sentinels", async (boundary) => {
     const fixture = await createBootstrapFixture(`fail_${boundaries.indexOf(boundary)}`, { business: true });
     let injected = false;

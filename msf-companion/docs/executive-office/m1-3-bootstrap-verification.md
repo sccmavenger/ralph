@@ -1,5 +1,76 @@
 # M1.3 implementation — verification record
 
+## Source-free PostgreSQL wire acknowledgment checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `06de75948082ad6091f43619a07dde2164bb96c7`, detached at the exact
+`origin/executive/m1.3-bootstrap` commit in PR #11's implementation checkout.
+HEAD and the pre-existing untracked `.github/codex/` are preserved. Changes remain
+uncommitted for workflow collection. Read-only `gh issue view 10 --json
+title,body,state` was blocked by missing GitHub authentication. No live issue/PR
+inspection is claimed; scope was assessed from checked-in M1/M1.3 plans,
+verification records, implementation and tests.
+
+Objective: supply the missing real-driver commit-acknowledgment fault harness for
+BOOT-13/14. Existing recovery tests throw after Prisma has already reported a
+commit. The new relay instead withholds PostgreSQL's actual
+`CommandComplete(COMMIT)` and following responses from PrismaPg, waits for the
+server's `ReadyForQuery(I)`, then closes the connection. No transaction callback,
+SQLSTATE or commit result is replaced. This enables a real adapter test of an
+unknown client outcome with a committed server state.
+
+Files and review decisions:
+
+- `tests/executive/commit-acknowledgment.ts`: test-only bounded backend-frame
+  parser and owned loopback TCP relay. Validate both disposable-role URLs before
+  listening; the upstream is fixed at `127.0.0.1:55432`. An ephemeral downstream
+  listener keeps the ordinary operator target unchanged. Forward noncommit
+  frames unchanged, including row data containing COMMIT text. Require the exact
+  command tag and idle response before reporting the fault. No row/auth payloads,
+  errors or credentials are logged. Own socket deadlines, backpressure and cleanup.
+- `tests/executive/commit-acknowledgment.unit.test.ts`: ten permanent cases cover
+  noncommit traffic, every packet split, the idle boundary, invalid transaction
+  states and invalid frame lengths. These cases remain unrun under Vitest.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: two real PostgreSQL /
+  PrismaPg cases, for foundation creation and conflict rejection. Reuse the normal
+  guarded connection configuration with only its test-owned relay port changed.
+  Assert one connection and one dropped acknowledgment, exit 6 with omitted audit
+  persistence, committed server rows/events via a separate connection, all four
+  recovered IDs and no row/sequence changes on identical replay. These cases
+  remain unrun; the existing modeled acknowledgment cases are retained.
+- This verification record captures durable review context. No application runtime,
+  schema, migration, package/lockfile, configuration, workflow, policy, Charter,
+  manifest, approval receipt or provenance change. No private source read, DB
+  connection, cloud, production/shared target, payment, credential change, Owner
+  enrollment/passkey ceremony, Charter acceptance, CEO activation, GitHub write,
+  commit/push, merge, deployment or later milestone work. No infrastructure or
+  cost implication and no new Owner decision required for this bounded harness.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limits |
+|---|---|
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` in `msf-companion` | Blocked by registry DNS `EAI_AGAIN`; package/lockfile unchanged. |
+| `node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts tests/executive/commit-acknowledgment.unit.test.ts` in `msf-companion` | Blocked before collection: local Vitest absent. Ten new unit cases unrun. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied. No container/database started or accessed. |
+| `node /tmp/m13-wire-check.cjs` | Passed supplemental direct Node assertions: 65 packet splits, byte-by-byte framing, idle boundary and seven malformed replies. All three changed test/helper files transpile without syntactic diagnostics using preinstalled Functions TypeScript. Relay passes an isolated strict semantic check with only the test-environment dependency stubbed; not application/Prisma typecheck, Vitest, actual TCP relay or PostgreSQL evidence. Temporary harness outside repository. |
+| `git diff --check` | Passed. |
+
+No BOOT requirement is newly certified complete. BOOT-01–16, the two new actual
+wire-fault cases, full M1.2 preservation, actual Prisma/PostgreSQL transaction,
+locking, catalog and privilege behavior, pinned semantic typecheck/targeted lint,
+web regression comparisons, build and Linux container startup remain unverified
+by this run. Historical failures elsewhere in this record remain separate and
+were not rerun; no absence-of-regressions claim is made. Genuine-source protected
+CLI check/apply/replay, fidelity review and Owner acceptance remain mandatory
+separate gates. Synthetic tests cannot satisfy those gates.
+
+Next proposed action: execute the pinned pure suite and complete owned-disposable
+PostgreSQL suite, including these wire faults, in the authorized validation
+runner; review actual adapter diagnostics and cleanup before crediting BOOT-13.
+Technical merge readiness: **not ready**, pending validation and mandatory gates.
+No M1.3 acceptance, merge/deployment authorization or M1.4 progression is inferred.
+
 ## Source-free canonical serialization checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
