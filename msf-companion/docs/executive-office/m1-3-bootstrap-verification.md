@@ -1,3 +1,51 @@
+## October 9, 2026 — completed disposable acceptance and prepared genuine-source lane
+
+At commit `4e567829d7681fd073c418c69458f98e4d6d2036`,
+[validation run 38002248955](https://github.com/sccmavenger/ralph/actions/runs/38002248955)
+passed all synthetic-validation steps. Actual PostgreSQL Executive acceptance:
+965 tests passed across 16 files, zero failures. Migration replay/catalog comparison,
+targeted lint, application typecheck, baseline/candidate web regression comparison,
+candidate build, Linux container build, startup/readiness/routes and native Sharp
+smoke all passed. Owned disposable containers were removed.
+
+Web regression baseline and candidate both report 676 passed and 9 failed;
+full lint remains at 123 errors. These are unchanged pre-existing results, not
+a clean full application suite. Dependency comparison identified no newly
+affected vulnerable packages. No production or shared database was accessed.
+
+Initial actual-DB validation exposed eleven fixture suffix-length failures and
+one sequence-read permission failure in the tests. Corrections shorten fixture
+names and inspect sequence state through the test owner while retaining the
+application role's minimum grants. The next run passed 965 tests and exposed
+seven TypeScript errors. BigInt constructor syntax, deliberate metadata
+mutation via Object.assign, and a typed Array subclass resolved those errors
+without changing application compiler settings or weakening runtime validation.
+
+The protected genuine-source job is now implemented behind
+`workflow_dispatch.inputs.run_genuine_source`, after successful synthetic
+validation, scoped to the M1.3 branch and environment
+`m1-3-charter-rehearsal`. Environment inspection confirmed the Owner as required
+reviewer, admin bypass disabled, and the sole eligible branch
+`executive/m1.3-bootstrap`. Both source secret names are absent as of preparation.
+
+Prepared job verifies the original 40,485-byte source hash, runs the actual
+pinned CLI check/apply/replay/check with synthetic Owner values, compares exact
+Charter content, identity and no-write snapshots, and verifies no authentication,
+acceptance, tools, permissions or spending activation. Source is injected only
+into its final rehearsal step, held in a private temporary directory, deleted
+in finally and an always cleanup step. Only allowlisted public evidence files
+are uploaded. Environment secret removal remains a trusted-operator obligation
+after the one approved run, including failure/cancellation; runner has no
+secret-administration credentials.
+
+YAML structure and all added inline JavaScript syntax were checked locally.
+This does not certify the new job has run. Genuine-source rehearsal remains
+pending source transport and the Owner's exact-run GitHub review. No source
+secrets were created, private binary published, protected review impersonated,
+PR merged, deployment performed, or original-Charter acceptance claimed.
+
+---
+
 # M1.3 implementation — verification record
 
 ## Source-free immutable identity contract checkpoint — October 9, 2026
