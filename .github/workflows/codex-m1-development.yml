@@ -92,3 +92,35 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Codex: M1 development checkpoint"
           git push origin HEAD:executive/m1.3-bootstrap
+
+  validate:
+    needs: publish
+    if: ${{ needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: executive/m1.3-bootstrap
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: msf-companion/package-lock.json
+      - name: Install dependencies
+        working-directory: msf-companion
+        run: npm ci
+      - name: Run source-free M1.3 unit checks
+        working-directory: msf-companion
+        run: npx vitest run tests/executive/bootstrap-audit.unit.test.ts
+      - name: Record immediate run result
+        if: always()
+        shell: bash
+        run: |
+          echo "### Ralph M1.3 development checkpoint" >> "$GITHUB_STEP_SUMMARY"
+          echo "Publish: ${{ needs.publish.result }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Validation: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Implementation: https://github.com/sccmavenger/ralph/pull/11" >> "$GITHUB_STEP_SUMMARY"
