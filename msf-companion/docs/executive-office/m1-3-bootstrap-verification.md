@@ -382,6 +382,54 @@ remain mandatory separate gates; synthetic assertions do not satisfy them.
 Next action: validate this patch with the pinned local runner and complete
 disposable PostgreSQL suite in the existing authorized validation environment.
 
+## Source-free conflict commit recovery checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and not ready for acceptance or merge.** This patch
+starts from `b292745` on the workflow's detached PR #11 checkout; HEAD is unchanged.
+No commit, push, GitHub write, database connection, private source read, Owner
+ceremony or later milestone work occurred. Live Issue #10 inspection with
+`gh issue view 10 --json title,body,state` was blocked by missing GitHub
+authentication. Scope was assessed against the checked-in M1.3 plan and records.
+
+The transaction now preserves conflict rejection-audit classification through
+COMMIT. Previously a `40001`/`40P01` at that boundary could automatically retry
+the conflicting invocation, because its phase had advanced from AUDIT to COMMIT.
+Confirmed conflict-audit commit aborts now return `AUDIT_WRITE_FAILED`, exit 5,
+with `auditPersisted: false`, without retry. Unknown commit outcomes still omit
+persistence and return exit 6. Ordinary creation retains its permitted bounded
+retry. SQLSTATE extraction also requires exactly five characters: JavaScript's
+end anchor otherwise admits a final newline, which could falsely establish
+rollback for a malformed constraint-error code after callback completion.
+
+Files changed: `src/lib/executive/bootstrap.ts`, seven additional cases in
+`tests/executive/bootstrap-audit.unit.test.ts`, and this record. No schema,
+migration, configuration, dependencies, workflows, policies, Charter assets,
+manifest, approval receipts or provenance files changed. No infrastructure or
+cost implications. Public diagnostics remain closed and redact raw errors.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limit |
+|---|---|
+| `node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts tests/executive/bootstrap-audit.unit.test.ts` | Blocked before collection: required local Vitest is absent. Seven new cases are unrun in the required toolchain. |
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` | Blocked by registry DNS `EAI_AGAIN`; no package/lockfile change. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied. No container started or database accessed. |
+| `node /tmp/m13-commit-check.cjs` | Five files transpiled using existing Functions TypeScript without syntactic diagnostics. Nine direct Node assertion cases passed: four confirmed rejection commit aborts, three malformed SQLSTATE unknown outcomes, two permitted ordinary-creation retries. Uses transaction doubles extracted from the test fixture; not Vitest, semantic typecheck, actual rollback or PrismaPg verification. Temporary harness remains outside the repository. |
+| `git diff --check` | Passed. |
+
+BOOT-08/13/14 failure handling is strengthened, but no BOOT requirement is newly
+certified complete. BOOT-01–16, the complete M1.2 preservation suite, actual
+PostgreSQL transaction/locking/audit/role behavior, pinned operator runtime,
+semantic typecheck, lint, web regressions, build and Linux container startup
+remain unverified by this run. Historical failures above remain separate and
+were not rerun; no new application-regression assessment is claimed.
+
+Next action: run the pinned unit suite and the complete explicitly guarded
+disposable PostgreSQL suite. Genuine-source protected check/apply/replay and
+Owner acceptance remain mandatory separate gates; synthetic checks do not
+satisfy them. Technical merge readiness: **not ready**, pending these checks and
+gates. No merge or deployment authorization is inferred.
+
 ## Current checkpoint — September 24, 2026
 
 **Implementation in progress; not yet ready for M1.3 acceptance or merge.**

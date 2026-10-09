@@ -250,7 +250,7 @@ export function bootstrapSqlState(error: unknown): string | undefined {
   const cause = adapter.cause && typeof adapter.cause === "object" ? adapter.cause as Record<string, unknown> : {};
   const directCause = entry.cause && typeof entry.cause === "object" ? entry.cause as Record<string, unknown> : {};
   for (const code of [entry.code, meta.code, cause.originalCode, cause.code, directCause.originalCode, directCause.code]) {
-    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) && !/^P\d{4}$/.test(code)) return code;
+    if (typeof code === "string" && code.length === 5 && /^[0-9A-Z]{5}$/.test(code) && !/^P\d{4}$/.test(code)) return code;
   }
 }
 
@@ -312,6 +312,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
   for (let attempt = 0; attempt < 2; attempt++) {
     let phase: BootstrapPhase = "PREFLIGHT";
     let callbackReturned = false;
+    let rejectionAudit = false;
     try {
       return await client.$transaction(async (tx) => {
         if (mode === "check") await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
@@ -333,6 +334,9 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
           const existing = inspectExisting(state);
           if (existing.office.bootstrapHash !== prepared.bootstrapHash || existing.office.bootstrapVersion !== prepared.envelope.bootstrapVersion) {
             if (mode === "apply") {
+              // Preserve this classification through constraint checks and
+              // COMMIT: a conflict is never an automatically retried attempt.
+              rejectionAudit = true;
               phase = "AUDIT";
               await appendBootstrapEvent(tx, createRejectionEvent({ officeId: existing.identity.officeId, requestId, at: await databaseInstant(tx) }));
               await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
@@ -391,14 +395,14 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
       const failedPhase = phase as BootstrapPhase;
       // A server-reported deadlock/serialization abort is not an unknown commit.
       // Audit failures are not retried, even when the underlying SQL is transient.
-      if ((state === "40P01" || state === "40001") && failedPhase !== "AUDIT" && attempt === 0) {
+      if ((state === "40P01" || state === "40001") && !rejectionAudit && failedPhase !== "AUDIT" && attempt === 0) {
         await delay(250);
         continue;
       }
       if (callbackReturned && !confirmedServerAbort(state)) return safeFailure(requestId, "COMMIT_OUTCOME_UNKNOWN", "COMMIT");
       if (error instanceof BootstrapRejectionError) return safeFailure(requestId, error.reasonCode, failedPhase, false);
       if (failedPhase === "LOCK" && state === "55P03") return safeFailure(requestId, "LOCK_TIMEOUT", failedPhase, false);
-      if (failedPhase === "AUDIT") return safeFailure(requestId, "AUDIT_WRITE_FAILED", failedPhase, false);
+      if (rejectionAudit || failedPhase === "AUDIT") return safeFailure(requestId, "AUDIT_WRITE_FAILED", failedPhase, false);
       return safeFailure(requestId, "TRANSACTION_FAILED", failedPhase, false);
     }
   }

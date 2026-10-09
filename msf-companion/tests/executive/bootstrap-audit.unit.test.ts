@@ -511,6 +511,42 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(4);
   });
 
+  it.each(["40001", "40P01", "23514", "57014"])("confirmed %s rejection commit abort reports the audit gap without retry", async code => {
+    const fixture = serviceDouble();
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+    const prepared = preparedInput();
+    prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+    prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    const before = structuredClone(fixture.state);
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      // Model confirmed rollback only for classification. Real PostgreSQL
+      // rollback/adapter checks remain in the guarded integration suite.
+      Object.assign(fixture.state, before);
+      throw { code, message: "synthetic-private-marker" };
+    });
+    const outcome = await runBootstrap({ ...fixture.options, prepared });
+    expect(outcome).toMatchObject({ reasonCode: "AUDIT_WRITE_FAILED", exitCode: 5,
+      diagnostic: { phase: "COMMIT", auditPersisted: false } });
+    expect(fixture.transaction).toHaveBeenCalledTimes(2);
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(3);
+    expect(fixture.state).toEqual(before);
+    expect(JSON.stringify(outcome)).not.toContain("synthetic-private-marker");
+  });
+
+  it.each(["23514\n", "40001\n", "40P01\n"])("malformed SQLSTATE %j cannot establish rollback after commit", async code => {
+    const fixture = serviceDouble();
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw { code };
+    });
+    expect(bootstrapSqlState({ code })).toBeUndefined();
+    const outcome = await runBootstrap(fixture.options);
+    expect(outcome).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6 });
+    expect("diagnostic" in outcome && Object.hasOwn(outcome.diagnostic, "auditPersisted")).toBe(false);
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["40000", "40002", "23514", "57014"])("confirmed %s commit abort retains the bounded failure diagnostic", async code => {
     const fixture = serviceDouble();
     fixture.transaction.mockImplementationOnce(async operation => {
