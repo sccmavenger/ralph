@@ -1,9 +1,11 @@
 import type { Client } from "pg";
+import { fork } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import { canonicalHash } from "../../src/lib/executive/canonical";
-import { runBootstrap } from "../../src/lib/executive/bootstrap";
+import { runBootstrap, type BootstrapOutcome, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
 import { bootstrapReadiness, createBootstrapFixture, executiveSnapshot, interceptBootstrapClient } from "./bootstrap-fixtures";
-import { connectTestDatabase, validateTestEnvironment } from "./test-database";
+import { connectTestDatabase, validateTestEnvironment, type TestEnvironment } from "./test-database";
 
 beforeAll(() => { validateTestEnvironment(); });
 
@@ -11,6 +13,47 @@ function gate() {
   let release!: () => void;
   const promise = new Promise<void>((resolve) => { release = resolve; });
   return { promise, release };
+}
+
+function processCaller(env: TestEnvironment, prepared: BootstrapPrepared, barrier: boolean) {
+  validateTestEnvironment(env);
+  const child = fork(fileURLToPath(new URL("./bootstrap-process-worker.ts", import.meta.url)), [], {
+    // Absolute, repository-local pinned runner; no PATH/npx/global fallback.
+    execPath: process.execPath,
+    execArgv: ["--import", fileURLToPath(new URL("../../node_modules/tsx/dist/loader.mjs", import.meta.url))],
+    env: { NODE_ENV: "test", EXECUTIVE_TEST_DATABASE_URL: env.EXECUTIVE_TEST_DATABASE_URL,
+      EXECUTIVE_TEST_MIGRATION_DATABASE_URL: env.EXECUTIVE_TEST_MIGRATION_DATABASE_URL,
+      EXECUTIVE_TEST_DATABASE_CONFIRM: env.EXECUTIVE_TEST_DATABASE_CONFIRM },
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  let resolveLocked!: (pid: number) => void;
+  let rejectLocked!: (error: Error) => void;
+  const locked = new Promise<number>((resolve, reject) => { resolveLocked = resolve; rejectLocked = reject; });
+  let resolveOutcome!: (outcome: BootstrapOutcome) => void;
+  let rejectOutcome!: (error: Error) => void;
+  const outcome = new Promise<BootstrapOutcome>((resolve, reject) => { resolveOutcome = resolve; rejectOutcome = reject; });
+  // Either promise may reject before its caller awaits it; preserve the original
+  // rejection without leaving an unhandled rejection during owned-child cleanup.
+  void locked.catch(() => {});
+  void outcome.catch(() => {});
+  const fail = () => {
+    const error = new Error("Synthetic bootstrap child failed or timed out");
+    rejectLocked(error); rejectOutcome(error);
+  };
+  const timer = setTimeout(() => { fail(); child.kill(); }, 25_000);
+  // `close` also fires after a spawn error, when `exit` may never occur.
+  const exited = new Promise<void>(resolve => child.once("close", () => { clearTimeout(timer); fail(); resolve(); }));
+  child.on("error", fail);
+  child.on("message", (message: { kind: string; pid?: number; outcome?: BootstrapOutcome }) => {
+    if (message.kind === "locked" && message.pid === child.pid) resolveLocked(message.pid!);
+    else if (message.kind === "outcome" && message.outcome) resolveOutcome(message.outcome);
+    else fail();
+  });
+  child.send({ prepared, barrier }, error => { if (error) fail(); });
+  return { pid: child.pid, locked, outcome,
+    release() { if (child.connected) child.send("release", error => { if (error) fail(); }); },
+    async close() { if (child.exitCode === null && child.signalCode === null) child.kill(); await exited; },
+  };
 }
 
 async function observeAdvisoryWaiter(observer: Client) {
@@ -26,6 +69,45 @@ async function observeAdvisoryWaiter(observer: Client) {
 }
 
 describe("BOOT-07/08 independent caller serialization and BOOT-09 coherent readonly snapshots", () => {
+  it.each([false, true])("independent OS processes serialize on the fixed lock (different inputs=%s)", async different => {
+    const fixture = await createBootstrapFixture(different ? "proc_conflict" : "proc_same");
+    const observer = await connectTestDatabase("app", fixture.env);
+    let first: ReturnType<typeof processCaller> | undefined;
+    let second: ReturnType<typeof processCaller> | undefined;
+    try {
+      first = processCaller(fixture.env, fixture.prepared, true);
+      const pid = await first.locked;
+      expect(pid).not.toBe(process.pid);
+      const attempted = structuredClone(fixture.prepared);
+      if (different) {
+        attempted.envelope.owner.displayName = "Other synthetic process Owner";
+        attempted.bootstrapHash = canonicalHash(attempted.envelope);
+      }
+      second = processCaller(fixture.env, attempted, false);
+      expect(second.pid).not.toBe(pid);
+      expect(second.pid).not.toBe(process.pid);
+      await observeAdvisoryWaiter(observer);
+      first.release();
+      const [winner, follower] = await Promise.all([first.outcome, second.outcome]);
+      expect(winner).toMatchObject({ status: "CREATED", exitCode: 0 });
+      expect(follower).toMatchObject(different
+        ? { reasonCode: "BOOTSTRAP_CONFLICT", exitCode: 4, diagnostic: { auditPersisted: true } }
+        : { status: "ALREADY_BOOTSTRAPPED", exitCode: 0 });
+      if (!different && "officeId" in winner && "officeId" in follower) {
+        expect([follower.officeId, follower.ownerId, follower.ceoId, follower.charterId])
+          .toEqual([winner.officeId, winner.ownerId, winner.ceoId, winner.charterId]);
+      }
+      const state = await executiveSnapshot(fixture.env);
+      for (const table of ["ExecutiveOffice", "ExecutiveOwner", "ExecutiveAgent", "ExecutiveCharter"]) expect(state.rows[table]).toHaveLength(1);
+      expect(state.rows.ExecutiveActivityEvent).toHaveLength(different ? 3 : 2);
+      expect(await fixture.run()).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+      expect(await executiveSnapshot(fixture.env)).toEqual(state);
+    } finally {
+      await Promise.all([first?.close(), second?.close()]);
+      await observer.end(); await fixture.close();
+    }
+  }, 60_000);
+
   it.each([false, true])("two real clients serialize (different inputs=%s) with one creator and no partial foundation", async (different) => {
     const fixture = await createBootstrapFixture(different ? "race_conflict" : "race_same");
     const observer = await connectTestDatabase("app", fixture.env);

@@ -1,5 +1,73 @@
 # M1.3 implementation — verification record
 
+## Source-free independent-process concurrency checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `98d0a972b706f7b6a26cb6672620318e9cbf5535`, detached at the exact
+`origin/executive/m1.3-bootstrap` commit in PR #11's workflow checkout. HEAD and
+pre-existing untracked `.github/codex/` are preserved; changes remain uncommitted
+for workflow collection. Read-only `gh issue view 10 --repo sccmavenger/ralph
+--json title,body,state` was blocked by missing GitHub authentication. No live
+issue/PR inspection is claimed. Scope was assessed from the checked-in M1/M1.3
+plans, verification record, operator, transaction, readiness and existing tests.
+
+Objective: close BOOT-07's independent-caller evidence gap. The existing races
+use separate real clients within one process. The new lanes run the existing
+bootstrap service in two independent OS processes, rather than adding another
+mock transaction or weakening runtime readiness. Existing runtime functionality
+is reused without changes; this checkpoint adds executable integration coverage,
+not a claim that the remaining runtime and verification work is finished.
+
+Files and decisions:
+
+- `tests/executive/bootstrap-process-worker.ts`: new test-only synthetic caller.
+  Validate both disposable-role URLs before creating Prisma; use strict readiness
+  on the actual transaction. First caller signals an IPC barrier only after
+  acquiring the fixed lock and passing readiness. Bound barrier wait, disconnect
+  the owned client, send only closed outcomes or a fixed failure, and perform no
+  work on import. It does not substitute for the genuine-source operator CLI.
+- `tests/executive/bootstrap-concurrency.integration.test.ts`: two process race
+  lanes (identical and conflicting inputs). Launch the repository-local pinned
+  tsx loader with an explicit environment containing only the test guards/URLs;
+  no inherited application URL, NODE_OPTIONS, secrets or PATH runner fallback.
+  Prove distinct PIDs and observe the real PostgreSQL fixed-lock waiter before
+  releasing the first caller. Assert one creator, replay identity preservation or
+  a persisted rejection, exact foundation/event counts, and no-write replay.
+  Suppress child stdout/stderr, use bounded owned-child cleanup, and handle spawn
+  errors through `close`, which also fires when no `exit` event occurs.
+- This verification record captures durable review context. No application runtime,
+  schema/migration, dependency/lockfile, configuration, workflow, policy, Charter,
+  manifest, approval receipt or provenance changes. No DB connection, private
+  source read, cloud/production/shared target, payments, credential changes,
+  Owner enrollment/passkey ceremony, Charter acceptance, CEO activation, GitHub
+  writes, commits/pushes, merge, deployment or M1.4/M2. No infrastructure/cost
+  implication and no new Owner decision required for this bounded test harness.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limits |
+|---|---|
+| `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=10000` in `msf-companion` | Blocked by registry DNS `EAI_AGAIN`; package/lockfile unchanged. |
+| `node node_modules/vitest/vitest.mjs run --config vitest.executive.config.ts tests/executive/bootstrap-concurrency.integration.test.ts` in `msf-companion` | Blocked before collection: local Vitest absent. Both new real-process lanes remain unrun. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied; no container/database started or accessed. |
+| `node /tmp/m13-process-check.cjs` | Passed supplemental checks using preinstalled Functions TypeScript: both files transpile without syntactic diagnostics; seven isolated worker import/lifecycle/barrier/disconnect/redaction cases, plus parent spawn/cleanup/environment assertions with a child-process double. Initial supplemental parent check lacked the harness's global URL and was corrected; repository code was unchanged by that correction. Not a pinned semantic typecheck, Vitest, real subprocess, Prisma or PostgreSQL pass. Temporary harness outside repository. |
+| `git diff --check` | Passed. |
+
+**No BOOT requirement is newly certified complete.** BOOT-01–16, these new real
+process races, previous wire-acknowledgment tests, full M1.2 preservation, actual
+Prisma/PostgreSQL transaction/catalog/privilege behavior, pinned typecheck and
+lint, baseline web/lint/audit/build comparisons and Linux container startup remain
+unverified by this run. Historical failures elsewhere in this record were not
+rerun; no absence-of-regressions claim is made. Genuine-source protected CLI
+check/apply/replay, independent fidelity review and Owner acceptance remain
+mandatory separate gates; synthetic process races cannot satisfy them.
+
+Next proposed action: run the pinned dedicated suite against the authorized
+owned-disposable PostgreSQL service, including these process races and prior wire
+faults, then complete regression/container evidence and genuine-source rehearsal.
+Technical merge readiness: **not ready**, pending validation and mandatory gates.
+No M1.3 acceptance, merge/deployment authorization or M1.4 progression is inferred.
+
 ## Source-free PostgreSQL wire acknowledgment checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
