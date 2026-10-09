@@ -17,7 +17,7 @@ const boundaries = ["Office", "Owner", "Charter", "CEO", "first event", "second 
 describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and modeled acknowledgment loss", () => {
   it.each(["executiveOffice", "executiveOwner", "executiveCharter", "executiveAgent"])(
     "malformed generated ID returned by %s rolls back its actual insert before audit", async model => {
-      const fixture = await createBootstrapFixture(`invalid_id_${model.toLowerCase()}`, { business: true });
+      const fixture = await createBootstrapFixture(`invalid_id_${["executiveOffice", "executiveOwner", "executiveCharter", "executiveAgent"].indexOf(model)}`, { business: true });
       try {
         const before = await executiveSnapshot(fixture.env);
         const business = await businessSnapshot(fixture.env);
@@ -244,7 +244,7 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and mode
 
   it.each(["creation", "rejection"].flatMap(lane => ["sqlstate", "socket", "transaction"].map(kind => ({ lane, kind }))))(
     "conflicting $kind/$lane error codes AFTER real commit retain uncertainty and preserve replay state", async ({ lane, kind }) => {
-      const fixture = await createBootstrapFixture(`conflicting_ack_${lane}_${kind}`);
+      const fixture = await createBootstrapFixture(`ack_${lane === "creation" ? "c" : "r"}_${["sqlstate", "socket", "transaction"].indexOf(kind)}`);
       let commits = 0;
       try {
         const prepared = structuredClone(fixture.prepared);
@@ -305,7 +305,7 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry, wire and mode
   });
 
   it.each(["ECONNRESET", "08007", "40003"])("unknown %s rejection acknowledgment does not falsely claim absent audit; another conflicting attempt may append", async code => {
-    const fixture = await createBootstrapFixture(`reject_ack_${code.toLowerCase()}`);
+    const fixture = await createBootstrapFixture(`reject_ack_${["ECONNRESET", "08007", "40003"].indexOf(code)}`);
     try {
       expect(await fixture.run()).toMatchObject({ status: "CREATED" });
       const changed = structuredClone(fixture.prepared);
