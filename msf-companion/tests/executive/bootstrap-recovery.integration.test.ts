@@ -162,6 +162,40 @@ describe("BOOT-12/13/14 actual PostgreSQL rollback, bounded retry and modeled ac
     } finally { await fixture.close(); }
   });
 
+  it.each(["readback", "constraints"])("conflict %s failure rolls back only the attempted rejection and preserves committed foundation", async boundary => {
+    const fixture = await createBootstrapFixture(`reject_${boundary}`);
+    let injected = false;
+    try {
+      expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+      const before = await executiveSnapshot(fixture.env);
+      const changed = structuredClone(fixture.prepared);
+      changed.envelope.owner.displayName = "Conflicting synthetic Owner";
+      changed.bootstrapHash = canonicalHash(changed.envelope);
+      const failing = interceptBootstrapClient(fixture.client, { afterOperation: async operation => {
+        if (boundary === "readback" && operation.model === "executiveActivityEvent" && operation.method === "findUnique") {
+          // Corrupt only the returned test readback, never permanent history.
+          Object.assign(operation.result as object, { metadata: { secret: "synthetic-private-marker" } });
+          injected = true;
+        }
+        if (boundary === "constraints" && operation.method === "$executeRawUnsafe"
+            && operation.args[0] === "SET CONSTRAINTS ALL IMMEDIATE") {
+          injected = true;
+          await operation.transaction.$queryRawUnsafe("SELECT 1 / 0 AS synthetic_constraint_failure");
+        }
+      } });
+      const result = await runBootstrap({ client: failing, mode: "apply", prepared: changed, readiness: fixture.readiness });
+      expect(injected).toBe(true);
+      expect(result).toMatchObject({ reasonCode: "AUDIT_WRITE_FAILED", exitCode: 5,
+        diagnostic: { phase: "AUDIT", auditPersisted: false } });
+      expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+      const after = await executiveSnapshot(fixture.env);
+      expect(after.rows).toEqual(before.rows); // Rolled-back sequence gaps remain permitted.
+      expect(await fixture.run()).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+      expect(await fixture.run("apply", changed)).toMatchObject({ reasonCode: "BOOTSTRAP_CONFLICT", diagnostic: { auditPersisted: true } });
+      expect((await executiveSnapshot(fixture.env)).rows.ExecutiveActivityEvent).toHaveLength(3);
+    } finally { await fixture.close(); }
+  });
+
   it("unknown rejection acknowledgment does not falsely claim absent audit; another conflicting attempt may append", async () => {
     const fixture = await createBootstrapFixture("reject_ack");
     try {

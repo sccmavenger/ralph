@@ -1,5 +1,74 @@
 # M1.3 implementation — verification record
 
+## Source-free audit persistence checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted task starts at `281db64`, the detached workflow checkout of PR #11's
+implementation branch. HEAD is preserved for workflow patch collection; no
+commit, push, GitHub write, database connection, production/cloud operation,
+Owner ceremony or later milestone work occurred. Live Issue #10/PR #11 inspection
+was attempted with `gh issue view 10 --repo sccmavenger/ralph --json title,body,state`
+but stopped at the missing `GH_TOKEN` authentication diagnostic. Scope was assessed
+from the checked-in M1.3 plan, runtime/tests and existing verification record;
+no renewed live issue/PR review is claimed.
+
+Objective: close the conflict-audit persistence verification gap within the
+approved BOOT-14 transaction contract. Creation already inspected birth events,
+but conflict handling previously trusted the insert acknowledgment alone.
+
+Files and implementation decisions:
+
+- `src/lib/executive/audit.ts`: snapshot/validate the event, validate generated
+  identity and positive bigint sequence, then SELECT the inserted row by identity
+  using the supplied interactive transaction. Check every event field, exact
+  metadata, timestamps, identity and sequence before returning. Missing/altered
+  readback fails with the bounded `AUDIT_EVENT_INVALID` error; no raw data enters
+  diagnostics. Applies to both success events and conflict attempts.
+- `src/lib/executive/bootstrap.ts`: drain deferred constraints in the conflict
+  audit phase before returning for commit. Audit readback/constraint failures
+  remain non-retryable `AUDIT_WRITE_FAILED`; acknowledgment loss after callback
+  completion retains the existing unknown-commit classification.
+- `tests/executive/bootstrap-audit.unit.test.ts`: update transaction doubles for
+  real readback; six missing/altered-row cases and one service classification
+  case. Doubles do not claim PostgreSQL rollback proof.
+- `tests/executive/bootstrap-recovery.integration.test.ts`: two disposable-PG
+  conflict failure cases verify rollback of the attempted rejection, preservation
+  of the existing foundation/history, redaction, identical replay and subsequent
+  successful conflict audit. Sequence gaps remain permitted. Readback corruption
+  is test-only returned-data injection, never a history update or guard bypass.
+- This verification record supplies the durable review/evidence summary.
+
+No schema/migration, dependency/lockfile, target configuration, workflow, policy,
+Charter, manifest, approval receipt or provenance file changed. Existing minimal
+SELECT/INSERT grants cover the additional read; no authority increase or cost/
+infrastructure change is introduced. Two extra SELECTs during initial creation
+and one per conflict are the bounded runtime overhead. No PR write was performed,
+as explicitly required by this workflow invocation.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with `EAI_AGAIN` resolving `registry.npmjs.org`; pinned local toolchain unavailable. Package/lockfile unchanged. |
+| `docker info --format '{{.ServerVersion}}'` | Socket access denied; no container/database started or accessed. CLI returned exit 0 despite the diagnostic. |
+| `node /tmp/m13-audit-check.cjs` | Supplemental existing Functions TypeScript transpilation: six source/test files without syntactic diagnostics; twelve direct Node audit assertions passed (three event types plus nine invalid/read-failure cases). No DB. Neither semantic typecheck nor pinned Vitest/tsx proof. Temporary harness remains outside the repository. |
+| `git diff --check` | Passed. |
+
+All **nine newly added automated cases remain unrun in the required toolchain**,
+including both actual PostgreSQL cases. BOOT-14 implementation/coverage is extended;
+no BOOT requirement is newly certified complete. BOOT-01–16, all M1.2 preservation
+checks, actual transaction/locking/audit/role behavior, semantic typecheck,
+targeted/full lint, web regressions, builds and Linux container startup remain
+unverified by this run. Historical failures remain as recorded below; these
+supplemental assertions cannot establish absence of new application regressions.
+
+Next proposed action: run the pinned audit/operator cases and complete explicitly
+guarded disposable PostgreSQL suite in the authorized validation environment,
+then complete outstanding regression/container evidence. Genuine-source protected
+check/apply/replay and Owner acceptance remain mandatory separate gates; no
+synthetic run substitutes for them. Technical merge-readiness: **not ready**;
+M1.3 acceptance, merge, deployment and progression to M1.4 are not claimed.
+
 ## Source-free invocation-boundary checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This

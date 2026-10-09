@@ -1,4 +1,5 @@
 import type { Prisma } from "../../generated/prisma/client";
+import { isDeepStrictEqual } from "node:util";
 
 export const BOOTSTRAP_PHASES = ["INPUT", "PREFLIGHT", "LOCK", "CREATE", "AUDIT", "COMMIT", "REPLAY"] as const;
 export type BootstrapPhase = typeof BOOTSTRAP_PHASES[number];
@@ -145,8 +146,18 @@ export function validateBootstrapEvent(event: BootstrapEventData): void {
 
 /** The caller supplies its interactive transaction; this never opens a client. */
 export async function appendBootstrapEvent(tx: Prisma.TransactionClient, event: BootstrapEventData) {
-  validateBootstrapEvent(event);
-  return tx.executiveActivityEvent.create({ data: event });
+  const expected = structuredClone(event);
+  validateBootstrapEvent(expected);
+  const inserted = await tx.executiveActivityEvent.create({ data: expected });
+  if (!reference(inserted.id) || typeof inserted.sequence !== "bigint" || inserted.sequence < 1n) invalid();
+  // Read the row in the same transaction, including conflict attempts which do
+  // not run foundation birth-event readback. A writer acknowledgment alone does
+  // not establish that the exact bounded audit evidence was persisted.
+  const persisted = await tx.executiveActivityEvent.findUnique({ where: { id: inserted.id } });
+  if (!persisted || persisted.id !== inserted.id || persisted.sequence !== inserted.sequence
+      || Object.keys(expected).some(key => !isDeepStrictEqual(
+        persisted[key as keyof typeof persisted], expected[key as keyof BootstrapEventData]))) invalid();
+  return persisted;
 }
 
 /** Unknown exception messages/stacks never enter this closed public diagnostic. */

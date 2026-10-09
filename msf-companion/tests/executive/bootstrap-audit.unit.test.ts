@@ -81,14 +81,34 @@ describe("BOOT-14 closed audit registry, attribution and public diagnostics", ()
   });
 
   it("append uses only the supplied transaction and validates before attempting a write", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "event_id", sequence: BigInt(1) });
-    const tx = { executiveActivityEvent: { create } } as unknown as Prisma.TransactionClient;
     const [event] = createBootstrapEvents(eventInput());
-    expect(await appendBootstrapEvent(tx, event)).toEqual({ id: "event_id", sequence: BigInt(1) });
+    const row = { ...event, id: "event_id", sequence: BigInt(1) };
+    const create = vi.fn().mockResolvedValue(row);
+    const findUnique = vi.fn().mockResolvedValue(row);
+    const tx = { executiveActivityEvent: { create, findUnique } } as unknown as Prisma.TransactionClient;
+    expect(await appendBootstrapEvent(tx, event)).toEqual(row);
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({ where: { id: "event_id" } });
     expect(create).toHaveBeenCalledExactlyOnceWith({ data: event });
     await expect(appendBootstrapEvent(tx, { ...event, metadata: { ...event.metadata, secret: "sensitive" } })).rejects.toThrow("AUDIT_EVENT_INVALID");
     expect(create).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["missing", "metadata", "request", "time", "sequence", "identity"])(
+    "rejects %s persisted audit mismatch without a persistence claim", async kind => {
+      const event = createRejectionEvent({ officeId: "synthetic_office", requestId, at });
+      const inserted = { ...structuredClone(event), id: "event_id", sequence: 1n };
+      const persisted = { ...structuredClone(inserted) };
+      if (kind === "metadata") persisted.metadata = { ...persisted.metadata, secret: "synthetic-private-marker" };
+      if (kind === "request") persisted.requestId = "251e89b2-9dad-44cc-801f-cf991bcd50de";
+      if (kind === "time") persisted.occurredAt = new Date(at.getTime() + 1);
+      if (kind === "sequence") persisted.sequence = 2n;
+      if (kind === "identity") persisted.id = "different_id";
+      const create = vi.fn().mockResolvedValue(inserted);
+      const findUnique = vi.fn().mockResolvedValue(kind === "missing" ? null : persisted);
+      const tx = { executiveActivityEvent: { create, findUnique } } as unknown as Prisma.TransactionClient;
+      await expect(appendBootstrapEvent(tx, event)).rejects.toThrow("AUDIT_EVENT_INVALID");
+    },
+  );
 
   it("never substitutes successful audit output after the transaction writer rejects", async () => {
     const create = vi.fn().mockRejectedValue(new Error("Synthetic write failed"));
@@ -137,6 +157,7 @@ function serviceDouble() {
       "ExecutiveOwnerEnrollment", "ExecutiveOwnerChallenge", "ExecutiveOwnerSession", "ExecutiveAuthRateLimit", "ExecutiveCharterAcceptance",
       "ExecutiveActivityEvent"].map((table) => [table, 0])) };
   const order: string[] = [];
+  const auditRows = new Map<string, Row>();
   const insert = (collection: "offices" | "owners" | "agents" | "charters", table: string, letter: string) => vi.fn(async ({ data }: { data: Row }) => {
     order.push(table);
     const row = { ...structuredClone(data), id: `c${letter.repeat(24)}` };
@@ -162,8 +183,10 @@ function serviceDouble() {
       state.counts.ExecutiveActivityEvent++;
       const event = { ...structuredClone(data), id: `event_${state.counts.ExecutiveActivityEvent}`, sequence: String(state.counts.ExecutiveActivityEvent) };
       if (data.eventType !== "executive.bootstrap.rejected") state.births.push(event);
-      return { ...event, sequence: BigInt(event.sequence) };
-    }) },
+      const persisted = { ...event, sequence: BigInt(event.sequence) };
+      auditRows.set(event.id, persisted);
+      return persisted;
+    }), findUnique: vi.fn(async ({ where }: { where: { id: string } }) => auditRows.get(where.id) ?? null) },
   };
   const transaction = vi.fn(async (operation: (value: Prisma.TransactionClient) => Promise<unknown>) => operation(tx as unknown as Prisma.TransactionClient));
   const client = { $transaction: transaction } as unknown as PrismaClient;
@@ -262,6 +285,20 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.state).toEqual(snapshot);
     expect(fixture.tx.executiveOffice.createManyAndReturn).toHaveBeenCalledTimes(1);
     expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("conflict audit readback failure stops without retry or a persisted-audit claim", async () => {
+    const fixture = serviceDouble();
+    await runBootstrap(fixture.options);
+    const prepared = preparedInput();
+    prepared.envelope.owner.displayName = "Conflicting synthetic Owner";
+    prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    fixture.tx.executiveActivityEvent.findUnique.mockResolvedValueOnce(null);
+    const result = await runBootstrap({ ...fixture.options, prepared });
+    expect(result).toMatchObject({ reasonCode: "AUDIT_WRITE_FAILED", exitCode: 5,
+      diagnostic: { phase: "AUDIT", auditPersisted: false } });
+    expect(fixture.transaction).toHaveBeenCalledTimes(2);
+    // This double proves classification only; PostgreSQL rollback is tested separately.
   });
 
   it("changed inputs commit one rejection event before returning a nonzero conflict; check never writes it", async () => {

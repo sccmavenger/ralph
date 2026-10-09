@@ -311,6 +311,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
             if (mode === "apply") {
               phase = "AUDIT";
               await appendBootstrapEvent(tx, createRejectionEvent({ officeId: existing.identity.officeId, requestId, at: await databaseInstant(tx) }));
+              await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
             }
             // Returning, not throwing, commits this bounded rejection audit.
             result = safeFailure(requestId, "BOOTSTRAP_CONFLICT", "REPLAY", mode === "apply");
