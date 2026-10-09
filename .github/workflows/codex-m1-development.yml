@@ -122,7 +122,7 @@ jobs:
         run: npm ci
       - name: Run source-free M1.3 unit checks
         working-directory: msf-companion
-        run: npx vitest run tests/executive/bootstrap-audit.unit.test.ts
+        run: npx vitest run --exclude='e2e/**' --exclude='node_modules/**' --exclude='functions/node_modules/**' tests/executive/bootstrap-audit.unit.test.ts
       - name: Continue bounded M1.3 development immediately
         if: success() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.cycle || '1') < 4
         env:
