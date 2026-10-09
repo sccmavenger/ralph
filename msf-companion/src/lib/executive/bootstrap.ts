@@ -245,9 +245,12 @@ function confirmedServerAbort(state: string | undefined) {
 
 /** Explicit operator service. No import-time client, environment read, logging or I/O. */
 export async function runBootstrap(options: BootstrapOptions): Promise<BootstrapOutcome> {
+  // Bind the invocation before the first await. Callers may reuse/mutate their
+  // options object while this transaction waits for a lock or bounded retry.
+  const { client, mode, readiness } = options;
   const requestId = options.requestId ?? randomUUID();
   if (!isBootstrapRequestId(requestId)) return safeFailure(randomUUID(), "INPUT_INVALID", "INPUT", false);
-  if (!["check", "apply"].includes(options.mode) || typeof options.readiness !== "function") return safeFailure(requestId, "INPUT_INVALID", "INPUT", false);
+  if (!["check", "apply"].includes(mode) || typeof readiness !== "function") return safeFailure(requestId, "INPUT_INVALID", "INPUT", false);
   // Retain exactly these prevalidated bytes/values through both bounded attempts.
   let prepared: BootstrapPrepared;
   try {
@@ -286,18 +289,18 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
     let phase: BootstrapPhase = "PREFLIGHT";
     let callbackReturned = false;
     try {
-      return await options.client.$transaction(async (tx) => {
-        if (options.mode === "check") await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+      return await client.$transaction(async (tx) => {
+        if (mode === "check") await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
         await tx.$executeRawUnsafe("SET LOCAL search_path = pg_catalog");
         await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '5000ms'");
         await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '10000ms'");
         await tx.$executeRawUnsafe("SET LOCAL idle_in_transaction_session_timeout = '15000ms'");
-        if (options.mode === "apply") {
+        if (mode === "apply") {
           phase = "LOCK";
           await tx.$queryRawUnsafe("SELECT 1 AS locked FROM pg_catalog.pg_advisory_xact_lock($1::int, $2::int)", 1297303109, 1);
         }
         phase = "PREFLIGHT";
-        await options.readiness(tx);
+        await readiness(tx);
         phase = "REPLAY";
         const state = await readFoundation(tx);
         const empty = tables.every((table) => state.counts[table] === 0);
@@ -305,17 +308,17 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
         if (!empty) {
           const existing = inspectExisting(state);
           if (existing.office.bootstrapHash !== prepared.bootstrapHash || existing.office.bootstrapVersion !== prepared.envelope.bootstrapVersion) {
-            if (options.mode === "apply") {
+            if (mode === "apply") {
               phase = "AUDIT";
               await appendBootstrapEvent(tx, createRejectionEvent({ officeId: existing.identity.officeId, requestId, at: await databaseInstant(tx) }));
             }
             // Returning, not throwing, commits this bounded rejection audit.
-            result = safeFailure(requestId, "BOOTSTRAP_CONFLICT", "REPLAY", options.mode === "apply");
+            result = safeFailure(requestId, "BOOTSTRAP_CONFLICT", "REPLAY", mode === "apply");
           } else {
             assertSameRelease(existing, prepared);
             result = { status: "ALREADY_BOOTSTRAPPED", requestId, bootstrapVersion: 1, exitCode: 0, ...existing.identity };
           }
-        } else if (options.mode === "check") {
+        } else if (mode === "check") {
           result = { status: "READY_EMPTY", requestId, bootstrapVersion: 1, currentlyInert: true, exitCode: 0 };
         } else {
           phase = "CREATE";
@@ -356,7 +359,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
         phase = "COMMIT";
         callbackReturned = true;
         return result;
-      }, { isolationLevel: options.mode === "check" ? "RepeatableRead" : "ReadCommitted", maxWait: 5000, timeout: 30_000 });
+      }, { isolationLevel: mode === "check" ? "RepeatableRead" : "ReadCommitted", maxWait: 5000, timeout: 30_000 });
     } catch (error) {
       const state = bootstrapSqlState(error);
       // The interactive callback mutates phase; TS cannot follow that closure.

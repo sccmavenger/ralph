@@ -252,6 +252,29 @@ describe("BOOT-01 closed operator arguments and Owner metadata", () => {
 });
 
 describe("BOOT-01 explicit disposable target and no fallback/no connection", () => {
+  it("validation detaches target metadata from the caller", () => {
+    const mutable = { ...target };
+    const validated = validateBootstrapTarget(mutable);
+    mutable.host = "synthetic-remote.invalid";
+    expect(validated.host).toBe("127.0.0.1");
+    expect(validated).not.toBe(mutable);
+  });
+
+  it.each([
+    { host: "synthetic-remote.invalid" }, { port: 5432 }, { role: "exec_test_migrator" },
+    { environment: "production" }, { tls: "enabled" }, { extra: "synthetic-private-marker" },
+  ])("connection builder rejects unvalidated or mutated targets %#", patch => {
+    const changed = { ...validateBootstrapTarget(target), ...patch };
+    expect(() => bootstrapConnection(changed as ReturnType<typeof validateBootstrapTarget>, "check", undefined, environment))
+      .toThrow("INVALID_TARGET");
+  });
+
+  it("connection builder independently enforces the closed mode/confirmation contract", () => {
+    const validated = validateBootstrapTarget(target);
+    expect(() => bootstrapConnection(validated, "unsupported" as "check", undefined, environment)).toThrow("INVALID_TARGET");
+    expect(() => bootstrapConnection(validated, "check", database, environment)).toThrow("INVALID_TARGET");
+  });
+
   it("actual pg Client construction cannot inherit poisoned startup settings (without connecting)", () => {
     for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
     vi.stubEnv("PGBINARY", undefined);

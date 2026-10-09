@@ -82,11 +82,17 @@ export function validateBootstrapTarget(value: unknown): BootstrapTarget {
       target.port !== 55432 || target.role !== 'exec_test_app' || target.tls !== 'disabled' ||
       typeof target.database !== 'string' || /^msf_exec_m12_[a-z0-9][a-z0-9_]{0,49}$/.exec(target.database)?.[0] !== target.database ||
       typeof target.runId !== 'string' || /^[A-Za-z0-9-]{1,100}$/.exec(target.runId)?.[0] !== target.runId) throw new Error('INVALID_TARGET');
-  return target as unknown as BootstrapTarget;
+  // Do not retain caller-owned mutable target metadata after validation.
+  return { ...target } as unknown as BootstrapTarget;
 }
 
 export function bootstrapConnection(target: BootstrapTarget, mode: 'check' | 'apply', confirmTarget: string | undefined,
   env: Readonly<Record<string, string | undefined>> = process.env): PoolConfig {
+  // This exported boundary must be safe even when a caller bypasses CLI parsing
+  // or mutates a previously validated target. The URL guard alone is insufficient:
+  // actual driver host/port are taken from the target, not from that URL.
+  try { target = validateBootstrapTarget(target); } catch { throw new Error('INVALID_TARGET'); }
+  if ((mode !== 'check' && mode !== 'apply') || (mode === 'check' && confirmTarget !== undefined)) throw new Error('INVALID_TARGET');
   if (env.NODE_ENV !== 'test' || Boolean(env.PGBINARY) || env.EXECUTIVE_BOOTSTRAP_DATABASE_CONFIRM !== target.database ||
       (mode === 'apply' && confirmTarget !== target.database)) throw new Error('INVALID_TARGET');
   const match = /^(postgresql|postgres):\/\/([^:@/?#\s]+):([^@/?#\s]+)@127\.0\.0\.1:55432\/(msf_exec_m12_[a-z0-9][a-z0-9_]{0,49})$/.exec(env.EXECUTIVE_BOOTSTRAP_DATABASE_URL ?? '');

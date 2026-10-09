@@ -1,12 +1,28 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { canonicalHash, sha256 } from "../../src/lib/executive/canonical";
-import { runBootstrap, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
-import { businessSnapshot, createBootstrapFixture, executiveSnapshot } from "./bootstrap-fixtures";
+import { runBootstrap, type BootstrapOptions, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
+import { bootstrapReadiness, businessSnapshot, createBootstrapFixture, executiveSnapshot } from "./bootstrap-fixtures";
 import { connectTestDatabase, EXECUTIVE_TABLES, expectSqlFailure, validateTestEnvironment } from "./test-database";
 
 beforeAll(() => { validateTestEnvironment(); });
 
 describe("BOOT-04/05/06/11/16 typed bootstrap, inertness, continuity and unchanged business data", () => {
+  it("check remains read-only when caller mode and input change after actual readiness", async () => {
+    const fixture = await createBootstrapFixture("check_mode_bound");
+    try {
+      const before = await executiveSnapshot(fixture.env);
+      const options: BootstrapOptions = { client: fixture.client, mode: "check",
+        prepared: structuredClone(fixture.prepared), readiness: async tx => {
+          await bootstrapReadiness(fixture.env, "check")(tx);
+          options.mode = "apply";
+          options.prepared.envelope.owner.displayName = "Changed synthetic Owner";
+        },
+      };
+      expect(await runBootstrap(options)).toMatchObject({ status: "READY_EMPTY", exitCode: 0 });
+      expect(await executiveSnapshot(fixture.env)).toEqual(before);
+    } finally { await fixture.close(); }
+  });
+
   it("minimal non-owner grants support readonly check, exact atomic creation and write-free replay", async () => {
     const fixture = await createBootstrapFixture("main", { business: true });
     try {

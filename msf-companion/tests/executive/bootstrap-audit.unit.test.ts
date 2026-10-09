@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Prisma, PrismaClient } from "../../src/generated/prisma/client";
 import { canonicalHash, sha256 } from "../../src/lib/executive/canonical";
-import { BootstrapRejectionError, bootstrapSqlState, runBootstrap, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
+import { BootstrapRejectionError, bootstrapSqlState, runBootstrap, type BootstrapOptions, type BootstrapPrepared } from "../../src/lib/executive/bootstrap";
 import {
   appendBootstrapEvent, buildBootstrapDiagnostic, createBootstrapEvents, createRejectionEvent,
   validateBootstrapEvent, type BootstrapEventData, type BootstrapEventInput,
@@ -173,6 +173,47 @@ function serviceDouble() {
 }
 
 describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error outcomes", () => {
+  it.each(["check", "apply"] as const)("retains %s mode when caller options change during readiness", async (mode) => {
+    const fixture = serviceDouble();
+    const options: BootstrapOptions = { ...fixture.options, mode };
+    fixture.readiness.mockImplementationOnce(async () => {
+      options.mode = mode === "check" ? "apply" : "check";
+      options.prepared.envelope.owner.displayName = "Changed while waiting";
+    });
+    expect(await runBootstrap(options)).toMatchObject({ status: mode === "check" ? "READY_EMPTY" : "CREATED" });
+    expect(fixture.transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: mode === "check" ? "RepeatableRead" : "ReadCommitted", maxWait: 5000, timeout: 30000,
+    });
+    expect(fixture.tx.executiveOffice.createManyAndReturn).toHaveBeenCalledTimes(mode === "check" ? 0 : 1);
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(mode === "check" ? 0 : 2);
+    if (mode === "apply") expect(fixture.state.owners[0].displayName).toBe("Synthetic Owner");
+  });
+
+  it("a bounded retry retains the original client, readiness, mode, input and correlation", async () => {
+    const fixture = serviceDouble();
+    const replacement = serviceDouble();
+    const options: BootstrapOptions = { ...fixture.options };
+    // Fail before writes: this double does not model PostgreSQL rollback.
+    fixture.readiness.mockImplementationOnce(async () => {
+      options.client = replacement.options.client;
+      options.readiness = replacement.readiness;
+      options.mode = "check";
+      options.requestId = "251e89b2-9dad-44cc-801f-cf991bcd50de";
+      options.prepared.envelope.owner.displayName = "Changed while waiting";
+      throw { code: "40001" };
+    });
+    expect(await runBootstrap(options)).toMatchObject({ status: "CREATED", requestId, exitCode: 0 });
+    expect(fixture.transaction).toHaveBeenCalledTimes(2);
+    expect(fixture.readiness).toHaveBeenCalledTimes(2);
+    expect(replacement.transaction).not.toHaveBeenCalled();
+    expect(replacement.readiness).not.toHaveBeenCalled();
+    expect(fixture.state.owners[0].displayName).toBe("Synthetic Owner");
+    expect(fixture.state.births.every(event => event.requestId === requestId)).toBe(true);
+    expect(fixture.transaction).toHaveBeenNthCalledWith(2, expect.any(Function), {
+      isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000,
+    });
+  });
+
   it("check uses read-only RepeatableRead, no write lock or sequence allocation", async () => {
     const fixture = serviceDouble();
     expect(await runBootstrap({ ...fixture.options, mode: "check" })).toEqual({ status: "READY_EMPTY", requestId,

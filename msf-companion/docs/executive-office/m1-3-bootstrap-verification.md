@@ -1,5 +1,69 @@
 # M1.3 implementation — verification record
 
+## Source-free invocation-boundary checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted task starts at `bf66916` on the detached workflow checkout of
+PR #11's implementation branch. HEAD is preserved for patch collection. No
+commit, push, GitHub write, database connection, cloud operation, Owner ceremony
+or later milestone work occurred. Live Issue #10 could not be read: `gh issue
+view 10 --repo sccmavenger/ralph` returned the missing-authentication diagnostic.
+The checked-in approved M1 plan, M1.3 contract, operations and existing evidence
+were inspected; no renewed live issue/PR review is claimed.
+
+Implementation and review scope:
+
+- `src/lib/executive/bootstrap.ts` captures client, mode and readiness callback
+  before the first await. Together with the existing prepared-input clone and
+  request-ID capture, both bounded attempts use the same invocation. Caller
+  mutation during readiness or retry cannot change check/apply behavior, skip a
+  required conflict audit, switch clients or substitute the readiness callback.
+- `src/lib/executive/bootstrap-config.ts` returns detached validated target
+  metadata and revalidates the complete target at the exported connection
+  boundary. An apparently loopback URL cannot accompany a remote driver host,
+  different port, migrator role or non-disposable target. Invalid runtime modes
+  and check-mode confirmations are rejected with a stable `INVALID_TARGET` error.
+- `tests/executive/bootstrap-audit.unit.test.ts` adds three orchestration cases
+  for mode/input mutation and retry retention of client/readiness/correlation.
+- `tests/executive/bootstrap-input.unit.test.ts` adds eight cases for detached
+  metadata, direct invalid targets and the closed mode/confirmation contract.
+- `tests/executive/bootstrap.integration.test.ts` adds a real disposable-PG
+  read-only check case that mutates caller options after actual check-mode
+  readiness and compares every Executive row and sequence before/after.
+- This verification record is the durable review summary. No schema, migration,
+  dependency, lockfile, workflow, policy, Charter, manifest, approval receipt or
+  provenance file changed. No cost or infrastructure change is introduced.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with `EAI_AGAIN` resolving `registry.npmjs.org`; required local dependencies unavailable. Package/lockfile unchanged. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied; no container started or database accessed. The CLI reported this diagnostic despite returning exit 0. |
+| `node /tmp/m13-boundary-check.cjs` | Supplemental temporary harness: seven source/test files transpiled with existing Functions TypeScript, CommonJS/ES2022, without syntactic diagnostics. Fourteen direct Node assertion cases passed for both modes, retry retention, detached target, six invalid target variants, invalid mode/confirmation and valid check/apply configuration. No DB connection. This is neither semantic typecheck nor pinned Vitest/tsx validation. |
+| `git diff --check` | Passed. |
+
+The supplemental harness initially exposed an error-code mismatch: unknown target
+keys emitted `INVALID_SCHEMA`. The connection boundary now converts target
+validation failures to `INVALID_TARGET`; the complete supplemental rerun passed.
+The temporary harness stays outside the repository; the permanent automated tests
+above contain the reviewable regression cases.
+
+All **12 newly added automated cases remain unrun in the required toolchain**,
+including the PostgreSQL test. BOOT-01/04/08/09/14 boundary coverage was extended;
+no BOOT requirement is newly certified complete. BOOT-01–16 and M1.2 full-suite
+preservation, real transaction/locking/audit/role behavior, pinned operator runtime,
+semantic typecheck, targeted/full lint, web regressions, build and Linux container
+startup remain unverified by this run. Historical failures remain as recorded
+below; no new application regression assessment can be made from these checks.
+
+Next proposed action: run the pinned unit/operator cases and the complete
+explicitly guarded disposable PostgreSQL suite in the authorized validation
+environment. Genuine-source protected check/apply/replay and Owner acceptance
+remain mandatory separate gates. Synthetic evidence does not satisfy them.
+Technical merge-readiness assessment: **not ready** until those required checks
+and gates are resolved; no merge or deployment authorization is inferred.
+
 ## Source-free development checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This
