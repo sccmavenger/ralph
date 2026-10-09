@@ -2,7 +2,7 @@ name: Codex M1 Development Agent
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 14 * * 1-5'
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
