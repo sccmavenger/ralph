@@ -11,9 +11,9 @@ You are a coding agent working on **Milestone 1 only** in sccmavenger/ralph. The
 - Stay on branch automation/codex-m1-work; do not merge or push. The workflow will collect your code patch.
 
 ## Work order
-1. Prioritize M1.3 (Issue #10 / PR #11) until accepted. Since this branch starts from main, do **not** recreate or overwrite work already on PR #11. Choose independent tests or a narrowly scoped improvement that can be proposed separately.
+1. Prioritize M1.3 (Issue #10 / PR #11) until accepted. After M1.3 is accepted and merged by the Owner, proceed sequentially through M1.4, M1.5, M1.6, M1.7, and M1.8 using the approved M1 plan, with separate reviewable changes and verification for each step. Never treat a green workflow as Owner acceptance. Since this branch starts from main, do **not** recreate or overwrite work already on PR #11. Choose independent tests or a narrowly scoped improvement that can be proposed separately.
 2. For each run, implement **one** meaningful, scoped code/test change with minimal diff, run relevant local checks, and summarize results and limitations.
-3. If M1.3 cannot proceed without the original Charter or Owner approval, choose a source-free M1 improvement or test that does not weaken the gate. Do not claim M1.3 accepted.
+3. If a step cannot proceed without the original Charter, a security decision, or Owner approval, choose an independent source-free M1 improvement or test that does not weaken the gate. Do not forge approvals or claim the Owner walkthrough has occurred. Do not claim M1.3 accepted.
 4. Leave uncommitted changes for the workflow to capture. No GitHub CLI write actions.
 
 Keep all changes reviewable; the Owner will decide acceptance and merge.
