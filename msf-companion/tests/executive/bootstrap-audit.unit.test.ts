@@ -534,6 +534,58 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.tx.executiveOffice.createManyAndReturn).not.toHaveBeenCalled();
   });
 
+  it.each(["mutation", "getter", "SQLSTATE"])("typed readiness rejection retains private construction evidence despite %s", async kind => {
+    const fixture = serviceDouble();
+    const error = new BootstrapRejectionError("PRIVILEGE_FAILED");
+    const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+    if (kind === "mutation") Object.defineProperty(error, "reasonCode", { value: "synthetic-private-marker" });
+    if (kind === "getter") Object.defineProperty(error, "reasonCode", { get: getter });
+    if (kind === "SQLSTATE") Object.assign(error, { code: "40001" });
+    fixture.readiness.mockRejectedValue(error);
+    const outcome = await runBootstrap(fixture.options);
+    expect(outcome).toMatchObject({ reasonCode: "PRIVILEGE_FAILED", exitCode: 3,
+      diagnostic: { phase: "PREFLIGHT", auditPersisted: false } });
+    expect(JSON.stringify(outcome)).not.toContain("synthetic-private-marker");
+    expect(getter).not.toHaveBeenCalled();
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+    expect(fixture.tx.executiveOffice.createManyAndReturn).not.toHaveBeenCalled();
+    expect(fixture.tx.executiveActivityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it.each(["prototype", "proxy"])("a %s cannot forge typed rejection evidence", async kind => {
+    const fixture = serviceDouble();
+    const getter = vi.fn(() => { throw new Error("synthetic-private-marker"); });
+    const error = kind === "prototype" ? Object.create(BootstrapRejectionError.prototype) :
+      new Proxy(new BootstrapRejectionError("PRIVILEGE_FAILED"), { get: getter });
+    if (kind === "prototype") Object.defineProperty(error, "reasonCode", { get: getter });
+    fixture.readiness.mockRejectedValue(error);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ reasonCode: "TRANSACTION_FAILED", exitCode: 5,
+      diagnostic: { phase: "PREFLIGHT", auditPersisted: false } });
+    expect(getter).not.toHaveBeenCalled();
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+    expect(fixture.tx.executiveOffice.createManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it.each(["COMMIT_OUTCOME_UNKNOWN", "TRANSACTION_FAILED", "AUDIT_WRITE_FAILED", "LOCK_TIMEOUT", "synthetic-private-marker"])(
+    "constructor refuses invalid rejection reason %s with a fixed error", reason => {
+      expect(() => new BootstrapRejectionError(reason as ConstructorParameters<typeof BootstrapRejectionError>[0]))
+        .toThrow("INVALID_BOOTSTRAP_REJECTION");
+    });
+
+  it("a typed rejection after callback return cannot establish rollback or absent audit", async () => {
+    const fixture = serviceDouble();
+    fixture.transaction.mockImplementationOnce(async operation => {
+      await operation(fixture.tx as unknown as Prisma.TransactionClient);
+      throw new BootstrapRejectionError("PRIVILEGE_FAILED");
+    });
+    const outcome = await runBootstrap({ ...fixture.options, mode: "check" });
+    expect(outcome).toMatchObject({ reasonCode: "COMMIT_OUTCOME_UNKNOWN", exitCode: 6,
+      diagnostic: { phase: "COMMIT" } });
+    expect("diagnostic" in outcome && Object.hasOwn(outcome.diagnostic, "auditPersisted")).toBe(false);
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+    expect(fixture.tx.executiveOffice.createManyAndReturn).not.toHaveBeenCalled();
+  });
+
   it.each(["40P01", "40001"])("retries server-confirmed %s once, then stops with the same fixed lock/request", async (code) => {
     const fixture = serviceDouble();
     fixture.tx.$queryRawUnsafe.mockRejectedValue({ code, message: "private SQL detail" });

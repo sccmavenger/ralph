@@ -1,5 +1,66 @@
 # M1.3 implementation — verification record
 
+## Source-free typed rejection checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** Starting
+commit: `5593386c9d6fdae6695c832998a15abbf135d1f4`, detached at the exact
+`origin/executive/m1.3-bootstrap` commit in PR #11's workflow checkout. HEAD is
+preserved; changes remain uncommitted for workflow collection. Pre-existing
+untracked `.github/codex/` is untouched. Read-only `gh issue view 10 --repo
+sccmavenger/ralph --json title,body,state` was blocked by missing authentication.
+No live issue/PR review is claimed. Scope was assessed from the repository M1.3
+plan, verification record, operator, transaction runtime and tests.
+
+Objective: close a concrete transaction error-boundary defect. The former catch
+handler trusted `instanceof` plus mutable `reasonCode`; a mutated typed error
+could throw `AUDIT_EVENT_INVALID` during diagnostic construction instead of
+returning a redacted outcome. An attached serialization SQLSTATE also made a
+readiness rejection eligible for automatic retry.
+
+Files and implementation decisions:
+
+- `src/lib/executive/bootstrap.ts`: privately bind rejection reason to object
+  identity in a WeakMap at construction. Accept only the seven rejection codes;
+  failure/uncertainty codes and arbitrary values fail with the fixed
+  `INVALID_BOOTSTRAP_REJECTION` error before becoming typed evidence. Classify
+  without reading public reason fields or invoking prototype/getter traps.
+  Genuine typed rejections cannot trigger transient SQLSTATE retry. Preserve
+  commit uncertainty before returning a typed rejection: identity alone is not
+  server-confirmed rollback evidence. Proxies/forged instances remain generic.
+- `tests/executive/bootstrap-audit.unit.test.ts`: 11 permanent cases cover reason
+  mutation/getters, attached retry SQLSTATE, forged prototypes/proxy wrappers,
+  invalid constructor reasons, and a typed error after callback return. Assert
+  no writes/retry and no false absent-audit claim where appropriate. These are
+  orchestration doubles, not real PostgreSQL transaction evidence.
+- This verification record captures the reviewable checkpoint. No schema,
+  migration, dependency/lockfile, configuration, workflow, policy, Charter,
+  manifest, approval receipt or provenance change. No DB/network service,
+  production/shared target, cloud, payments, credentials, Owner enrollment or
+  passkey ceremony, acceptance, CEO activation, GitHub write, commit/push or M2.
+  No new infrastructure, cost or Owner decision required for this bounded fix.
+
+Actual checks on Linux, Node **24.21.0**, from repository root except npm:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed: registry DNS `EAI_AGAIN`. Package/lockfile unchanged. |
+| `node msf-companion/node_modules/vitest/vitest.mjs run --config msf-companion/vitest.executive.config.ts msf-companion/tests/executive/bootstrap-audit.unit.test.ts` | Blocked before collection: local Vitest absent. Permanent cases remain unrun by the pinned runner. |
+| `node msf-companion/functions/node_modules/typescript/bin/tsc --noEmit --incremental false --target es2022 --module commonjs --types node --typeRoots msf-companion/functions/node_modules/@types --skipLibCheck msf-companion/src/lib/executive/bootstrap.ts` | Blocked by missing generated Prisma client (`TS2307` in audit/bootstrap). No semantic typecheck pass claimed. |
+| `node /tmp/m13-rejection-baseline-check.cjs` | Expected reproduction failure against unchanged HEAD runtime: mutated typed rejection escapes as `AUDIT_EVENT_INVALID`. Temporary source/harness outside repository. |
+| `node /tmp/m13-rejection-check.cjs` | 22 supplemental cases passed using preinstalled Functions TypeScript. Four runtime modules and changed test transpile without syntactic diagnostics. Covers all accepted rejection codes, altered typed errors, authentic subclass, opaque/forged/proxy errors, invalid reasons and unknown commit. Synthetic readiness/transaction doubles only; no DB/network. |
+| `git diff --check` | Passed. |
+
+BOOT-12/14 failure handling is strengthened; **no BOOT requirement is newly
+certified complete**. BOOT-01–16, all M1.2 preservation, actual Prisma/PostgreSQL
+transactions, pinned typecheck/targeted lint, exact baseline web regression/lint/
+audit/build comparisons and Linux container checks remain unverified by this run.
+Historical failures below remain separate; supplemental checks do not establish
+absence of new regressions. Genuine-source protected CLI check/apply/replay,
+independent source-fidelity review and Owner acceptance remain mandatory gates.
+Next action: run pinned dedicated/disposable suites and baseline/container
+comparisons in the authorized runner, then genuine-source rehearsal. Technical
+merge readiness: **not ready**. No acceptance or progression to M1.4 is inferred.
+
 ## Source-free audit capture checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This run

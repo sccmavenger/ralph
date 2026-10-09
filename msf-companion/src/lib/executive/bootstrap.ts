@@ -49,13 +49,21 @@ export type BootstrapOptions = {
   requestId?: string;
 };
 
+const rejectionReasons = ["INPUT_INVALID", "TARGET_INVALID", "PROVENANCE_INVALID", "READINESS_FAILED",
+  "PRIVILEGE_FAILED", "BOOTSTRAP_CONFLICT", "FOUNDATION_INCONSISTENT"] as const;
+// Classification is bound at construction. Public Error fields are mutable and
+// may be replaced with getters; neither instanceof nor those fields are proof.
+const rejectionEvidence = new WeakMap<object, BootstrapReasonCode>();
+
 /** Safe typed rejection for readiness/validation composition; never holds raw errors. */
 export class BootstrapRejectionError extends Error {
   readonly reasonCode: BootstrapReasonCode;
   constructor(reasonCode: BootstrapReasonCode) {
+    if (!(rejectionReasons as readonly unknown[]).includes(reasonCode)) throw new Error("INVALID_BOOTSTRAP_REJECTION");
     super(reasonCode);
     this.name = "BootstrapRejectionError";
     this.reasonCode = reasonCode;
+    rejectionEvidence.set(this, reasonCode);
   }
 }
 
@@ -408,19 +416,18 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
       }, { isolationLevel: mode === "check" ? "RepeatableRead" : "ReadCommitted", maxWait: 5000, timeout: 30_000 });
     } catch (error) {
       const state = bootstrapSqlState(error);
+      const rejectionReason = error !== null && typeof error === "object" ? rejectionEvidence.get(error) : undefined;
       // The interactive callback mutates phase; TS cannot follow that closure.
       const failedPhase = phase as BootstrapPhase;
       // A server-reported deadlock/serialization abort is not an unknown commit.
       // Audit failures are not retried, even when the underlying SQL is transient.
-      if ((state === "40P01" || state === "40001") && !rejectionAudit && failedPhase !== "AUDIT" && attempt === 0) {
+      if ((state === "40P01" || state === "40001") && !rejectionReason && !rejectionAudit && failedPhase !== "AUDIT" && attempt === 0) {
         await delay(250);
         continue;
       }
       if (callbackReturned && !confirmedServerAbort(state)) return safeFailure(requestId, "COMMIT_OUTCOME_UNKNOWN", "COMMIT");
-      // Even instanceof can throw for an opaque/revoked adapter error proxy.
-      // Such an error supplies no typed rejection evidence and stays generic.
-      let rejectionReason: BootstrapReasonCode | undefined;
-      try { if (error instanceof BootstrapRejectionError) rejectionReason = error.reasonCode; } catch { /* Opaque error. */ }
+      // WeakMap identity inspection invokes no caller getters/prototype traps,
+      // including on revoked proxies or forged/subclassed Error instances.
       if (rejectionReason) return safeFailure(requestId, rejectionReason, failedPhase, false);
       if (failedPhase === "LOCK" && state === "55P03") return safeFailure(requestId, "LOCK_TIMEOUT", failedPhase, false);
       if (rejectionAudit || failedPhase === "AUDIT") return safeFailure(requestId, "AUDIT_WRITE_FAILED", failedPhase, false);
