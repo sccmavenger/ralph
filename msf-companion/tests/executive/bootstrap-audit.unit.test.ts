@@ -107,7 +107,7 @@ describe("BOOT-14 closed audit registry, attribution and public diagnostics", ()
       if (kind === "Date method") Object.defineProperty(event.createdAt, "getTime", { get: getter });
       if (kind === "Date subclass") event.createdAt = new (class extends Date {})(at);
       if (kind === "invalid Date") event.createdAt = new Date(NaN);
-      if (kind === "cycle") event.metadata.loop = event.metadata;
+      if (kind === "cycle") Object.assign(event.metadata, { loop: event.metadata });
       const create = vi.fn();
       const findUnique = vi.fn();
       const tx = { executiveActivityEvent: { create, findUnique } } as unknown as Prisma.TransactionClient;
@@ -122,10 +122,10 @@ describe("BOOT-14 closed audit registry, attribution and public diagnostics", ()
   it("captures event fields, metadata and Dates before waiting for the writer", async () => {
     const [event] = createBootstrapEvents(eventInput());
     const original = structuredClone(event);
-    const row = { ...original, id: "event_id", sequence: 1n };
+    const row = { ...original, id: "event_id", sequence: BigInt(1) };
     const create = vi.fn(async () => {
       event.requestId = "251e89b2-9dad-44cc-801f-cf991bcd50de";
-      event.metadata.sourceFileHash = "e".repeat(64);
+      Object.assign(event.metadata, { sourceFileHash: "e".repeat(64) });
       event.createdAt.setTime(0);
       return row;
     });
@@ -152,12 +152,12 @@ describe("BOOT-14 closed audit registry, attribution and public diagnostics", ()
   it.each(["missing", "metadata", "request", "time", "sequence", "identity"])(
     "rejects %s persisted audit mismatch without a persistence claim", async kind => {
       const event = createRejectionEvent({ officeId: "synthetic_office", requestId, at });
-      const inserted = { ...structuredClone(event), id: "event_id", sequence: 1n };
+      const inserted = { ...structuredClone(event), id: "event_id", sequence: BigInt(1) };
       const persisted = { ...structuredClone(inserted) };
       if (kind === "metadata") persisted.metadata = { ...persisted.metadata, secret: "synthetic-private-marker" };
       if (kind === "request") persisted.requestId = "251e89b2-9dad-44cc-801f-cf991bcd50de";
       if (kind === "time") persisted.occurredAt = new Date(at.getTime() + 1);
-      if (kind === "sequence") persisted.sequence = 2n;
+      if (kind === "sequence") persisted.sequence = BigInt(2);
       if (kind === "identity") persisted.id = "different_id";
       const create = vi.fn().mockResolvedValue(inserted);
       const findUnique = vi.fn().mockResolvedValue(kind === "missing" ? null : persisted);
