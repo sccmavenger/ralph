@@ -50,6 +50,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ':workspace'
           safety-strategy: drop-sudo
+          allow-bots: true
           prompt-file: .github/codex/m1-agent.md
           working-directory: .
       - name: Save code-only patch
