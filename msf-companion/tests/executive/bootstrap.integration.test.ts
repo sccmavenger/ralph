@@ -7,6 +7,29 @@ import { connectTestDatabase, EXECUTIVE_TABLES, expectSqlFailure, validateTestEn
 beforeAll(() => { validateTestEnvironment(); });
 
 describe("BOOT-04/05/06/11/16 typed bootstrap, inertness, continuity and unchanged business data", () => {
+  it("noncanonical prepared Markdown is rejected before check/apply without rows or sequence allocations", async () => {
+    const fixture = await createBootstrapFixture("invalid_markdown", { business: true });
+    try {
+      const before = await executiveSnapshot(fixture.env);
+      const business = await businessSnapshot(fixture.env);
+      for (const content of ["\uFEFF# Synthetic\n", "# Synthetic\r\n", "# Synthetic\n\n", "# Synthetic \ud800\n",
+        "é".repeat(128 * 1024) + "\n"]) {
+        const prepared = structuredClone(fixture.prepared);
+        prepared.charter.contentMarkdown = content;
+        prepared.charter.contentHash = sha256(content);
+        prepared.envelope.charter.contentHash = prepared.charter.contentHash;
+        prepared.bootstrapHash = canonicalHash(prepared.envelope);
+        for (const mode of ["check", "apply"] as const) {
+          expect(await fixture.run(mode, prepared)).toMatchObject({ reasonCode: "INPUT_INVALID", exitCode: 2,
+            diagnostic: { phase: "INPUT", auditPersisted: false } });
+        }
+      }
+      expect(await executiveSnapshot(fixture.env)).toEqual(before);
+      expect(await businessSnapshot(fixture.env)).toEqual(business);
+      expect(await fixture.run()).toMatchObject({ status: "CREATED" });
+    } finally { await fixture.close(); }
+  });
+
   it("check remains read-only when caller mode and input change after actual readiness", async () => {
     const fixture = await createBootstrapFixture("check_mode_bound");
     try {

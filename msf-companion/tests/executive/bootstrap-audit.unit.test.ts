@@ -337,6 +337,31 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
     expect(fixture.transaction).not.toHaveBeenCalled();
   });
 
+  it.each(["noncanonical content", "empty responsibilities"])(
+    "rejects persisted %s before a conflicting attempt can append a rejection", async kind => {
+      const fixture = serviceDouble();
+      expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+      // Returned-data corruption only; never mutate permanent DB history or
+      // disable guards. Keep birth hashes consistent to isolate semantic checks.
+      if (kind === "noncanonical content") {
+        const content = "# Synthetic Charter\r\n";
+        fixture.state.charters[0].contentMarkdown = content;
+        fixture.state.charters[0].contentHash = sha256(content);
+        (fixture.state.births[0].metadata as Record<string, unknown>).contentHash = sha256(content);
+        (fixture.state.births[1].metadata as Record<string, unknown>).charterContentHash = sha256(content);
+      } else {
+        (fixture.state.agents[0].roleDefinition as { responsibilities: string[] }).responsibilities = [];
+      }
+      const attempted = preparedInput();
+      attempted.envelope.owner.displayName = "Different synthetic Owner";
+      attempted.bootstrapHash = canonicalHash(attempted.envelope);
+      expect(await runBootstrap({ ...fixture.options, prepared: attempted })).toMatchObject({
+        reasonCode: "FOUNDATION_INCONSISTENT", exitCode: 4, diagnostic: { auditPersisted: false },
+      });
+      expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it.each(["extra envelope key", "extra owner key", "extra artifact key", "empty owner", "control character", "invalid contact"])(
     "rejects %s even with a recomputed digest before opening a transaction", async kind => {
       const fixture = serviceDouble();
@@ -354,6 +379,63 @@ describe("BOOT-04/05/06/08/13/14 pure transaction orchestration and safe error o
       expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
     },
   );
+
+  it.each([
+    ["BOM", "\uFEFF# Synthetic Charter\n"], ["CRLF", "# Synthetic Charter\r\n"],
+    ["missing final LF", "# Synthetic Charter"], ["extra final LF", "# Synthetic Charter\n\n"],
+    ["empty", ""], ["whitespace only", " \n"], ["NUL", "# Synthetic\0Charter\n"],
+    ["unpaired surrogate", "# Synthetic \ud800\n"],
+    ["oversized UTF-8", "é".repeat(128 * 1024) + "\n"],
+  ])("rejects %s Markdown with a matching recomputed digest before any transaction", async (_kind, contentMarkdown) => {
+    const fixture = serviceDouble();
+    const prepared = fixture.options.prepared;
+    prepared.charter.contentMarkdown = contentMarkdown;
+    prepared.charter.contentHash = sha256(contentMarkdown);
+    prepared.envelope.charter.contentHash = prepared.charter.contentHash;
+    prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ reasonCode: "INPUT_INVALID", exitCode: 2,
+      diagnostic: { phase: "INPUT", auditPersisted: false } });
+    expect(fixture.transaction).not.toHaveBeenCalled();
+    expect(fixture.readiness).not.toHaveBeenCalled();
+  });
+
+  it.each(["empty responsibilities", "empty boundaries", "blank responsibility", "NUL mission", "oversized role",
+    "empty Office", "non-string CEO", "blank title", "private source path"])(
+    "rejects %s prepared release data before any transaction", async kind => {
+      const fixture = serviceDouble();
+      const prepared = fixture.options.prepared;
+      const role = prepared.envelope.ceo.roleDefinition;
+      if (kind === "empty responsibilities") role.responsibilities = [];
+      if (kind === "empty boundaries") role.nonResponsibilities = [];
+      if (kind === "blank responsibility") role.responsibilities = [" "];
+      if (kind === "NUL mission") role.mission = "Synthetic\0mission";
+      if (kind === "oversized role") role.mission = "é".repeat(8192);
+      if (kind === "empty Office") prepared.envelope.office.name = "";
+      if (kind === "non-string CEO") Object.assign(prepared.envelope.ceo, { displayName: { secret: "synthetic-private-marker" } });
+      if (kind === "blank title") prepared.charter.title = prepared.envelope.charter.title = " ";
+      if (kind === "private source path") prepared.charter.sourceFileName = prepared.envelope.charter.sourceFileName = "/synthetic-private-marker.docx";
+      prepared.bootstrapHash = canonicalHash(prepared.envelope);
+      const result = await runBootstrap(fixture.options);
+      expect(result).toMatchObject({ reasonCode: "INPUT_INVALID", exitCode: 2, diagnostic: { auditPersisted: false } });
+      expect(fixture.transaction).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("synthetic-private-marker");
+    },
+  );
+
+  it("retains exact valid Unicode Markdown bytes through creation and replay at the byte limit", async () => {
+    const fixture = serviceDouble();
+    const prepared = fixture.options.prepared;
+    // 2 bytes per é, 3 per em dash and 1 final LF: exactly 256 KiB.
+    prepared.charter.contentMarkdown = "é".repeat(131070) + "—\n";
+    prepared.charter.contentHash = sha256(prepared.charter.contentMarkdown);
+    prepared.envelope.charter.contentHash = prepared.charter.contentHash;
+    prepared.bootstrapHash = canonicalHash(prepared.envelope);
+    expect(Buffer.byteLength(prepared.charter.contentMarkdown)).toBe(256 * 1024);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "CREATED" });
+    expect(fixture.state.charters[0].contentMarkdown).toBe(prepared.charter.contentMarkdown);
+    expect(await runBootstrap(fixture.options)).toMatchObject({ status: "ALREADY_BOOTSTRAPPED" });
+    expect(fixture.tx.executiveActivityEvent.create).toHaveBeenCalledTimes(2);
+  });
 
   it("readiness rejection and lock timeout expose only stable diagnostics, with no writes/retry", async () => {
     const fixture = serviceDouble();

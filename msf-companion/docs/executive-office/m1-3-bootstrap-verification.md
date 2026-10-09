@@ -1,5 +1,76 @@
 # M1.3 implementation — verification record
 
+## Source-free prepared-release semantic checkpoint — October 9, 2026
+
+**M1.3 remains incomplete and is not ready for acceptance or merge.** This
+uncommitted task starts at `418e83c`, the detached workflow checkout of PR #11's
+implementation. HEAD is preserved for patch collection. No commit, push, GitHub
+write, database connection, cloud operation, Owner ceremony or later story work
+occurred. `gh issue view 10 --repo sccmavenger/ralph --json title,body,state`
+returned the missing `GH_TOKEN` diagnostic; live issue/PR inspection is not
+claimed. Scope was assessed from the checked-in M1 plan, M1.3 bootstrap plan,
+verification history, implementation and tests.
+
+Objective: close the semantic validation gap between the fixed-release CLI loader
+and the reusable transaction boundary. Previously a matching digest allowed the
+service to accept noncanonical Markdown, while its role validator accepted empty
+responsibility lists. A digest is byte evidence, not semantic validation or source
+approval.
+
+Files and implementation decisions:
+
+- `src/lib/executive/bootstrap.ts`: before opening any transaction, validate
+  Markdown as nonblank, valid Unicode, no leading BOM/CR/NUL, exactly one final LF,
+  and at most 256 KiB in UTF-8 bytes. Validate descriptive values as nonblank
+  Unicode strings without NUL and source name as a bounded basename matching the
+  existing audit registry. Validate role canonical serialization within the
+  loader's 16 KiB ceiling, with nonempty responsibility and boundary lists and
+  nonblank Unicode entries. Retain empty tools/permissions and no spending.
+  Replay inspects the same Markdown/role semantics before considering conflict
+  auditing; it never repairs stored evidence. CLI provenance verification and
+  fixed approved hashes remain required and unchanged.
+- `tests/executive/bootstrap-audit.unit.test.ts`: 21 new automated cases cover
+  nine invalid Markdown variants with recomputed digests, nine invalid prepared
+  release variants, exact UTF-8 byte-limit creation/replay, and two returned-data
+  corruption cases proving inconsistent foundation takes priority over conflict
+  auditing. Transaction doubles do not establish PostgreSQL behavior.
+- `tests/executive/bootstrap.integration.test.ts`: one owned-disposable-PG case
+  exercises five malformed content variants in both modes, comparing every
+  Executive row and sequence plus business catalogs/sentinels, then checking
+  that a valid creation still succeeds. No shared database target is used.
+- This verification record supplies durable review context and limitations.
+
+No schema/migration, dependency/lockfile, configuration, workflow, policy, Charter,
+manifest, approval receipt or provenance file changed. No privilege, spending or
+infrastructure increase is introduced. Validation adds bounded in-memory Unicode
+and byte checks; no extra SQL or external service is required. The service still
+expects prevalidated approved assets from its caller; these semantic checks do
+not independently establish genuine-source provenance.
+
+Actual verification on Linux, Node **24.21.0**:
+
+| Command/check | Result and limitation |
+|---|---|
+| `npm ci --no-audit --no-fund --fetch-retries=0 --fetch-timeout=15000` in `msf-companion` | Failed with `EAI_AGAIN` resolving `registry.npmjs.org`; required pinned toolchain unavailable. Package/lockfile unchanged. |
+| `docker info --format '{{.ServerVersion}}'` | Docker socket access denied; no container/database started or accessed. CLI returned exit 0 despite diagnostic. |
+| `node /tmp/m13-prepared-check.cjs` | Existing Functions TypeScript transpiled six source/test files without syntactic diagnostics. 38 direct Node assertion cases passed: 18 malformed prepared variants in both modes reject before transaction, plus two valid Unicode/byte-limit check cases. No DB, pinned Vitest/tsx or semantic typecheck proof. Temporary harness remains outside repository. |
+| `git diff --check` | Passed. |
+
+All **22 newly added permanent automated cases remain unrun in the required
+toolchain**, including the PostgreSQL case and unit creation/replay/corruption
+cases. BOOT-02/03/06 boundary coverage is extended; no BOOT requirement is newly
+certified complete. BOOT-01–16 and complete M1.2 preservation, actual transaction/
+locking/audit/minimal-role behavior, semantic typecheck, targeted/full lint, web
+regressions, build and Linux container startup remain unverified by this run.
+Historical failures remain recorded below; supplemental checks cannot establish
+absence of new application regressions.
+
+Next proposed action: run pinned unit/operator cases and the complete explicitly
+guarded owned-disposable PostgreSQL suite, then finish regression/container
+verification. Genuine-source protected check/apply/replay and Owner acceptance
+remain mandatory separate gates. Technical merge-readiness: **not ready**;
+acceptance, merge, deployment and progression to M1.4 are not claimed.
+
 ## Source-free audit persistence checkpoint — October 9, 2026
 
 **M1.3 remains incomplete and is not ready for acceptance or merge.** This

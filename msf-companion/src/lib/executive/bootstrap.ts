@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma, PrismaClient } from "../../generated/prisma/client";
-import { canonicalHash, exactObject } from "./canonical";
+import { assertUnicode, canonicalHash, canonicalJson, exactObject } from "./canonical";
 import { validateBootstrapInput } from "./bootstrap-config";
 import {
   appendBootstrapEvent, buildBootstrapDiagnostic, createBootstrapEvents, createRejectionEvent,
@@ -116,12 +116,27 @@ function sameEvent(actual: StoredRow, expected: BootstrapEventData) {
   requireCondition(isDeepStrictEqual(actual.metadata, expected.metadata));
 }
 
+function validText(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim() || value.includes("\0")) return false;
+  try { assertUnicode(value); return true; } catch { return false; }
+}
+
+/** Reusable service callers must retain the release loader's byte contract. */
+function validCharterText(value: unknown): value is string {
+  return validText(value) && !value.startsWith("\uFEFF") && !value.includes("\r")
+    && value.endsWith("\n") && !value.endsWith("\n\n")
+    && Buffer.byteLength(value, "utf8") <= 256 * 1024;
+}
+
 function validRole(value: unknown): value is BootstrapRoleDefinition {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const role = value as StoredRow;
+  try {
+    if (Buffer.byteLength(canonicalJson(role), "utf8") > 16 * 1024) return false;
+  } catch { return false; }
   return Object.keys(role).sort().join("|") === ["schemaVersion", "mission", "responsibilities", "nonResponsibilities", "tools", "permissions", "spendingAuthority"].sort().join("|")
-    && role.schemaVersion === 1 && typeof role.mission === "string" && role.mission.trim().length > 0
-    && [role.responsibilities, role.nonResponsibilities].every((items) => Array.isArray(items) && items.every((entry) => typeof entry === "string"))
+    && role.schemaVersion === 1 && validText(role.mission)
+    && [role.responsibilities, role.nonResponsibilities].every((items) => Array.isArray(items) && items.length > 0 && items.every(validText))
     && Array.isArray(role.tools) && role.tools.length === 0 && Array.isArray(role.permissions) && role.permissions.length === 0
     && role.spendingAuthority === false;
 }
@@ -142,9 +157,9 @@ function inspectExisting(state: FoundationSnapshot) {
   requireCondition(ceo.officeId === office.id && ceo.reportsToOwnerId === owner.id && ceo.roleKey === "CEO"
     && ceo.roleDefinitionVersion === 1 && validRole(ceo.roleDefinition));
   requireCondition(charter.officeId === office.id && charter.version === 1 && charter.importedByOwnerId === null
-    && typeof charter.contentMarkdown === "string" && isHash(charter.contentHash)
+    && validCharterText(charter.contentMarkdown) && isHash(charter.contentHash)
     && hashText(charter.contentMarkdown) === charter.contentHash && isHash(charter.sourceFileHash)
-    && typeof charter.sourceFileName === "string" && typeof charter.title === "string");
+    && typeof charter.sourceFileName === "string" && validText(charter.title));
   requireCondition(office.activeCharterAcceptanceId === ceo.governingCharterAcceptanceId);
   requireCondition(office.activeCharterAcceptanceId === null || isId(office.activeCharterAcceptanceId));
   requireCondition(typeof owner.status === "string" && ["PENDING_ENROLLMENT", "ACTIVE", "LOCKED"].includes(owner.status)
@@ -271,11 +286,15 @@ export async function runBootstrap(options: BootstrapOptions): Promise<Bootstrap
     if (envelope.bootstrapVersion !== 1 || envelope.auditSchemaVersion !== 1
         || !isHash(prepared.bootstrapHash) || canonicalHash(envelope) !== prepared.bootstrapHash
         || !validRole(envelope.ceo.roleDefinition) || envelope.office.key !== "msf-toolkit"
+        || !validText(envelope.office.name) || !validText(envelope.ceo.displayName)
         || envelope.office.phase !== "FOUNDATION" || envelope.office.executionMode !== "DISABLED"
         || envelope.office.activeCharterAcceptanceId !== null || envelope.owner.status !== "PENDING_ENROLLMENT"
         || envelope.owner.authVersion !== 1 || envelope.ceo.roleKey !== "CEO" || envelope.ceo.status !== "ONBOARDING"
         || envelope.ceo.roleDefinitionVersion !== 1 || envelope.ceo.governingCharterAcceptanceId !== null
         || envelope.charter.version !== 1 || envelope.charter.importedByOwnerId !== null
+        || !validCharterText(charter.contentMarkdown) || !validText(charter.title)
+        || typeof charter.sourceFileName !== "string"
+        || /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,199}$/.exec(charter.sourceFileName)?.[0] !== charter.sourceFileName
         || !isHash(charter.contentHash) || hashText(charter.contentMarkdown) !== charter.contentHash
         || !isHash(charter.sourceFileHash) || !isHash(charter.manifestHash)
         || !["contentHash", "sourceFileName", "sourceFileHash", "title", "manifestHash"].every(
