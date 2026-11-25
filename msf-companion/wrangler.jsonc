@@ -1,0 +1,49 @@
+{
+  // Phase 1 of the Azure -> Cloudflare migration (MSF-5).
+  //
+  // Deliberately has NO "routes"/"route" key. Without one a deploy can only be
+  // reached at <name>.<subdomain>.workers.dev, so deploying this cannot take
+  // traffic for themsftoolkit.com. The zone route is added only at cutover,
+  // after the GoDaddy -> Cloudflare nameserver switch (see
+  // infra/cloudflare/MIGRATION.md).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "msf-companion-web",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+
+  // The container image is built from the existing production Dockerfile,
+  // unmodified. Keeping that image is the whole reason Containers was chosen
+  // over the Workers/OpenNext adapter: src/lib/youtube-pipeline.ts shells out
+  // with node:child_process, which a Workers isolate cannot do.
+  "containers": [
+    {
+      "class_name": "WebContainer",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./Dockerfile"
+        }
+      }
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WEB_CONTAINER",
+        "class_name": "WebContainer"
+      }
+    ]
+  },
+
+  "exports": {
+    "WebContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
+}

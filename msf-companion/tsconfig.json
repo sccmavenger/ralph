@@ -39,6 +39,12 @@
   "exclude": [
     "node_modules",
     "vitest.config.ts",
-    "functions"
+    "functions",
+    // The Cloudflare Worker front door targets the workerd runtime, not Node,
+    // and imports "cloudflare:workers". Leaving it in this project makes
+    // `next build` fail to resolve that module. It is typechecked separately
+    // by tsconfig.worker.json (`npm run cf:typecheck`).
+    "src/worker",
+    "worker-configuration.d.ts"
   ]
 }

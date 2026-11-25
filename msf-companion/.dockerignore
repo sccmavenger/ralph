@@ -1,6 +1,12 @@
 node_modules
 .next
 .git
+# Cloudflare Worker front door: it runs outside this image, in workerd. Keeping
+# it out of the build context also keeps it out of `next build`'s file watch.
+src/worker
+wrangler.jsonc
+tsconfig.worker.json
+worker-configuration.d.ts
 .gitignore
 .azure
 infra

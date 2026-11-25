@@ -1,0 +1,198 @@
+name: Cloudflare Web Deploy
+
+# MSF-5 Phase 1. `wrangler deploy` builds and pushes the container image itself,
+# so it needs a Docker daemon; ubuntu-latest has one and the Paperclip build
+# machine does not. That is the only reason this lives in CI.
+#
+# Deployment is workflow_dispatch only. Per the repository's Executive Office
+# rules, permission to push a branch or open a PR is not deployment permission,
+# so nothing here fires from a push. The `validate` job is the push-safe half:
+# it typechecks the Worker and parses wrangler.jsonc without touching Cloudflare.
+#
+# Required repository secrets:
+#   CLOUDFLARE_API_TOKEN   - scoped token: Workers Scripts:Edit, Containers:Edit,
+#                            Workers Observability:Edit (read account id below)
+#   CLOUDFLARE_ACCOUNT_ID  - target Cloudflare account
+# Required only when sync_secrets is true (see the `env:` of that step).
+
+on:
+  push:
+    branches: [migrate/cloudflare-phase1]
+    paths:
+      - .github/workflows/cloudflare-deploy.yml
+      - msf-companion/wrangler.jsonc
+      - msf-companion/src/worker/**
+      - msf-companion/tsconfig.worker.json
+      - msf-companion/Dockerfile
+  pull_request:
+    paths:
+      - .github/workflows/cloudflare-deploy.yml
+      - msf-companion/wrangler.jsonc
+      - msf-companion/src/worker/**
+      - msf-companion/tsconfig.worker.json
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Actually deploy to Cloudflare (otherwise validate only)"
+        type: boolean
+        default: false
+      sync_secrets:
+        description: "Also push container runtime secrets with `wrangler secret bulk`"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-web-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Worker and container config
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: msf-companion
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: msf-companion/.node-version
+          cache: npm
+          cache-dependency-path: msf-companion/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Also parses and validates wrangler.jsonc, including the containers,
+      # durable_objects and exports blocks. No Cloudflare credentials needed.
+      - name: Generate Cloudflare runtime types
+        run: npm run cf:types
+
+      - name: Typecheck the Worker
+        run: npm run cf:typecheck
+
+      - name: Confirm the generated types are committed and current
+        run: git diff --exit-code -- worker-configuration.d.ts
+
+      # The app build is what the container image runs. Catching a build break
+      # here is much cheaper than catching it inside a Docker layer.
+      - name: Build the application
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+        run: |
+          npx prisma generate
+          npm run build
+
+  deploy:
+    name: Deploy to Cloudflare
+    needs: validate
+    # Belt and braces: the job is only reachable from a manual dispatch that
+    # explicitly opts in.
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: cloudflare-production
+    defaults:
+      run:
+        shell: bash
+        working-directory: msf-companion
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: msf-companion/.node-version
+          cache: npm
+          cache-dependency-path: msf-companion/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Record the build environment
+        run: |
+          docker version
+          npx wrangler --version
+          git rev-parse HEAD
+
+      # Secrets are set before the deploy so the first container start already
+      # has them. Written to a file because `secret bulk` reads JSON from a
+      # path; the file is removed in the same step whether or not it succeeds.
+      - name: Sync container runtime secrets
+        if: inputs.sync_secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MSF_API_KEY: ${{ secrets.MSF_API_KEY }}
+          SCOPELY_CLIENT_ID: ${{ secrets.SCOPELY_CLIENT_ID }}
+          SCOPELY_CLIENT_SECRET: ${{ secrets.SCOPELY_CLIENT_SECRET }}
+          SCOPELY_REDIRECT_URI: ${{ secrets.SCOPELY_REDIRECT_URI }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          AZURE_OPENAI_GPT4O_MINI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_GPT4O_MINI_DEPLOYMENT }}
+          AZURE_AI_SEARCH_ENDPOINT: ${{ secrets.AZURE_AI_SEARCH_ENDPOINT }}
+          AZURE_AI_SEARCH_KEY: ${{ secrets.AZURE_AI_SEARCH_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          set -euo pipefail
+          trap 'rm -f cf-secrets.json' EXIT
+          # Emit only the variables that are actually set, so a repository
+          # missing an optional secret does not overwrite a live value with "".
+          jq -n '
+            [
+              "DATABASE_URL","MSF_API_KEY","SCOPELY_CLIENT_ID","SCOPELY_CLIENT_SECRET",
+              "SCOPELY_REDIRECT_URI","SESSION_SECRET","STRIPE_SECRET_KEY",
+              "STRIPE_WEBHOOK_SECRET","STRIPE_PRICE_ID","NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+              "AZURE_OPENAI_ENDPOINT","AZURE_OPENAI_KEY","AZURE_OPENAI_GPT4O_MINI_DEPLOYMENT",
+              "AZURE_AI_SEARCH_ENDPOINT","AZURE_AI_SEARCH_KEY","CRON_SECRET",
+              "YOUTUBE_API_KEY","RESEND_API_KEY"
+            ]
+            | map(select(env[.] != null and env[.] != "") | {key: ., value: env[.]})
+            | from_entries
+          ' > cf-secrets.json
+          echo "Syncing $(jq 'keys | length' cf-secrets.json) secrets"
+          npx wrangler secret bulk cf-secrets.json
+
+      - name: Deploy Worker and container image
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      # The deployed Worker has no zone route, so this only ever reaches the
+      # workers.dev preview hostname, never themsftoolkit.com.
+      - name: Smoke test the preview hostname
+        env:
+          PREVIEW_URL: ${{ vars.CLOUDFLARE_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PREVIEW_URL:-}" ]; then
+            echo "CLOUDFLARE_PREVIEW_URL variable is not set; skipping smoke test." >&2
+            exit 0
+          fi
+          # First request pays the container cold start, so allow a long timeout.
+          curl --fail-with-body --show-error --silent --max-time 180 \
+            "${PREVIEW_URL%/}/api/health" | tee health.json
+          jq -e '.status == "ok"' health.json
